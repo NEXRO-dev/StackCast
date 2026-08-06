@@ -6,6 +6,34 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA000011302316AF001EA23E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001302316AF001EA23E /* ContentView.swift */; };
+		AA000012302316AF001EA23E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002302316AF001EA23E /* HomeView.swift */; };
+		AA000013302316AF001EA23E /* StockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003302316AF001EA23E /* StockView.swift */; };
+		AA000014302316AF001EA23E /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004302316AF001EA23E /* PlayerView.swift */; };
+		AA000015302316AF001EA23E /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005302316AF001EA23E /* LogView.swift */; };
+		AA000016302316AF001EA23E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006302316AF001EA23E /* SettingsView.swift */; };
+		AA000017302316AF001EA23E /* TsundokuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000007302316AF001EA23E /* TsundokuApp.swift */; };
+		AA000018302316AF001EA23E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000008302316AF001EA23E /* Assets.xcassets */; };
+		AA000019302316AF001EA23E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000009302316AF001EA23E /* OnboardingView.swift */; };
+		AA00001A302316AF001EA23E /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000A302316AF001EA23E /* SignupView.swift */; };
+		AA00001B302316AF001EA23E /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000B302316AF001EA23E /* AppDesign.swift */; };
+		AB000011302316AF001EA23E /* HomeViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000001302316AF001EA23E /* HomeViewEN.swift */; };
+		AB000012302316AF001EA23E /* StockViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000002302316AF001EA23E /* StockViewEN.swift */; };
+		AB000013302316AF001EA23E /* PlayerViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000003302316AF001EA23E /* PlayerViewEN.swift */; };
+		AB000014302316AF001EA23E /* LogViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000004302316AF001EA23E /* LogViewEN.swift */; };
+		AB000015302316AF001EA23E /* SettingsViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000005302316AF001EA23E /* SettingsViewEN.swift */; };
+		AB000016302316AF001EA23E /* OnboardingViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000006302316AF001EA23E /* OnboardingViewEN.swift */; };
+		AB000017302316AF001EA23E /* SignupViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000007302316AF001EA23E /* SignupViewEN.swift */; };
+		AC000011302316AF001EA23E /* ArticleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000001302316AF001EA23E /* ArticleLibrary.swift */; };
+		AC000012302316AF001EA23E /* ArticleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000001302316AF001EA23E /* ArticleLibrary.swift */; };
+		AC000013302316AF001EA23E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000004302316AF001EA23E /* ShareViewController.swift */; };
+		AC000014302316AF001EA23E /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AC000003302316AF001EA23E /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AD000011302316AF001EA23E /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD000001302316AF001EA23E /* AuthService.swift */; };
+		AE000011302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
+		AF000011302316AF001EA23E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = AF000021302316AF001EA23E /* GoogleSignIn */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		2A0A7B80302316B1001EA23E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,20 +49,63 @@
 			remoteGlobalIDString = 2A0A7B71302316AF001EA23E;
 			remoteInfo = Tsundoku;
 		};
+		AC000020302316AF001EA23E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A0A7B6A302316AF001EA23E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC000050302316AF001EA23E;
+			remoteInfo = ShareExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AC000043302316AF001EA23E /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AC000014302316AF001EA23E /* ShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2A0A7B72302316AF001EA23E /* Tsundoku.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tsundoku.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A0A7B7F302316B1001EA23E /* TsundokuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TsundokuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A0A7B89302316B1001EA23E /* TsundokuUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TsundokuUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000001302316AF001EA23E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AA000002302316AF001EA23E /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		AA000003302316AF001EA23E /* StockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockView.swift; sourceTree = "<group>"; };
+		AA000004302316AF001EA23E /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		AA000005302316AF001EA23E /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
+		AA000006302316AF001EA23E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA000007302316AF001EA23E /* TsundokuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TsundokuApp.swift; sourceTree = "<group>"; };
+		AA000008302316AF001EA23E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AA000009302316AF001EA23E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AA00000A302316AF001EA23E /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
+		AA00000B302316AF001EA23E /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
+		AB000001302316AF001EA23E /* HomeViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewEN.swift; sourceTree = "<group>"; };
+		AB000002302316AF001EA23E /* StockViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockViewEN.swift; sourceTree = "<group>"; };
+		AB000003302316AF001EA23E /* PlayerViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewEN.swift; sourceTree = "<group>"; };
+		AB000004302316AF001EA23E /* LogViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewEN.swift; sourceTree = "<group>"; };
+		AB000005302316AF001EA23E /* SettingsViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewEN.swift; sourceTree = "<group>"; };
+		AB000006302316AF001EA23E /* OnboardingViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewEN.swift; sourceTree = "<group>"; };
+		AB000007302316AF001EA23E /* SignupViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupViewEN.swift; sourceTree = "<group>"; };
+		AC000001302316AF001EA23E /* ArticleLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleLibrary.swift; sourceTree = "<group>"; };
+		AC000002302316AF001EA23E /* Tsundoku.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tsundoku.entitlements; sourceTree = "<group>"; };
+		AC000003302316AF001EA23E /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC000004302316AF001EA23E /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		AC000005302316AF001EA23E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AC000006302316AF001EA23E /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		AD000001302316AF001EA23E /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		AE000001302316AF001EA23E /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		AF000001302316AF001EA23E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2A0A7B74302316AF001EA23E /* Tsundoku */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Tsundoku;
-			sourceTree = "<group>";
-		};
 		2A0A7B82302316B1001EA23E /* TsundokuTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TsundokuTests;
@@ -52,6 +123,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF000011302316AF001EA23E /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -69,6 +141,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC000041302316AF001EA23E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -76,6 +155,7 @@
 			isa = PBXGroup;
 			children = (
 				2A0A7B74302316AF001EA23E /* Tsundoku */,
+				AC000030302316AF001EA23E /* ShareExtension */,
 				2A0A7B82302316B1001EA23E /* TsundokuTests */,
 				2A0A7B8C302316B1001EA23E /* TsundokuUITests */,
 				2A0A7B73302316AF001EA23E /* Products */,
@@ -88,8 +168,57 @@
 				2A0A7B72302316AF001EA23E /* Tsundoku.app */,
 				2A0A7B7F302316B1001EA23E /* TsundokuTests.xctest */,
 				2A0A7B89302316B1001EA23E /* TsundokuUITests.xctest */,
+				AC000003302316AF001EA23E /* ShareExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2A0A7B74302316AF001EA23E /* Tsundoku */ = {
+			isa = PBXGroup;
+			children = (
+				AB000021302316AF001EA23E /* en */,
+				AF000001302316AF001EA23E /* Info.plist */,
+				AC000001302316AF001EA23E /* ArticleLibrary.swift */,
+				AA00000B302316AF001EA23E /* AppDesign.swift */,
+				AD000001302316AF001EA23E /* AuthService.swift */,
+				AE000001302316AF001EA23E /* Config.swift */,
+				AA000008302316AF001EA23E /* Assets.xcassets */,
+				AA000001302316AF001EA23E /* ContentView.swift */,
+				AA000002302316AF001EA23E /* HomeView.swift */,
+				AA000005302316AF001EA23E /* LogView.swift */,
+				AA000009302316AF001EA23E /* OnboardingView.swift */,
+				AA000004302316AF001EA23E /* PlayerView.swift */,
+				AA000006302316AF001EA23E /* SettingsView.swift */,
+				AA00000A302316AF001EA23E /* SignupView.swift */,
+				AA000003302316AF001EA23E /* StockView.swift */,
+				AA000007302316AF001EA23E /* TsundokuApp.swift */,
+				AC000002302316AF001EA23E /* Tsundoku.entitlements */,
+			);
+			path = Tsundoku;
+			sourceTree = "<group>";
+		};
+		AB000021302316AF001EA23E /* en */ = {
+			isa = PBXGroup;
+			children = (
+				AB000001302316AF001EA23E /* HomeViewEN.swift */,
+				AB000004302316AF001EA23E /* LogViewEN.swift */,
+				AB000006302316AF001EA23E /* OnboardingViewEN.swift */,
+				AB000003302316AF001EA23E /* PlayerViewEN.swift */,
+				AB000005302316AF001EA23E /* SettingsViewEN.swift */,
+				AB000007302316AF001EA23E /* SignupViewEN.swift */,
+				AB000002302316AF001EA23E /* StockViewEN.swift */,
+			);
+			path = en;
+			sourceTree = "<group>";
+		};
+		AC000030302316AF001EA23E /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				AC000005302316AF001EA23E /* Info.plist */,
+				AC000006302316AF001EA23E /* ShareExtension.entitlements */,
+				AC000004302316AF001EA23E /* ShareViewController.swift */,
+			);
+			path = ShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,16 +231,16 @@
 				2A0A7B6E302316AF001EA23E /* Sources */,
 				2A0A7B6F302316AF001EA23E /* Frameworks */,
 				2A0A7B70302316AF001EA23E /* Resources */,
+				AC000043302316AF001EA23E /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				2A0A7B74302316AF001EA23E /* Tsundoku */,
+				AC000051302316AF001EA23E /* PBXTargetDependency */,
 			);
 			name = Tsundoku;
 			packageProductDependencies = (
+				AF000021302316AF001EA23E /* GoogleSignIn */,
 			);
 			productName = Tsundoku;
 			productReference = 2A0A7B72302316AF001EA23E /* Tsundoku.app */;
@@ -163,6 +292,25 @@
 			productReference = 2A0A7B89302316B1001EA23E /* TsundokuUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		AC000050302316AF001EA23E /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC000062302316AF001EA23E /* Build configuration list for PBXNativeTarget "ShareExtension" */;
+			buildPhases = (
+				AC000040302316AF001EA23E /* Sources */,
+				AC000041302316AF001EA23E /* Frameworks */,
+				AC000042302316AF001EA23E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShareExtension;
+			packageProductDependencies = (
+			);
+			productName = ShareExtension;
+			productReference = AC000003302316AF001EA23E /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +332,9 @@
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 2A0A7B71302316AF001EA23E;
 					};
+					AC000050302316AF001EA23E = {
+						CreatedOnToolsVersion = 26.6;
+					};
 				};
 			};
 			buildConfigurationList = 2A0A7B6D302316AF001EA23E /* Build configuration list for PBXProject "Tsundoku" */;
@@ -195,6 +346,9 @@
 			);
 			mainGroup = 2A0A7B69302316AF001EA23E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2A0A7B73302316AF001EA23E /* Products */;
 			projectDirPath = "";
@@ -203,6 +357,7 @@
 				2A0A7B71302316AF001EA23E /* Tsundoku */,
 				2A0A7B7E302316B1001EA23E /* TsundokuTests */,
 				2A0A7B88302316B1001EA23E /* TsundokuUITests */,
+				AC000050302316AF001EA23E /* ShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -212,6 +367,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000018302316AF001EA23E /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -229,6 +385,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC000042302316AF001EA23E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -236,6 +399,26 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AC000011302316AF001EA23E /* ArticleLibrary.swift in Sources */,
+				AD000011302316AF001EA23E /* AuthService.swift in Sources */,
+				AE000011302316AF001EA23E /* Config.swift in Sources */,
+				AA000017302316AF001EA23E /* TsundokuApp.swift in Sources */,
+				AA000011302316AF001EA23E /* ContentView.swift in Sources */,
+				AA000012302316AF001EA23E /* HomeView.swift in Sources */,
+				AA000013302316AF001EA23E /* StockView.swift in Sources */,
+				AA000014302316AF001EA23E /* PlayerView.swift in Sources */,
+				AA000015302316AF001EA23E /* LogView.swift in Sources */,
+				AA000016302316AF001EA23E /* SettingsView.swift in Sources */,
+				AA000019302316AF001EA23E /* OnboardingView.swift in Sources */,
+				AA00001A302316AF001EA23E /* SignupView.swift in Sources */,
+				AA00001B302316AF001EA23E /* AppDesign.swift in Sources */,
+				AB000011302316AF001EA23E /* HomeViewEN.swift in Sources */,
+				AB000012302316AF001EA23E /* StockViewEN.swift in Sources */,
+				AB000013302316AF001EA23E /* PlayerViewEN.swift in Sources */,
+				AB000014302316AF001EA23E /* LogViewEN.swift in Sources */,
+				AB000015302316AF001EA23E /* SettingsViewEN.swift in Sources */,
+				AB000016302316AF001EA23E /* OnboardingViewEN.swift in Sources */,
+				AB000017302316AF001EA23E /* SignupViewEN.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +436,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC000040302316AF001EA23E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC000012302316AF001EA23E /* ArticleLibrary.swift in Sources */,
+				AC000013302316AF001EA23E /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +457,11 @@
 			isa = PBXTargetDependency;
 			target = 2A0A7B71302316AF001EA23E /* Tsundoku */;
 			targetProxy = 2A0A7B8A302316B1001EA23E /* PBXContainerItemProxy */;
+		};
+		AC000051302316AF001EA23E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC000050302316AF001EA23E /* ShareExtension */;
+			targetProxy = AC000020302316AF001EA23E /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -395,11 +592,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Tsundoku/Tsundoku.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Tsundoku/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = StashCast;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -409,16 +611,19 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.Tsundoku;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -427,11 +632,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Tsundoku/Tsundoku.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Tsundoku/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = StashCast;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -441,16 +651,19 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.Tsundoku;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -463,7 +676,7 @@
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.TsundokuTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -485,7 +698,7 @@
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.TsundokuTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -505,7 +718,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.TsundokuUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -525,7 +738,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.TsundokuUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -535,6 +748,64 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Tsundoku;
+			};
+			name = Release;
+		};
+		AC000060302316AF001EA23E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5TXL5P4663;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.Tsundoku.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AC000061302316AF001EA23E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5TXL5P4663;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.Tsundoku.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -577,7 +848,35 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		AC000062302316AF001EA23E /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC000060302316AF001EA23E /* Debug */,
+				AC000061302316AF001EA23E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AF000021302316AF001EA23E /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2A0A7B6A302316AF001EA23E /* Project object */;
 }

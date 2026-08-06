@@ -1,0 +1,78 @@
+# StashCast Backend
+
+## Authentication
+
+認証データはTursoとこのバックエンドで管理します。Supabase／Firebaseは使用しません。
+
+- メール: 6桁OTPを確認後、新規ユーザーだけ名前・パスワードを設定
+- 登録済みメール: OTP確認後、そのままログイン
+- Google: iOS公式SDKのIDトークンをGoogle公開鍵で検証し、プロフィール画像URLをDBへ保存
+- Apple: AuthenticationServicesのIDトークンとnonceをApple公開鍵で検証
+- セッション: 32バイトのランダムトークンを発行し、DBにはSHA-256ハッシュだけを保存
+
+メールOTPは10分で失効し、最大5回まで入力できます。同じメールへの再送は60秒待機、送信回数はメール／IP単位で制限します。
+
+## Local setup
+
+```bash
+cp .env.example .env.local
+npm install
+npm run db:migrate
+npm run dev
+```
+
+開発環境で`RESEND_API_KEY`を設定していない場合、確認コードはバックエンドのターミナルにのみ表示されます。本番環境では`AUTH_OTP_SECRET`、`RESEND_API_KEY`、`AUTH_EMAIL_FROM`が必須です。
+
+## Production configuration
+
+### Email delivery
+
+1. Resendで送信元ドメインを確認します。
+2. `RESEND_API_KEY`をバックエンド環境変数に保存します。
+3. `AUTH_EMAIL_FROM`を`StashCast <no-reply@auth.your-domain.com>`の形式で設定します。
+4. `AUTH_OTP_SECRET`には十分に長いランダム値を設定します。アプリへは入れません。
+
+### Google Sign-In
+
+1. Google Cloud ConsoleでBundle ID `com.nexro.Tsundoku`のiOS OAuth Clientを作成します。
+2. バックエンド認証用のWeb OAuth Clientも作成します。
+3. iOS Client IDとWeb Client IDを`Tsundoku/Info.plist`へ設定します。
+4. iOS Client IDの逆順URLスキームも`Tsundoku/Info.plist`へ設定します。
+5. Web Client IDをバックエンドの`GOOGLE_SERVER_CLIENT_ID`へ設定します。
+
+例: iOS Client IDが`123-example.apps.googleusercontent.com`の場合、URLスキームは`com.googleusercontent.apps.123-example`です。
+
+### Sign in with Apple
+
+1. Apple DeveloperのIdentifiersで`com.nexro.Tsundoku`にSign in with Appleを有効化します。
+2. XcodeのSigning & Capabilitiesで同じTeamとBundle IDを使用します。
+3. バックエンドの`APPLE_CLIENT_ID`に`com.nexro.Tsundoku`を設定します。
+
+EntitlementとiOS側のnonce生成・送信処理は実装済みです。
+
+## API
+
+- `POST /api/auth/email/request-code`
+- `POST /api/auth/email/verify-code`
+- `POST /api/auth/email/complete`
+- `POST /api/auth/google`
+- `POST /api/auth/apple`
+- `POST /api/auth/login`
+- `GET /api/auth/me` with a Bearer token
+- `POST /api/auth/logout` with a Bearer token
+- `GET /api/health/db`
+
+`GET /api/auth/me`は、ユーザーID・名前・メールアドレスに加えて、DBに保存された
+`profileImageURL`を返します。Googleログイン時はGoogleアカウントの画像URLを保存・更新し、
+Apple／メール登録で画像が提供されない場合は`null`になります。
+
+旧`POST /api/auth/signup`はメール確認を迂回できないよう無効化されています。
+
+## Backend URL selection
+
+iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選択します。
+
+- `false`: `http://localhost:3000`
+- `true`: 本番URL
+
+変更後はアプリを再ビルドして起動してください。
