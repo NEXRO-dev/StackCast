@@ -8,12 +8,14 @@ import SwiftUI
 struct HomeView: View {
     @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
+    let subscriptionStore: SubscriptionStore
     @AppStorage("customDigestDuration") private var customDuration = 20
     @State private var selectedDuration = 10
     @State private var durationSelection = 10
     @State private var isShowingCustomDuration = false
+    @State private var isShowingSubscription = false
 
-    private let durations = [5, 10, 15, 30]
+    private let durations = [5, 10, 15, 20]
 
     var body: some View {
         NavigationStack {
@@ -37,6 +39,13 @@ struct HomeView: View {
                     durationSelection = -1
                 }
             }
+            .sheet(isPresented: $isShowingSubscription) {
+                SubscriptionManagementView(
+                    subscriptionStore: subscriptionStore,
+                    language: .japanese,
+                    initialTier: .plus
+                )
+            }
         }
     }
 
@@ -57,7 +66,7 @@ struct HomeView: View {
 
     private var durationPicker: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("今日は何分ありますか？")
+            Text("今日はどれくらい聴けますか？")
                 .font(.headline)
 
             DurationSegmentedControl(
@@ -65,9 +74,24 @@ struct HomeView: View {
                 durations: durations,
                 customDuration: customDuration,
                 language: .japanese,
-                onCustomize: { isShowingCustomDuration = true }
+                onCustomize: {
+                    if subscriptionStore.isPro {
+                        isShowingCustomDuration = true
+                    } else {
+                        durationSelection = 10
+                        selectedDuration = 10
+                        isShowingSubscription = true
+                    }
+                }
             )
             .onChange(of: durationSelection) { _, selection in
+                guard subscriptionStore.isPro || selection == 10 else {
+                    durationSelection = 10
+                    selectedDuration = 10
+                    isShowingSubscription = true
+                    return
+                }
+
                 withAnimation(.snappy) {
                     selectedDuration = selection == -1 ? customDuration : selection
                 }
@@ -101,7 +125,7 @@ struct HomeView: View {
                 .foregroundStyle(.white.opacity(0.8))
 
             Button {} label: {
-                Label("ダイジェスト生成は準備中", systemImage: "waveform.badge.exclamationmark")
+                Label("Cast生成は準備中", systemImage: "waveform.badge.exclamationmark")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
@@ -206,5 +230,5 @@ struct HomeView: View {
 }
 
 #Preview {
-    HomeView(articleLibrary: ArticleLibrary())
+    HomeView(articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
 }

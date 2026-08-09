@@ -139,7 +139,7 @@ private struct OnboardingPage {
         OnboardingPage(
             systemImage: "timer.circle.fill",
             title: "空き時間に\nぴったり収まる",
-            message: "5分、10分、15分、30分から選ぶと、\n記事をダイジェストにまとめます。",
+            message: "5分、10分、15分、20分から選ぶと、\n記事をCastにまとめます。",
             color: .pink
         ),
         OnboardingPage(

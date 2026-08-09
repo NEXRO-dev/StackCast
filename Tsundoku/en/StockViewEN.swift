@@ -8,6 +8,7 @@ import SwiftUI
 struct StockViewEN: View {
     @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
+    let subscriptionStore: SubscriptionStore
     @State private var selectedStatus: ArticleStatus = .unread
     @State private var isAddingURL = false
 
@@ -76,7 +77,7 @@ struct StockViewEN: View {
                 .padding(.bottom, 61)
             }
             .sheet(isPresented: $isAddingURL) {
-                AddArticleSheetEN(articleLibrary: articleLibrary)
+                AddArticleSheetEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
             }
         }
     }
@@ -136,7 +137,9 @@ struct StockViewEN: View {
 private struct AddArticleSheetEN: View {
     @Environment(\.dismiss) private var dismiss
     let articleLibrary: ArticleLibrary
+    let subscriptionStore: SubscriptionStore
     @State private var urlText = ""
+    @State private var isShowingSubscription = false
     @FocusState private var isURLFocused: Bool
 
     var body: some View {
@@ -162,8 +165,15 @@ private struct AddArticleSheetEN: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard let url = URL(string: urlText), articleLibrary.add(url: url) else { return }
-                        dismiss()
+                        guard let url = URL(string: urlText) else { return }
+                        switch articleLibrary.addWithResult(url: url) {
+                        case .saved:
+                            dismiss()
+                        case .limitReached:
+                            isShowingSubscription = true
+                        case .invalidURL, .failed:
+                            break
+                        }
                     }
                     .disabled(!isValidWebURL)
                 }
@@ -171,6 +181,13 @@ private struct AddArticleSheetEN: View {
             .onAppear { isURLFocused = true }
         }
         .presentationDetents([.medium])
+        .sheet(isPresented: $isShowingSubscription) {
+            SubscriptionManagementView(
+                subscriptionStore: subscriptionStore,
+                language: .english,
+                initialTier: .plus
+            )
+        }
     }
 
     private var isValidWebURL: Bool {
@@ -180,5 +197,5 @@ private struct AddArticleSheetEN: View {
 }
 
 #Preview {
-    StockViewEN(articleLibrary: ArticleLibrary())
+    StockViewEN(articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
 }

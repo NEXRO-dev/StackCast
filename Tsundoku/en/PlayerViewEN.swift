@@ -11,9 +11,9 @@ struct PlayerViewEN: View {
             ContentUnavailableView {
                 Label("No Casts", systemImage: "waveform.circle")
             } description: {
-                Text("Audio digests will appear here after they are actually generated.")
+                Text("Audio Casts will appear here after they are actually generated.")
             }
-            .navigationTitle("Player")
+            .navigationTitle("Podcast")
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
         }
     }

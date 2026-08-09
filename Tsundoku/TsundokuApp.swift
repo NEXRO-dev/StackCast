@@ -6,10 +6,19 @@
 //
 
 import GoogleSignIn
+import RevenueCat
 import SwiftUI
 
 @main
 struct TsundokuApp: App {
+    init() {
+        if Config.isProduction == false {
+            Purchases.logLevel = .debug
+        }
+
+        Purchases.configure(withAPIKey: Config.revenueCatAPIKey)
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

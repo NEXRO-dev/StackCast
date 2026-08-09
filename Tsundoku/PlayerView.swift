@@ -11,9 +11,9 @@ struct PlayerView: View {
             ContentUnavailableView {
                 Label("Castはありません", systemImage: "waveform.circle")
             } description: {
-                Text("実際に生成された音声ダイジェストが、ここに表示されます。")
+                Text("実際に生成された音声Castが、ここに表示されます。")
             }
-            .navigationTitle("プレイヤー")
+            .navigationTitle("ポッドキャスト")
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
         }
     }

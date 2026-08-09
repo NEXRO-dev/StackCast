@@ -30,7 +30,7 @@ struct LogViewEN: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Reading Log").font(.largeTitle.bold())
+            Text("Log").font(.largeTitle.bold())
             Text("Your actual progress across saved articles.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

@@ -34,6 +34,14 @@
 				<string>com.googleusercontent.apps.1072731675388-n0lbq3rjp4mr6e0beqpg94ru2ft1lgna</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>stashcast</string>
+			</array>
+		</dict>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
@@ -46,8 +54,10 @@
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict>
-		<key>UIColorName</key>
-		<string>LaunchBackground</string>
+	<key>UIColorName</key>
+		<string>LaunchBackgroundLight</string>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
 	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

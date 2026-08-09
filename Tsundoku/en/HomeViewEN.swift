@@ -8,12 +8,14 @@ import SwiftUI
 struct HomeViewEN: View {
     @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
+    let subscriptionStore: SubscriptionStore
     @AppStorage("customDigestDuration") private var customDuration = 20
     @State private var selectedDuration = 10
     @State private var durationSelection = 10
     @State private var isShowingCustomDuration = false
+    @State private var isShowingSubscription = false
 
-    private let durations = [5, 10, 15, 30]
+    private let durations = [5, 10, 15, 20]
 
     var body: some View {
         NavigationStack {
@@ -36,6 +38,13 @@ struct HomeViewEN: View {
                     selectedDuration = duration
                     durationSelection = -1
                 }
+            }
+            .sheet(isPresented: $isShowingSubscription) {
+                SubscriptionManagementView(
+                    subscriptionStore: subscriptionStore,
+                    language: .english,
+                    initialTier: .plus
+                )
             }
         }
     }
@@ -65,9 +74,24 @@ struct HomeViewEN: View {
                 durations: durations,
                 customDuration: customDuration,
                 language: .english,
-                onCustomize: { isShowingCustomDuration = true }
+                onCustomize: {
+                    if subscriptionStore.isPro {
+                        isShowingCustomDuration = true
+                    } else {
+                        durationSelection = 10
+                        selectedDuration = 10
+                        isShowingSubscription = true
+                    }
+                }
             )
             .onChange(of: durationSelection) { _, selection in
+                guard subscriptionStore.isPro || selection == 10 else {
+                    durationSelection = 10
+                    selectedDuration = 10
+                    isShowingSubscription = true
+                    return
+                }
+
                 withAnimation(.snappy) {
                     selectedDuration = selection == -1 ? customDuration : selection
                 }
@@ -101,7 +125,7 @@ struct HomeViewEN: View {
                 .foregroundStyle(.white.opacity(0.8))
 
             Button {} label: {
-                Label("Digest Generation Coming Soon", systemImage: "waveform.badge.exclamationmark")
+                Label("Cast Generation Coming Soon", systemImage: "waveform.badge.exclamationmark")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
@@ -206,5 +230,5 @@ struct HomeViewEN: View {
 }
 
 #Preview {
-    HomeViewEN(articleLibrary: ArticleLibrary())
+    HomeViewEN(articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
 }

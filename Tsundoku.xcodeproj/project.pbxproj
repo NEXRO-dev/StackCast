@@ -7,16 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2A0A7C043024C307001EA23E /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 2A0A7C033024C307001EA23E /* RevenueCat */; };
+		2A0A7C063024C307001EA23E /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2A0A7C053024C307001EA23E /* RevenueCatUI */; };
 		AA000011302316AF001EA23E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001302316AF001EA23E /* ContentView.swift */; };
 		AA000012302316AF001EA23E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002302316AF001EA23E /* HomeView.swift */; };
 		AA000013302316AF001EA23E /* StockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003302316AF001EA23E /* StockView.swift */; };
 		AA000014302316AF001EA23E /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004302316AF001EA23E /* PlayerView.swift */; };
 		AA000015302316AF001EA23E /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005302316AF001EA23E /* LogView.swift */; };
 		AA000016302316AF001EA23E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006302316AF001EA23E /* SettingsView.swift */; };
+		B1000001302316AF001EA23E /* SubscriptionManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000302316AF001EA23E /* SubscriptionManagementView.swift */; };
 		AA000017302316AF001EA23E /* TsundokuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000007302316AF001EA23E /* TsundokuApp.swift */; };
 		AA000018302316AF001EA23E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000008302316AF001EA23E /* Assets.xcassets */; };
 		AA000019302316AF001EA23E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000009302316AF001EA23E /* OnboardingView.swift */; };
 		AA00001A302316AF001EA23E /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000A302316AF001EA23E /* SignupView.swift */; };
+		C1000001302316AF001EA23E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000302316AF001EA23E /* LoginView.swift */; };
 		AA00001B302316AF001EA23E /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000B302316AF001EA23E /* AppDesign.swift */; };
 		AB000011302316AF001EA23E /* HomeViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000001302316AF001EA23E /* HomeViewEN.swift */; };
 		AB000012302316AF001EA23E /* StockViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000002302316AF001EA23E /* StockViewEN.swift */; };
@@ -86,6 +90,7 @@
 		AA000008302316AF001EA23E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000009302316AF001EA23E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		AA00000A302316AF001EA23E /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
+		C1000000302316AF001EA23E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		AA00000B302316AF001EA23E /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
 		AB000001302316AF001EA23E /* HomeViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewEN.swift; sourceTree = "<group>"; };
 		AB000002302316AF001EA23E /* StockViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockViewEN.swift; sourceTree = "<group>"; };
@@ -103,6 +108,7 @@
 		AD000001302316AF001EA23E /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		AE000001302316AF001EA23E /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		AF000001302316AF001EA23E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B1000000302316AF001EA23E /* SubscriptionManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagementView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -123,7 +129,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2A0A7C043024C307001EA23E /* RevenueCat in Frameworks */,
 				AF000011302316AF001EA23E /* GoogleSignIn in Frameworks */,
+				2A0A7C063024C307001EA23E /* RevenueCatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,7 +197,9 @@
 				AA000009302316AF001EA23E /* OnboardingView.swift */,
 				AA000004302316AF001EA23E /* PlayerView.swift */,
 				AA000006302316AF001EA23E /* SettingsView.swift */,
+				B1000000302316AF001EA23E /* SubscriptionManagementView.swift */,
 				AA00000A302316AF001EA23E /* SignupView.swift */,
+				C1000000302316AF001EA23E /* LoginView.swift */,
 				AA000003302316AF001EA23E /* StockView.swift */,
 				AA000007302316AF001EA23E /* TsundokuApp.swift */,
 				AC000002302316AF001EA23E /* Tsundoku.entitlements */,
@@ -241,6 +251,8 @@
 			name = Tsundoku;
 			packageProductDependencies = (
 				AF000021302316AF001EA23E /* GoogleSignIn */,
+				2A0A7C033024C307001EA23E /* RevenueCat */,
+				2A0A7C053024C307001EA23E /* RevenueCatUI */,
 			);
 			productName = Tsundoku;
 			productReference = 2A0A7B72302316AF001EA23E /* Tsundoku.app */;
@@ -348,6 +360,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				2A0A7C023024C307001EA23E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2A0A7B73302316AF001EA23E /* Products */;
@@ -409,8 +422,10 @@
 				AA000014302316AF001EA23E /* PlayerView.swift in Sources */,
 				AA000015302316AF001EA23E /* LogView.swift in Sources */,
 				AA000016302316AF001EA23E /* SettingsView.swift in Sources */,
+				B1000001302316AF001EA23E /* SubscriptionManagementView.swift in Sources */,
 				AA000019302316AF001EA23E /* OnboardingView.swift in Sources */,
 				AA00001A302316AF001EA23E /* SignupView.swift in Sources */,
+				C1000001302316AF001EA23E /* LoginView.swift in Sources */,
 				AA00001B302316AF001EA23E /* AppDesign.swift in Sources */,
 				AB000011302316AF001EA23E /* HomeViewEN.swift in Sources */,
 				AB000012302316AF001EA23E /* StockViewEN.swift in Sources */,
@@ -860,6 +875,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		2A0A7C023024C307001EA23E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.83.1;
+			};
+		};
 		AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
@@ -871,6 +894,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2A0A7C033024C307001EA23E /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2A0A7C023024C307001EA23E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		2A0A7C053024C307001EA23E /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2A0A7C023024C307001EA23E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
 		AF000021302316AF001EA23E /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;

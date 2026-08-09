@@ -11,13 +11,15 @@ struct SignupView: View {
     let authStore: AuthStore
     let onBack: () -> Void
     let onComplete: () -> Void
+    let onShowLogin: () -> Void
 
     var body: some View {
         SignupCardView(
             authStore: authStore,
             copy: .japanese,
             onBack: onBack,
-            onComplete: onComplete
+            onComplete: onComplete,
+            onShowLogin: onShowLogin
         )
     }
 }
@@ -27,6 +29,7 @@ struct SignupCardView: View {
     let copy: SignupCopy
     let onBack: () -> Void
     let onComplete: () -> Void
+    let onShowLogin: () -> Void
 
     @State private var step: SignupStep = .email
     @State private var name = ""
@@ -42,26 +45,31 @@ struct SignupCardView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color(.systemBackground)
+            Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
-            Group {
-                switch step {
-                case .email:
-                    emailStep
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                case .verification:
-                    verificationStep
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                case .details:
-                    detailsStep
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+            ScrollView(showsIndicators: false) {
+                Group {
+                    switch step {
+                    case .email:
+                        emailStep
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    case .verification:
+                        verificationStep
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    case .details:
+                        detailsStep
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
+                .id(step)
+                .frame(maxWidth: 430)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                .padding(.top, 52)
+                .padding(.bottom, 24)
             }
-            .id(step)
-            .padding(.horizontal, 24)
-            .padding(.top, 60)
-            .padding(.bottom, 16)
+            .scrollDismissesKeyboard(.interactively)
 
             closeButton
         }
@@ -69,10 +77,14 @@ struct SignupCardView: View {
 
     private var emailStep: some View {
         VStack(spacing: 14) {
-            Text("Create an account")
-                .font(.title.bold())
+            Text(copy.signupTitle)
+                .font(.system(.title2, design: .rounded).weight(.bold))
                 .frame(maxWidth: .infinity, alignment: .center)
-                .offset(y: 8)
+
+            Text(copy.signupSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
 
             VStack(spacing: 10) {
                 socialButton(
@@ -101,9 +113,16 @@ struct SignupCardView: View {
                         .padding(.top, 6)
                 }
             }
-            .padding(.top, 28)
+            .padding(.top, 20)
 
             errorText
+
+            Button(action: onShowLogin) {
+                Text(copy.loginPrompt)
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
         }
     }
 
@@ -251,15 +270,16 @@ struct SignupCardView: View {
     private var closeButton: some View {
         Button(action: onBack) {
             Image(systemName: "xmark")
-                .font(.headline)
+                .font(.system(size: 14, weight: .bold))
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+        .background(.thinMaterial, in: Circle())
         .accessibilityLabel(copy.close)
-        .padding(.top, 12)
-        .padding(.trailing, 12)
+        .padding(.top, 10)
+        .padding(.trailing, 16)
     }
 
     private var divider: some View {
@@ -541,6 +561,10 @@ enum SignupCopy {
     case english
 
     var isEnglish: Bool { self == .english }
+    var signupTitle: String { isEnglish ? "Create an account" : "アカウントを作成" }
+    var signupSubtitle: String {
+        isEnglish ? "Turn your saved articles into time well spent." : "あとで読むを、いま聴ける時間に。"
+    }
     var googleButton: String { isEnglish ? "Sign up with Google" : "Googleでサインアップ" }
     var appleButton: String { isEnglish ? "Sign up with Apple" : "Appleでサインアップ" }
     var divider: String { isEnglish ? "or sign up with email" : "または、メールアドレスでサインアップ" }
@@ -569,6 +593,16 @@ enum SignupCopy {
     var genericError: String {
         isEnglish ? "Authentication failed. Please try again." : "認証に失敗しました。もう一度お試しください。"
     }
+    var loginPrompt: String { isEnglish ? "Already have an account? Log in" : "すでにアカウントをお持ちですか？ログイン" }
+    var loginTitle: String { isEnglish ? "Log in" : "ログイン" }
+    var loginSubtitle: String {
+        isEnglish ? "Welcome back. Continue where you left off." : "おかえりなさい。続きを始めましょう。"
+    }
+    var loginGoogleButton: String { isEnglish ? "Continue with Google" : "Googleで続ける" }
+    var loginAppleButton: String { isEnglish ? "Continue with Apple" : "Appleで続ける" }
+    var loginDivider: String { isEnglish ? "or log in with email" : "または、メールアドレスでログイン" }
+    var loginButton: String { isEnglish ? "Log in" : "ログイン" }
+    var signupPrompt: String { isEnglish ? "New to StashCast? Create an account" : "初めてですか？アカウントを作成" }
 }
 
 private enum SignupStep: Hashable {
@@ -595,10 +629,14 @@ private struct SignupTextFieldStyle: TextFieldStyle {
         configuration
             .padding(.horizontal, 14)
             .frame(minHeight: minHeight)
-            .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+            .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+            }
     }
 }
 
 #Preview {
-    SignupView(authStore: AuthStore(), onBack: {}, onComplete: {})
+    SignupView(authStore: AuthStore(), onBack: {}, onComplete: {}, onShowLogin: {})
 }

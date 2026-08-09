@@ -13,9 +13,12 @@ struct ContentView: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.japanese.rawValue
     @State private var isShowingLaunchSplash = true
     @State private var isAuthenticationPresented = false
+    @State private var authenticationMode: AuthenticationMode = .signup
     @State private var selectedTab: AppTab = .home
     @State private var articleLibrary = ArticleLibrary()
     @State private var authStore = AuthStore()
+    @State private var subscriptionStore = SubscriptionStore()
+    @State private var isShowingSubscription = false
 
     var body: some View {
         Group {
@@ -30,13 +33,41 @@ struct ContentView: View {
             }
         }
         .environment(\.locale, Locale(identifier: currentLanguage == .english ? "en" : "ja"))
+        .onOpenURL { url in
+            guard url.scheme == "stashcast", url.host == "subscription" else { return }
+            isShowingSubscription = true
+        }
+        .sheet(isPresented: $isShowingSubscription) {
+            NavigationStack {
+                SubscriptionManagementView(
+                    subscriptionStore: subscriptionStore,
+                    language: currentLanguage,
+                    initialTier: .plus
+                )
+            }
+        }
         .task {
             await prepareForLaunch()
+        }
+        .task(id: signedInUserID) {
+            if let signedInUserID {
+                await subscriptionStore.identify(
+                    userID: signedInUserID,
+                    sessionToken: authStore.sessionToken()
+                )
+            } else {
+                await subscriptionStore.signOut()
+            }
         }
     }
 
     private var currentLanguage: AppLanguage {
         AppLanguage(rawValue: appLanguage) ?? .japanese
+    }
+
+    private var signedInUserID: String? {
+        guard case .signedIn(let user) = authStore.status else { return nil }
+        return user.id
     }
 
     private var unreadArticleCount: Int {
@@ -71,37 +102,45 @@ struct ContentView: View {
                 OnboardingView(onFinish: presentAuthentication)
             }
         }
-        .background {
-            UIKitCardPresenter(isPresented: $isAuthenticationPresented) {
-                authenticationView
-            }
+        .sheet(isPresented: $isAuthenticationPresented) {
+            authenticationView
+                // 認証内容に合わせてシートをコンパクトにし、下側の余白を抑えます。
+                // 入力中は内部の ScrollView がキーボードに合わせてスクロールします。
+                .presentationDetents([.height(authenticationSheetHeight)])
+                .presentationDragIndicator(.hidden)
+                .interactiveDismissDisabled()
         }
     }
 
     @ViewBuilder
     private var authenticationView: some View {
-        if currentLanguage == .english {
-            SignupViewEN(
-                authStore: authStore,
-                onBack: dismissAuthentication,
-                onComplete: completeRegistration
-            )
-        } else {
-            SignupView(
-                authStore: authStore,
-                onBack: dismissAuthentication,
-                onComplete: completeRegistration
-            )
+        switch authenticationMode {
+        case .signup:
+            if currentLanguage == .english {
+                SignupViewEN(authStore: authStore, onBack: dismissAuthentication, onComplete: completeRegistration, onShowLogin: showLogin)
+            } else {
+                SignupView(authStore: authStore, onBack: dismissAuthentication, onComplete: completeRegistration, onShowLogin: showLogin)
+            }
+        case .login:
+            if currentLanguage == .english {
+                LoginViewEN(authStore: authStore, onBack: dismissAuthentication, onComplete: completeRegistration, onShowSignup: showSignup)
+            } else {
+                LoginView(authStore: authStore, onBack: dismissAuthentication, onComplete: completeRegistration, onShowSignup: showSignup)
+            }
         }
+    }
+
+    private var authenticationSheetHeight: CGFloat {
+        authenticationMode == .login ? 520 : 460
     }
 
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             Tab(value: .home) {
                 if currentLanguage == .english {
-                    HomeViewEN(articleLibrary: articleLibrary)
+                    HomeViewEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
                 } else {
-                    HomeView(articleLibrary: articleLibrary)
+                    HomeView(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
                 }
             } label: {
                 Image(systemName: "house")
@@ -110,9 +149,9 @@ struct ContentView: View {
 
             Tab(value: .stock) {
                 if currentLanguage == .english {
-                    StockViewEN(articleLibrary: articleLibrary)
+                    StockViewEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
                 } else {
-                    StockView(articleLibrary: articleLibrary)
+                    StockView(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
                 }
             } label: {
                 Image(systemName: "tray.full")
@@ -127,8 +166,8 @@ struct ContentView: View {
                     PlayerView()
                 }
             } label: {
-                Image(systemName: "play.circle")
-                    .accessibilityLabel(currentLanguage == .english ? "Player" : "プレイヤー")
+                Image(systemName: "headphones")
+                    .accessibilityLabel(currentLanguage == .english ? "Podcast" : "ポッドキャスト")
             }
 
             Tab(value: .log) {
@@ -144,9 +183,9 @@ struct ContentView: View {
 
             Tab(value: .settings) {
                 if currentLanguage == .english {
-                    SettingsViewEN(authStore: authStore)
+                    SettingsViewEN(authStore: authStore, subscriptionStore: subscriptionStore)
                 } else {
-                    SettingsView(authStore: authStore)
+                    SettingsView(authStore: authStore, subscriptionStore: subscriptionStore)
                 }
             } label: {
                 Image(systemName: "gearshape")
@@ -162,7 +201,16 @@ struct ContentView: View {
     }
 
     private func presentAuthentication() {
+        authenticationMode = .signup
         isAuthenticationPresented = true
+    }
+
+    private func showLogin() {
+        authenticationMode = .login
+    }
+
+    private func showSignup() {
+        authenticationMode = .signup
     }
 
     private func dismissAuthentication() {
@@ -171,14 +219,30 @@ struct ContentView: View {
 
     private func completeRegistration() {
         isAuthenticationPresented = false
+        authenticationMode = .signup
     }
+}
+
+private enum AuthenticationMode {
+    case signup
+    case login
 }
 
 private struct LaunchSplashView: View {
     var body: some View {
-        Color("LaunchBackground")
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
+        GeometryReader { proxy in
+            ZStack {
+                Color("LaunchBackgroundLight")
+
+                Image("LaunchLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: min(proxy.size.width * 0.86, 360))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 }
 

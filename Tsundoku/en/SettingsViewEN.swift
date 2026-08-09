@@ -12,7 +12,9 @@ struct SettingsViewEN: View {
     @State private var notificationsEnabled = true
     @State private var defaultDuration = 10
     @State private var defaultSpeed = 1.0
-    @State private var isShowingPro = false
+    @State private var isShowingSubscription = false
+    @State private var destructiveAction: SettingsDestructiveAction?
+    let subscriptionStore: SubscriptionStore
 
     var body: some View {
         NavigationStack {
@@ -24,12 +26,59 @@ struct SettingsViewEN: View {
                 notificationSection
                 supportSection
                 appSection
+                if case .signedIn = authStore.status {
+                    dangerSectionDivider
+                    logoutSection
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
-            .sheet(isPresented: $isShowingPro) {
-                ProPlanSheetEN()
+            .listSectionSpacing(.custom(4))
+            .sheet(isPresented: $isShowingSubscription) {
+                SubscriptionManagementView(subscriptionStore: subscriptionStore, language: .english)
             }
+            .alert(item: $destructiveAction) { action in
+                destructiveAlert(for: action)
+            }
+        }
+    }
+
+    private func destructiveAlert(for action: SettingsDestructiveAction) -> Alert {
+        switch action {
+        case .logout:
+            Alert(
+                title: Text("Log out?"),
+                message: Text("You will be signed out of your current account."),
+                primaryButton: .destructive(Text("Log Out")) {
+                    Task { await authStore.logout() }
+                },
+                secondaryButton: .cancel(Text("Cancel"))
+            )
+        case .deleteAccount:
+            Alert(
+                title: Text("Delete account?"),
+                message: Text("Your account and related data will be permanently deleted. This cannot be undone."),
+                primaryButton: .destructive(Text("Delete")) {
+                    Task { await deleteAccount() }
+                },
+                secondaryButton: .cancel(Text("Cancel"))
+            )
+        case .error(let message):
+            Alert(
+                title: Text("Error"),
+                message: Text(message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+    }
+
+    private func deleteAccount() async {
+        do {
+            try await authStore.deleteAccount()
+        } catch let error as AuthServiceError {
+            destructiveAction = .error(error.message(isEnglish: true))
+        } catch {
+            destructiveAction = .error("Could not delete your account. Please try again.")
         }
     }
 
@@ -45,46 +94,40 @@ struct SettingsViewEN: View {
 
     private var planSection: some View {
         Section {
-            Button {
-                isShowingPro = true
+            NavigationLink {
+                SubscriptionManagementView(
+                    subscriptionStore: subscriptionStore,
+                    language: .english,
+                    showsUpgradeHeader: false
+                )
             } label: {
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(LinearGradient(colors: [.indigo, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: 52, height: 52)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Free Plan")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text("Get more freedom with Pro")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(subscriptionStore.planTitle(language: .english))
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("View or change plan")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
-
-            Button("Restore Purchases", systemImage: "arrow.clockwise") {}
         } header: {
             Text("Plan")
         }
     }
 
     private var playbackSection: some View {
-        Section("Digest") {
+        Section("Cast") {
             Picker("Default Duration", selection: $defaultDuration) {
-                ForEach([5, 10, 15, 30], id: \.self) { duration in
+                ForEach([5, 10, 15, 20], id: \.self) { duration in
                     Text("\(duration) min").tag(duration)
+                }
+            }
+            .onChange(of: defaultDuration) { _, duration in
+                guard subscriptionStore.isPro || duration == 10 else {
+                    defaultDuration = 10
+                    isShowingSubscription = true
+                    return
                 }
             }
 
@@ -129,6 +172,48 @@ struct SettingsViewEN: View {
         }
     }
 
+    private var logoutSection: some View {
+        Section("Danger Zone") {
+            Button {
+                destructiveAction = .logout
+            } label: {
+                Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(.red, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                destructiveAction = .deleteAccount
+            } label: {
+                Label("Delete Account", systemImage: "person.crop.circle.badge.minus")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 16, trailing: 20))
+    }
+
+    private var dangerSectionDivider: some View {
+        Section {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(maxWidth: .infinity)
+                .frame(height: 1)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+        .listRowSeparator(.hidden)
+    }
+
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             ?? "1.0.0"
@@ -170,72 +255,10 @@ struct SettingsViewEN: View {
                 Label("Not signed in", systemImage: "person.crop.circle.badge.xmark")
                     .foregroundStyle(.secondary)
             }
-
-            if case .signedIn = authStore.status {
-                Button("Log Out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                    Task {
-                        await authStore.logout()
-                    }
-                }
-            }
         }
-    }
-}
-
-private struct ProPlanSheetEN: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 28) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 54))
-                        .foregroundStyle(.indigo)
-                        .padding(24)
-                        .background(.indigo.opacity(0.12), in: Circle())
-
-                    VStack(spacing: 8) {
-                        Text("StashCast Pro")
-                            .font(.largeTitle.bold())
-                        Text("Save and listen without\nworrying about limits.")
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    VStack(alignment: .leading, spacing: 18) {
-                        proFeature("Higher article storage limits", symbol: "tray.full")
-                        proFeature("Every digest duration", symbol: "clock")
-                        proFeature("Background playback", symbol: "headphones")
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .tsundokuCard()
-
-                    Button("View Plans") {}
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity)
-                }
-                .padding(24)
-            }
-            .background(Color(.systemGroupedBackground))
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.large])
-    }
-
-    private func proFeature(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.headline)
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(.indigo)
     }
 }
 
 #Preview {
-    SettingsViewEN(authStore: AuthStore())
+    SettingsViewEN(authStore: AuthStore(), subscriptionStore: SubscriptionStore())
 }

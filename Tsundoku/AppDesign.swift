@@ -266,8 +266,8 @@ struct MockDigest: Identifiable, Hashable {
     static let samples = [
         MockDigest(
             id: "morning-news",
-            japaneseTitle: "朝のニュースダイジェスト",
-            englishTitle: "Morning News Digest",
+            japaneseTitle: "朝のニュースCast",
+            englishTitle: "Morning News Cast",
             japaneseDate: "今日 7:10に生成",
             englishDate: "Created today at 7:10",
             articleCount: 3,
@@ -277,7 +277,7 @@ struct MockDigest: Identifiable, Hashable {
         ),
         MockDigest(
             id: "focus-before-work",
-            japaneseTitle: "仕事前の集中力ダイジェスト",
+            japaneseTitle: "仕事前の集中力Cast",
             englishTitle: "Focus Before Work",
             japaneseDate: "昨日 8:05に生成",
             englishDate: "Created yesterday at 8:05",
@@ -417,7 +417,7 @@ struct DigestTabAccessory: View {
                     .frame(width: 28, height: 28)
                     .background(.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-                Text(language == .english ? "Morning News Digest" : "朝のニュースダイジェスト")
+                Text(language == .english ? "Morning News Cast" : "朝のニュースCast")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -427,7 +427,7 @@ struct DigestTabAccessory: View {
             .contentShape(Rectangle())
             .onTapGesture(perform: openPlayer)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(language == .english ? "Open Morning News Digest" : "朝のニュースダイジェストを開く")
+            .accessibilityLabel(language == .english ? "Open Morning News Cast" : "朝のニュースCastを開く")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction {
                 openPlayer()
@@ -464,7 +464,7 @@ struct DigestTabAccessory: View {
                     digestArtwork
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(language == .english ? "Morning News Digest" : "朝のニュースダイジェスト")
+                        Text(language == .english ? "Morning News Cast" : "朝のニュースCast")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
@@ -480,7 +480,7 @@ struct DigestTabAccessory: View {
                 .contentShape(Rectangle())
                 .onTapGesture(perform: openPlayer)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(language == .english ? "Open Morning News Digest" : "朝のニュースダイジェストを開く")
+                .accessibilityLabel(language == .english ? "Open Morning News Cast" : "朝のニュースCastを開く")
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction {
                     openPlayer()
@@ -806,7 +806,7 @@ struct DurationSegmentedControl: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Picker(language == .english ? "Digest duration" : "ダイジェスト時間", selection: $selection) {
+                Picker(language == .english ? "Cast duration" : "Cast時間", selection: $selection) {
                     ForEach(durations, id: \.self) { duration in
                         Text("\(duration)").tag(duration)
                     }
@@ -896,7 +896,7 @@ struct CustomDurationSheet: View {
                     in: 1...60,
                     step: 1
                 )
-                .accessibilityLabel(language == .english ? "Digest duration" : "ダイジェスト時間")
+            .accessibilityLabel(language == .english ? "Cast duration" : "Cast時間")
                 .accessibilityValue(language == .english ? "\(duration) minutes" : "\(duration)分")
 
                 HStack {
@@ -913,8 +913,8 @@ struct CustomDurationSheet: View {
                 }
 
                 Text(language == .english
-                     ? "We'll create a digest that fits within your selected time."
-                     : "選択した時間に収まるダイジェストを作成します。")
+                     ? "We'll create a Cast that fits within your selected time."
+                     : "選択した時間に収まるCastを作成します。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

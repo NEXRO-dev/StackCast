@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 
 final class ShareViewController: UIViewController {
     private let statusLabel = UILabel()
+    private let upgradeButton = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -27,10 +28,19 @@ final class ShareViewController: UIViewController {
         statusLabel.numberOfLines = 0
         view.addSubview(statusLabel)
 
+        upgradeButton.translatesAutoresizingMaskIntoConstraints = false
+        upgradeButton.setTitle("アプリでプランを確認", for: .normal)
+        upgradeButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        upgradeButton.isHidden = true
+        upgradeButton.addTarget(self, action: #selector(openSubscription), for: .touchUpInside)
+        view.addSubview(upgradeButton)
+
         NSLayoutConstraint.activate([
             statusLabel.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor),
             statusLabel.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor),
-            statusLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            statusLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -24),
+            upgradeButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 16),
+            upgradeButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
         ])
     }
 
@@ -45,12 +55,20 @@ final class ShareViewController: UIViewController {
         let providers = extensionItem.attachments ?? []
 
         for provider in providers {
-            if let url = await loadURL(from: provider),
-               SharedArticleRepository.save(url: url, title: title) != nil {
-                statusLabel.text = "ストックに保存しました"
-                try? await Task.sleep(for: .milliseconds(450))
-                extensionContext?.completeRequest(returningItems: nil)
-                return
+            if let url = await loadURL(from: provider) {
+                switch SharedArticleRepository.saveWithLimit(url: url, title: title) {
+                case .saved:
+                    statusLabel.text = "ストックに保存しました"
+                    try? await Task.sleep(for: .milliseconds(450))
+                    extensionContext?.completeRequest(returningItems: nil)
+                    return
+                case .limitReached:
+                    statusLabel.text = "Freeプランではストックは10件までです。\nアプリでプランを変更できます。"
+                    upgradeButton.isHidden = false
+                    return
+                case .invalidURL, .failed:
+                    continue
+                }
             }
         }
 
@@ -92,5 +110,12 @@ final class ShareViewController: UIViewController {
             userInfo: [NSLocalizedDescriptionKey: "共有された項目にWebページのURLがありません。"]
         )
         extensionContext?.cancelRequest(withError: error)
+    }
+
+    @objc private func openSubscription() {
+        guard let url = URL(string: "stashcast://subscription") else { return }
+        extensionContext?.open(url) { [weak self] _ in
+            self?.extensionContext?.completeRequest(returningItems: nil)
+        }
     }
 }

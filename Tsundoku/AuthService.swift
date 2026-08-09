@@ -127,6 +127,10 @@ final class AuthStore {
         }
     }
 
+    func sessionToken() -> String? {
+        try? tokenStore.load()
+    }
+
     func signup(name: String, email: String, password: String) async throws {
         let response = try await client.signup(
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -242,6 +246,18 @@ final class AuthStore {
         status = .signedOut
     }
 
+    func deleteAccount() async throws {
+        guard let token = try tokenStore.load() else {
+            status = .signedOut
+            return
+        }
+
+        try await client.deleteAccount(token: token)
+        try? tokenStore.delete()
+        GIDSignIn.sharedInstance.signOut()
+        status = .signedOut
+    }
+
     #if DEBUG
     func useDeveloperSession() {
         status = .signedIn(
@@ -294,6 +310,24 @@ private struct EmailVerificationResponse: Decodable {
 
 private struct CurrentUserResponse: Decodable {
     let user: AuthUser
+}
+
+struct BillingSubscriptionSnapshot: Decodable, Equatable, Sendable {
+    let planTier: String?
+    let entitlementId: String
+    let productId: String?
+    let store: String?
+    let environment: String
+    let status: String
+    let isActive: Bool
+    let purchasedAt: String?
+    let expiresAt: String?
+    let cancelledAt: String?
+    let updatedAt: String
+}
+
+private struct BillingSubscriptionResponse: Decodable {
+    let subscription: BillingSubscriptionSnapshot?
 }
 
 private struct APIErrorResponse: Decodable {
@@ -408,12 +442,43 @@ struct AuthClient {
         return response.user
     }
 
+    func billingSubscription(token: String) async throws -> BillingSubscriptionSnapshot? {
+        let response: BillingSubscriptionResponse = try await send(
+            path: "api/billing/subscription",
+            method: "GET",
+            token: token
+        )
+        return response.subscription
+    }
+
     func logout(token: String) async throws {
         let url = baseURL.appending(path: "api/auth/logout")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 15
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let response: URLResponse
+        do {
+            (_, response) = try await session.data(for: request)
+        } catch {
+            throw AuthServiceError.network
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw AuthServiceError.invalidResponse
+        }
+    }
+
+    func deleteAccount(token: String) async throws {
+        let url = baseURL.appending(path: "api/auth/account")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let response: URLResponse

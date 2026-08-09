@@ -30,7 +30,7 @@ struct LogView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("読書ログ")
+            Text("ログ")
                 .font(.largeTitle.bold())
             Text("保存した記事の実際の消化状況です。")
                 .font(.subheadline)

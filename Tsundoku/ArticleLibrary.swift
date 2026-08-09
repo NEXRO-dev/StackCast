@@ -56,9 +56,39 @@ struct SavedArticle: Codable, Identifiable, Equatable {
     }
 }
 
+enum SharedSubscriptionTier: String, Equatable {
+    case free
+    case plus
+    case pro
+    case lifetime
+
+    var activeArticleLimit: Int? {
+        self == .free ? 10 : nil
+    }
+
+    var retentionInterval: TimeInterval? {
+        switch self {
+        case .free:
+            5 * 24 * 60 * 60
+        case .plus:
+            15 * 24 * 60 * 60
+        case .pro, .lifetime:
+            nil
+        }
+    }
+}
+
+enum SharedArticleSaveResult {
+    case saved(SavedArticle)
+    case limitReached
+    case invalidURL
+    case failed
+}
+
 enum SharedArticleRepository {
     static let appGroupIdentifier = "group.com.nexro.Tsundoku"
     private static let articlesKey = "savedArticles"
+    private static let subscriptionTierKey = "subscriptionTier"
 
     static func load() -> [SavedArticle] {
         guard
@@ -69,17 +99,50 @@ enum SharedArticleRepository {
             return []
         }
 
-        return articles.sorted { $0.savedAt > $1.savedAt }
+        let validArticles = articles.filter { !isExpired($0) || $0.state == .completed }
+        if validArticles.count != articles.count {
+            _ = persist(validArticles, to: defaults)
+        }
+
+        return validArticles.sorted { $0.savedAt > $1.savedAt }
     }
 
-    @discardableResult
-    static func save(url: URL, title: String? = nil) -> SavedArticle? {
-        guard let defaults, let normalizedURL = normalizedWebURL(from: url) else { return nil }
+    static var subscriptionTier: SharedSubscriptionTier {
+        guard
+            let defaults,
+            let rawValue = defaults.string(forKey: subscriptionTierKey),
+            let tier = SharedSubscriptionTier(rawValue: rawValue)
+        else {
+            return .free
+        }
+
+        return tier
+    }
+
+    static func setSubscriptionTier(_ tier: SharedSubscriptionTier) {
+        defaults?.set(tier.rawValue, forKey: subscriptionTierKey)
+    }
+
+    static func saveWithLimit(url: URL, title: String? = nil) -> SharedArticleSaveResult {
+        guard let defaults, let normalizedURL = normalizedWebURL(from: url) else {
+            return .invalidURL
+        }
 
         let resolvedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayTitle = resolvedTitle.flatMap { $0.isEmpty ? nil : $0 }
             ?? normalizedURL.host()
             ?? normalizedURL.absoluteString
+
+        var articles = load()
+        let isExistingArticle = articles.contains { normalizedWebURL(from: $0.url) == normalizedURL }
+        if !isExistingArticle,
+           let activeArticleLimit = subscriptionTier.activeArticleLimit {
+            let activeArticleCount = articles.filter { $0.state != .completed }.count
+            guard activeArticleCount < activeArticleLimit else {
+                return .limitReached
+            }
+        }
+
         let article = SavedArticle(
             id: UUID(),
             url: normalizedURL,
@@ -90,12 +153,17 @@ enum SharedArticleRepository {
             completedAt: nil
         )
 
-        var articles = load()
         articles.removeAll { normalizedWebURL(from: $0.url) == normalizedURL }
         articles.insert(article, at: 0)
 
-        guard let data = try? JSONEncoder().encode(articles) else { return nil }
+        guard let data = try? JSONEncoder().encode(articles) else { return .failed }
         defaults.set(data, forKey: articlesKey)
+        return .saved(article)
+    }
+
+    @discardableResult
+    static func save(url: URL, title: String? = nil) -> SavedArticle? {
+        guard case let .saved(article) = saveWithLimit(url: url, title: title) else { return nil }
         return article
     }
 
@@ -156,6 +224,11 @@ enum SharedArticleRepository {
         UserDefaults(suiteName: appGroupIdentifier)
     }
 
+    private static func isExpired(_ article: SavedArticle) -> Bool {
+        guard let retentionInterval = subscriptionTier.retentionInterval else { return false }
+        return article.savedAt.addingTimeInterval(retentionInterval) < .now
+    }
+
     private static func persist(_ articles: [SavedArticle], to defaults: UserDefaults) -> Bool {
         guard let data = try? JSONEncoder().encode(articles) else { return false }
         defaults.set(data, forKey: articlesKey)
@@ -193,9 +266,20 @@ final class ArticleLibrary {
 
     @discardableResult
     func add(url: URL, title: String? = nil) -> Bool {
-        guard SharedArticleRepository.save(url: url, title: title) != nil else { return false }
-        refresh()
-        return true
+        switch addWithResult(url: url, title: title) {
+        case .saved:
+            return true
+        case .limitReached, .invalidURL, .failed:
+            return false
+        }
+    }
+
+    func addWithResult(url: URL, title: String? = nil) -> SharedArticleSaveResult {
+        let result = SharedArticleRepository.saveWithLimit(url: url, title: title)
+        if case .saved = result {
+            refresh()
+        }
+        return result
     }
 
     func mark(_ articleID: UUID, as state: SavedArticleState) {

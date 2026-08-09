@@ -138,8 +138,8 @@ private struct OnboardingPageEN {
         ),
         OnboardingPageEN(
             systemImage: "timer.circle.fill",
-            title: "A Digest That Fits\nYour Free Time",
-            message: "Choose 5, 10, 15, or 30 minutes.\nWe'll build a digest that fits.",
+            title: "A Cast That Fits\nYour Free Time",
+            message: "Choose 5, 10, 15, or 20 minutes.\nWe'll build a Cast that fits.",
             color: .pink
         ),
         OnboardingPageEN(
