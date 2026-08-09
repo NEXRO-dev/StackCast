@@ -324,6 +324,8 @@ struct BillingSubscriptionSnapshot: Decodable, Equatable, Sendable {
     let expiresAt: String?
     let cancelledAt: String?
     let updatedAt: String
+    let source: String?
+    let overrideExpiresAt: String?
 }
 
 private struct BillingSubscriptionResponse: Decodable {

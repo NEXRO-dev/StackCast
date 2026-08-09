@@ -71,6 +71,9 @@ final class SubscriptionStore {
             await refresh()
             if let sessionToken {
                 serverSubscription = try? await AuthClient().billingSubscription(token: sessionToken)
+                if let serverSubscription, serverSubscription.source == "admin_override" {
+                    applyAdminOverride(serverSubscription)
+                }
             }
         } catch {
             isLoading = false
@@ -158,6 +161,28 @@ final class SubscriptionStore {
         willRenew = entitlement?.willRenew == true
         hasBillingIssue = entitlement?.billingIssueDetectedAt != nil
         SharedArticleRepository.setSubscriptionTier(sharedSubscriptionTier)
+    }
+
+    private func applyAdminOverride(_ subscription: BillingSubscriptionSnapshot) {
+        let tier = subscription.planTier?.lowercased() ?? "free"
+        isPro = subscription.isActive && (tier == "plus" || tier == "pro")
+        activeProductIdentifier = isPro ? "\(tier)_admin_override" : nil
+        expirationDate = parseServerDate(subscription.overrideExpiresAt ?? subscription.expiresAt)
+        willRenew = false
+        hasBillingIssue = false
+        SharedArticleRepository.setSubscriptionTier(sharedSubscriptionTier)
+    }
+
+    private func parseServerDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: value) {
+            return date
+        }
+
+        return ISO8601DateFormatter().date(from: value)
     }
 
     private var sharedSubscriptionTier: SharedSubscriptionTier {
