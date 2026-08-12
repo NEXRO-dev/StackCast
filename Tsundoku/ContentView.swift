@@ -18,7 +18,12 @@ struct ContentView: View {
     @State private var articleLibrary = ArticleLibrary()
     @State private var authStore = AuthStore()
     @State private var subscriptionStore = SubscriptionStore()
+    @State private var castStore = CastStore()
+    @State private var playbackStore = CastPlaybackStore()
     @State private var isShowingSubscription = false
+    @State private var isDeepLinkErrorPresented = false
+    @State private var isCastDetailPresented = false
+    @State private var selectedCast: CastRecord?
 
     var body: some View {
         Group {
@@ -34,9 +39,9 @@ struct ContentView: View {
         }
         .environment(\.locale, Locale(identifier: currentLanguage == .english ? "en" : "ja"))
         .onOpenURL { url in
-            guard url.scheme == "stashcast", url.host == "subscription" else { return }
-            isShowingSubscription = true
+            handleIncomingURL(url)
         }
+        .appErrorAlert(isPresented: $isDeepLinkErrorPresented, language: currentLanguage)
         .sheet(isPresented: $isShowingSubscription) {
             NavigationStack {
                 SubscriptionManagementView(
@@ -55,9 +60,27 @@ struct ContentView: View {
                     userID: signedInUserID,
                     sessionToken: authStore.sessionToken()
                 )
+                await castStore.load(token: authStore.sessionToken())
             } else {
                 await subscriptionStore.signOut()
+                castStore.clear()
             }
+        }
+        .onChange(of: authStore.status) { _, status in
+            guard case .signedIn(let user) = status,
+                  user.preferredLanguage == AppLanguage.japanese.rawValue ||
+                    user.preferredLanguage == AppLanguage.english.rawValue else { return }
+            appLanguage = user.preferredLanguage
+        }
+        .onChange(of: appLanguage) { _, language in
+            guard case .signedIn(let user) = authStore.status,
+                  user.preferredLanguage != language else { return }
+            Task {
+                try? await authStore.updatePreferredLanguage(language)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            playbackStore.handleScenePhase(phase, subscriptionTier: subscriptionStore.planTier)
         }
     }
 
@@ -131,10 +154,53 @@ struct ContentView: View {
     }
 
     private var authenticationSheetHeight: CGFloat {
-        authenticationMode == .login ? 520 : 460
+        // 下側だけを詰めるため、上側のタブ位置は維持したまま高さを調整します。
+        // 目安: 1mm ≒ 4pt
+        authenticationMode == .login ? 536 : 492
     }
 
     private var mainTabView: some View {
+        ZStack(alignment: .bottom) {
+            mainTabViewContent
+
+            if let currentCast = playbackStore.currentCast,
+               playbackStore.hasStartedPlayback,
+               !isCastDetailPresented {
+                miniPlayerOverlay(for: currentCast)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: playbackStore.hasStartedPlayback)
+        .animation(.snappy, value: isCastDetailPresented)
+    }
+
+    @ViewBuilder
+    private func miniPlayerOverlay(for cast: CastRecord) -> some View {
+        let content = DigestTabAccessory(
+            language: currentLanguage,
+            cast: cast,
+            playbackStore: playbackStore,
+            subscriptionTier: subscriptionStore.planTier,
+            openPlayer: { openCastDetails(cast) },
+            close: { playbackStore.stop() }
+        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 72)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.horizontal, 20)
+                .padding(.bottom, 72)
+        }
+    }
+
+    private var mainTabViewContent: some View {
         TabView(selection: $selectedTab) {
             Tab(value: .home) {
                 if currentLanguage == .english {
@@ -149,9 +215,9 @@ struct ContentView: View {
 
             Tab(value: .stock) {
                 if currentLanguage == .english {
-                    StockViewEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+                    StockViewEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore, castStore: castStore, authStore: authStore)
                 } else {
-                    StockView(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+                    StockView(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore, castStore: castStore, authStore: authStore)
                 }
             } label: {
                 Image(systemName: "tray.full")
@@ -161,9 +227,9 @@ struct ContentView: View {
 
             Tab(value: .player) {
                 if currentLanguage == .english {
-                    PlayerViewEN()
+                    PlayerViewEN(authStore: authStore, castStore: castStore, playbackStore: playbackStore, subscriptionTier: subscriptionStore.planTier, selectedCast: $selectedCast, isDetailPresented: $isCastDetailPresented)
                 } else {
-                    PlayerView()
+                    PlayerView(authStore: authStore, castStore: castStore, playbackStore: playbackStore, subscriptionTier: subscriptionStore.planTier, selectedCast: $selectedCast, isDetailPresented: $isCastDetailPresented)
                 }
             } label: {
                 Image(systemName: "headphones")
@@ -220,6 +286,45 @@ struct ContentView: View {
     private func completeRegistration() {
         isAuthenticationPresented = false
         authenticationMode = .signup
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        if url.scheme == "stashcast" {
+            switch url.host {
+            case "subscription":
+                isShowingSubscription = true
+            case "stock":
+                selectedTab = .stock
+                articleLibrary.refresh()
+            case "cast":
+                guard let token = url.pathComponents.dropFirst().first else { return }
+                openSharedCast(token: token)
+            default:
+                break
+            }
+            return
+        }
+
+        guard url.scheme == "https",
+              url.host == "stash-cast.vercel.app",
+              url.pathComponents.count >= 3,
+              url.pathComponents[1] == "c" else { return }
+        openSharedCast(token: url.pathComponents[2])
+    }
+
+    private func openSharedCast(token: String) {
+        selectedTab = .player
+        Task {
+            if !(await castStore.openSharedCast(shareToken: token)) {
+                isDeepLinkErrorPresented = true
+            }
+        }
+    }
+
+    private func openCastDetails(_ cast: CastRecord) {
+        selectedTab = .player
+        isCastDetailPresented = true
+        selectedCast = cast
     }
 }
 

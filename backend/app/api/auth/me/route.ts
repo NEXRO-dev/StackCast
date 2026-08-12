@@ -9,6 +9,7 @@ type SessionUserRow = {
   name: string;
   email: string;
   profileImageURL: string | null;
+  preferredLanguage: "japanese" | "english";
 };
 
 export async function GET(request: Request) {
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
     const tokenHash = hashSessionToken(token);
     const user = (await getTurso().get(
       `SELECT users.id, users.name, users.email,
+              users.preferred_language AS preferredLanguage,
               user_profiles.profile_image_url AS profileImageURL
        FROM auth_sessions
        JOIN users ON users.id = auth_sessions.user_id

@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       provider: "google",
       ...identity,
       profileImageURL: identity.profileImageURL ?? input.profileImageURL,
+      preferredLanguage: input.preferredLanguage,
     });
   } catch (error) {
     if (error instanceof SocialAccountError) {

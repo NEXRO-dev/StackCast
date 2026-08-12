@@ -22,6 +22,7 @@ type UserRow = {
   name: string;
   email: string;
   profileImageURL: string | null;
+  preferredLanguage: "japanese" | "english";
 };
 
 export async function POST(request: Request) {
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
 
     const existingUser = (await getTurso().get(
       `SELECT users.id, users.name, users.email,
+              users.preferred_language AS preferredLanguage,
               user_profiles.profile_image_url AS profileImageURL
        FROM users
        LEFT JOIN user_profiles ON user_profiles.user_id = users.id

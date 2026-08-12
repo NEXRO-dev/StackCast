@@ -313,3 +313,254 @@ final class ArticleLibrary {
         }
     }
 }
+
+struct CastRecord: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let summary: String?
+    let transcript: String?
+    let durationMinutes: Int
+    let status: String
+    let audioURL: URL?
+    let creditCost: Int
+    let errorMessage: String?
+    let createdAt: String
+    let completedAt: String?
+}
+
+private struct CastSourceRequest: Encodable {
+    let url: URL
+    let title: String
+}
+
+private struct CastListResponse: Decodable {
+    let casts: [CastRecord]
+}
+
+private struct CastCreateResponse: Decodable {
+    let cast: CastRecord
+}
+
+private struct CastShareResponse: Decodable {
+    let shareURL: URL
+}
+
+private struct CastAPIErrorResponse: Decodable {
+    let error: APIError
+
+    struct APIError: Decodable {
+        let message: String
+    }
+}
+
+@MainActor
+@Observable
+final class CastStore {
+    private(set) var casts: [CastRecord] = []
+    private(set) var isLoading = false
+    private(set) var isGenerating = false
+    private(set) var errorMessage: String?
+    private(set) var pendingOpenCastID: String?
+
+    func clear() {
+        casts = []
+        errorMessage = nil
+        isLoading = false
+        isGenerating = false
+        pendingOpenCastID = nil
+    }
+
+    func load(token: String?) async {
+        guard let token else {
+            clear()
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let pendingSharedCast = pendingOpenCastID.flatMap { pendingID in
+                casts.first(where: { $0.id == pendingID })
+            }
+            var loadedCasts = try await CastAPI.list(token: token)
+            if let pendingSharedCast,
+               !loadedCasts.contains(where: { $0.id == pendingSharedCast.id }) {
+                loadedCasts.insert(pendingSharedCast, at: 0)
+            }
+            casts = loadedCasts
+            errorMessage = nil
+        } catch {
+            errorMessage = "Castの読み込みに失敗しました。"
+        }
+    }
+
+    func create(
+        token: String?,
+        durationMinutes: Int = 10,
+        sources: [SavedArticle]
+    ) async -> CastRecord? {
+        guard let token else {
+            errorMessage = "ログインが必要です。"
+            return nil
+        }
+
+        isGenerating = true
+        defer { isGenerating = false }
+
+        do {
+            let cast = try await CastAPI.create(
+                token: token,
+                durationMinutes: durationMinutes,
+                sources: sources
+            )
+            casts.insert(cast, at: 0)
+            errorMessage = nil
+            return cast
+        } catch {
+            errorMessage = "Castの作成に失敗しました。"
+            return nil
+        }
+    }
+
+    func createShareURL(token: String?, castID: String) async -> URL? {
+        guard let token else {
+            errorMessage = "ログインが必要です。"
+            return nil
+        }
+
+        do {
+            let shareURL = try await CastAPI.createShareURL(token: token, castID: castID)
+            errorMessage = nil
+            return shareURL
+        } catch {
+            errorMessage = "共有リンクを作成できませんでした。"
+            return nil
+        }
+    }
+
+    func openSharedCast(shareToken: String) async -> Bool {
+        do {
+            let cast = try await CastAPI.publicCast(shareToken: shareToken)
+            casts.removeAll { $0.id == cast.id }
+            casts.insert(cast, at: 0)
+            pendingOpenCastID = cast.id
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = "共有されたCastを開けませんでした。"
+            return false
+        }
+    }
+
+    func consumePendingOpenCast() {
+        pendingOpenCastID = nil
+    }
+}
+
+private enum CastAPI {
+    #if DEBUG
+    private static let baseURL = URL(string: "http://localhost:3000")!
+    #else
+    private static let baseURL = URL(string: "https://stash-cast.vercel.app")!
+    #endif
+
+    static func list(token: String) async throws -> [CastRecord] {
+        let request = try makeRequest(path: "api/casts", method: "GET", token: token)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(CastListResponse.self, from: data).casts
+    }
+
+    static func create(
+        token: String,
+        durationMinutes: Int,
+        sources: [SavedArticle]
+    ) async throws -> CastRecord {
+        let body: [String: AnyEncodable] = [
+            "durationMinutes": AnyEncodable(durationMinutes),
+            "sources": AnyEncodable(sources.map {
+                CastSourceRequest(url: $0.url, title: $0.title)
+            }),
+        ]
+        let request = try makeRequest(
+            path: "api/casts",
+            method: "POST",
+            token: token,
+            body: body
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(CastCreateResponse.self, from: data).cast
+    }
+
+    static func createShareURL(token: String, castID: String) async throws -> URL {
+        let request = try makeRequest(
+            path: "api/casts/\(castID)/share",
+            method: "POST",
+            token: token
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(CastShareResponse.self, from: data).shareURL
+    }
+
+    static func publicCast(shareToken: String) async throws -> CastRecord {
+        var request = URLRequest(
+            url: baseURL.appending(path: "api/public/casts/\(shareToken)")
+        )
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(CastCreateResponse.self, from: data).cast
+    }
+
+    private static func makeRequest(
+        path: String,
+        method: String,
+        token: String,
+        body: [String: AnyEncodable]? = nil
+    ) throws -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = method
+        request.timeoutInterval = 300
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.httpBody = try JSONEncoder().encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        return request
+    }
+
+    private static func validate(response: URLResponse, data: Data) throws {
+        guard let response = response as? HTTPURLResponse,
+              (200..<300).contains(response.statusCode) else {
+            if let payload = try? JSONDecoder().decode(CastAPIErrorResponse.self, from: data) {
+                throw NSError(domain: "CastAPI", code: responseCode(response), userInfo: [
+                    NSLocalizedDescriptionKey: payload.error.message,
+                ])
+            }
+            throw NSError(domain: "CastAPI", code: responseCode(response), userInfo: [
+                NSLocalizedDescriptionKey: "Castを作成できませんでした。",
+            ])
+        }
+    }
+
+    private static func responseCode(_ response: URLResponse) -> Int {
+        (response as? HTTPURLResponse)?.statusCode ?? -1
+    }
+}
+
+private struct AnyEncodable: Encodable {
+    private let encodeValue: (Encoder) throws -> Void
+
+    init<T: Encodable>(_ value: T) {
+        encodeValue = value.encode(to:)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try encodeValue(encoder)
+    }
+}

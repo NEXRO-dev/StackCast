@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       provider: "apple",
       ...identity,
       name: input.name,
+      preferredLanguage: input.preferredLanguage,
     });
   } catch (error) {
     if (error instanceof SocialAccountError) {

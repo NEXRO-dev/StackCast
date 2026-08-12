@@ -6,16 +6,29 @@
 import SwiftUI
 
 struct StockView: View {
-    @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
     let subscriptionStore: SubscriptionStore
-    @State private var selectedStatus: ArticleStatus = .unread
+    let castStore: CastStore
+    let authStore: AuthStore
+    @State private var selectedFilter: StockFilter = .all
+    @State private var selectedArticleIDs: Set<UUID> = []
+    @State private var isShowingCastCreated = false
+    @State private var isShowingCastError = false
+    @State private var browserDestination: InAppBrowserDestination?
     @State private var isAddingURL = false
 
     private var filteredArticles: [MockArticle] {
-        articleLibrary.articles
-            .map { $0.displayArticle(language: .japanese) }
-            .filter { $0.status == selectedStatus }
+        let articles: [SavedArticle]
+        switch selectedFilter {
+        case .all:
+            articles = articleLibrary.articles
+        case .expiring:
+            articles = articleLibrary.articles.filter(isExpiring)
+        case .completed:
+            articles = articleLibrary.articles.filter { $0.state == .completed }
+        }
+
+        return articles.map { $0.displayArticle(language: .japanese) }
     }
 
     var body: some View {
@@ -27,25 +40,31 @@ struct StockView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(filteredArticles) { article in
-                            Button {
-                                articleLibrary.mark(article.id, as: .inProgress)
-                                if let url = article.originalURL { openURL(url) }
-                            } label: {
-                                ArticleRow(article: article)
-                                    .tsundokuCard()
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                if let url = article.originalURL {
-                                    Button("元記事を開く", systemImage: "safari") {
-                                        openURL(url)
+                            HStack(spacing: 8) {
+                                selectionControl(for: article)
+
+                                Button {
+                                    if let url = article.originalURL {
+                                        articleLibrary.mark(article.id, as: .inProgress)
+                                        browserDestination = InAppBrowserDestination(url: url)
                                     }
+                                } label: {
+                                    ArticleRow(article: article)
+                                        .tsundokuCard()
                                 }
-                                Button("完了にする", systemImage: "checkmark.circle") {
-                                    articleLibrary.mark(article.id, as: .completed)
-                                }
-                                Button("削除", systemImage: "trash", role: .destructive) {
-                                    articleLibrary.delete(article.id)
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    if let url = article.originalURL {
+                                        Button("元記事を開く", systemImage: "safari") {
+                                            browserDestination = InAppBrowserDestination(url: url)
+                                        }
+                                    }
+                                    Button("完了にする", systemImage: "checkmark.circle") {
+                                        articleLibrary.mark(article.id, as: .completed)
+                                    }
+                                    Button("削除", systemImage: "trash", role: .destructive) {
+                                        articleLibrary.delete(article.id)
+                                    }
                                 }
                             }
                         }
@@ -58,26 +77,45 @@ struct StockView: View {
                     if filteredArticles.isEmpty {
                         ContentUnavailableView(
                             "記事はありません",
-                            systemImage: selectedStatus == .completed ? "checkmark.circle" : "tray",
-                            description: Text("この状態の記事はまだありません。")
+                            systemImage: emptyStateSymbol,
+                            description: Text(emptyStateDescription)
                         )
                     }
                 }
             }
             .background(Color(.systemGroupedBackground))
             .safeAreaInset(edge: .bottom) {
-                HStack {
-                    Spacer()
-
-                    GlassAddButton(accessibilityLabel: "URLから記事を追加") {
-                        isAddingURL = true
+                Group {
+                    if selectedArticleIDs.isEmpty {
+                        HStack {
+                            Spacer()
+                            GlassAddButton(accessibilityLabel: "URLから記事を追加") {
+                                isAddingURL = true
+                            }
+                        }
+                    } else {
+                        selectionActionBar
                     }
                 }
                 .padding(.horizontal, AppDesign.pagePadding)
                 .padding(.bottom, 61)
+                .animation(.snappy, value: selectedArticleIDs.count)
             }
+            .alert("Castを作成しました", isPresented: $isShowingCastCreated) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("ポッドキャスト画面から再生できます。")
+            }
+            .appErrorAlert(
+                isPresented: $isShowingCastError,
+                language: .japanese
+            )
             .sheet(isPresented: $isAddingURL) {
                 AddArticleSheet(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+            }
+            .sheet(item: $browserDestination) { destination in
+                InAppBrowserView(url: destination.url)
+                    .ignoresSafeArea()
             }
         }
     }
@@ -114,14 +152,162 @@ struct StockView: View {
     }
 
     private var statusPicker: some View {
-        Picker("記事の状態", selection: $selectedStatus) {
-            ForEach(ArticleStatus.allCases, id: \.self) { status in
-                Text(status.rawValue).tag(status)
-            }
+        Picker("ストックフィルター", selection: $selectedFilter) {
+            Text("すべて").tag(StockFilter.all)
+            Text("期限間近").tag(StockFilter.expiring)
+            Text("完了").tag(StockFilter.completed)
         }
         .pickerStyle(.segmented)
         .padding(.horizontal, AppDesign.pagePadding)
         .padding(.bottom, 8)
+    }
+
+    private var emptyStateSymbol: String {
+        switch selectedFilter {
+        case .all, .expiring: "tray"
+        case .completed: "checkmark.circle"
+        }
+    }
+
+    private var emptyStateDescription: String {
+        switch selectedFilter {
+        case .all: "Webページの共有から記事を追加できます。"
+        case .expiring: "24時間以内に期限を迎える記事はありません。"
+        case .completed: "完了した記事はまだありません。"
+        }
+    }
+
+    private func isExpiring(_ article: SavedArticle) -> Bool {
+        guard article.state != .completed,
+              let retentionInterval = SharedArticleRepository.subscriptionTier.retentionInterval
+        else { return false }
+
+        let expirationDate = article.savedAt.addingTimeInterval(retentionInterval)
+        return expirationDate <= Date.now.addingTimeInterval(24 * 60 * 60)
+    }
+
+    private var selectionActionBar: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Castにする記事")
+                        .font(.headline)
+                    Text(selectionStatusText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    withAnimation(.snappy) {
+                        selectedArticleIDs.removeAll()
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 30, height: 30)
+                        .background(.secondary.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("選択をすべて解除")
+            }
+
+            Button {
+                let sources = articleLibrary.articles.filter { selectedArticleIDs.contains($0.id) }
+                Task {
+                    let cast = await castStore.create(
+                        token: authStore.sessionToken(),
+                        durationMinutes: castTestDuration,
+                        sources: sources
+                    )
+                    if cast != nil {
+                        sources.forEach { articleLibrary.mark($0.id, as: .completed) }
+                        selectedArticleIDs.removeAll()
+                        isShowingCastCreated = true
+                    } else {
+                        isShowingCastError = true
+                    }
+                }
+            } label: {
+                HStack {
+                    if castStore.isGenerating {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Castを作成中…")
+                    } else {
+                        Text("Castを作成")
+                    }
+                    Spacer()
+                    Image(systemName: castStore.isGenerating ? "waveform" : "arrow.right")
+                }
+                .font(.headline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedArticleIDs.count < minimumCastArticleCount || castStore.isGenerating)
+        }
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(.primary.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
+    }
+
+    private var selectionStatusText: String {
+        if selectedArticleIDs.count < minimumCastArticleCount {
+            return "あと\(minimumCastArticleCount - selectedArticleIDs.count)件選択してください"
+        }
+        return "\(selectedArticleIDs.count)件選択中・Castを作成できます"
+    }
+
+    private var minimumCastArticleCount: Int {
+        #if DEBUG
+        return 1
+        #else
+        return 3
+        #endif
+    }
+
+    private var castTestDuration: Int {
+        #if DEBUG
+        return 2
+        #else
+        return 10
+        #endif
+    }
+
+    private func toggleSelection(for articleID: UUID) {
+        guard articleLibrary.articles.first(where: { $0.id == articleID })?.state != .completed else { return }
+
+        if selectedArticleIDs.contains(articleID) {
+            selectedArticleIDs.remove(articleID)
+        } else {
+            selectedArticleIDs.insert(articleID)
+        }
+    }
+
+    private func selectionControl(for article: MockArticle) -> some View {
+        Button {
+            toggleSelection(for: article.id)
+        } label: {
+            Image(systemName: selectedArticleIDs.contains(article.id) ? "checkmark.circle.fill" : "circle")
+                .font(.title2)
+                .foregroundStyle(selectedArticleIDs.contains(article.id) ? Color.accentColor : Color.secondary)
+                .frame(width: 34, height: 54)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(article.status == .completed)
+        .accessibilityLabel(selectedArticleIDs.contains(article.id) ? "選択を解除" : "記事を選択")
     }
 }
 
@@ -188,5 +374,10 @@ private struct AddArticleSheet: View {
 }
 
 #Preview {
-    StockView(articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
+    StockView(
+        articleLibrary: ArticleLibrary(),
+        subscriptionStore: SubscriptionStore(),
+        castStore: CastStore(),
+        authStore: AuthStore()
+    )
 }

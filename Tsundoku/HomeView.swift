@@ -6,7 +6,6 @@
 import SwiftUI
 
 struct HomeView: View {
-    @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
     let subscriptionStore: SubscriptionStore
     @AppStorage("customDigestDuration") private var customDuration = 20
@@ -14,6 +13,7 @@ struct HomeView: View {
     @State private var durationSelection = 10
     @State private var isShowingCustomDuration = false
     @State private var isShowingSubscription = false
+    @State private var browserDestination: InAppBrowserDestination?
 
     private let durations = [5, 10, 15, 20]
 
@@ -45,6 +45,10 @@ struct HomeView: View {
                     language: .japanese,
                     initialTier: .plus
                 )
+            }
+            .sheet(item: $browserDestination) { destination in
+                InAppBrowserView(url: destination.url)
+                    .ignoresSafeArea()
             }
         }
     }
@@ -166,7 +170,9 @@ struct HomeView: View {
                     ForEach(Array(unreadArticles.prefix(2).enumerated()), id: \.element.id) { index, article in
                         Button {
                             articleLibrary.mark(article.id, as: .inProgress)
-                            if let url = article.originalURL { openURL(url) }
+                            if let url = article.originalURL {
+                                browserDestination = InAppBrowserDestination(url: url)
+                            }
                         } label: {
                             ArticleRow(article: article)
                         }

@@ -3,6 +3,7 @@ export type AuthUser = {
   name: string;
   email: string;
   profileImageURL: string | null;
+  preferredLanguage: "japanese" | "english";
 };
 
 export function authResponse(

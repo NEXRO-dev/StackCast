@@ -75,8 +75,6 @@ struct SettingsViewEN: View {
     private func deleteAccount() async {
         do {
             try await authStore.deleteAccount()
-        } catch let error as AuthServiceError {
-            destructiveAction = .error(error.message(isEnglish: true))
         } catch {
             destructiveAction = .error("Could not delete your account. Please try again.")
         }

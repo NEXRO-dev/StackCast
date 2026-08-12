@@ -14,6 +14,7 @@ struct AuthUser: Codable, Equatable, Sendable {
     let name: String
     let email: String
     let profileImageURL: URL?
+    let preferredLanguage: String
 }
 
 enum AuthStatus: Equatable {
@@ -172,7 +173,8 @@ final class AuthStore {
         let response = try await client.completeEmailSignup(
             enrollmentToken: enrollmentToken,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            password: password
+            password: password,
+            preferredLanguage: preferredLanguageForServer
         )
         try accept(response)
     }
@@ -201,7 +203,8 @@ final class AuthStore {
             try accept(
                 try await client.signInWithGoogle(
                     identityToken: identityToken,
-                    profileImageURL: profileImageURL
+                    profileImageURL: profileImageURL,
+                    preferredLanguage: preferredLanguageForServer
                 )
             )
         } catch let error as AuthServiceError {
@@ -223,7 +226,8 @@ final class AuthStore {
         let response = try await client.signInWithApple(
             identityToken: identityToken,
             rawNonce: rawNonce,
-            name: name
+            name: name,
+            preferredLanguage: preferredLanguageForServer
         )
         try accept(response)
     }
@@ -246,6 +250,17 @@ final class AuthStore {
         status = .signedOut
     }
 
+    func updatePreferredLanguage(_ language: String) async throws {
+        guard language == AppLanguage.japanese.rawValue || language == AppLanguage.english.rawValue,
+              let token = try tokenStore.load() else { return }
+        let response = try await client.updatePreferredLanguage(language, token: token)
+        status = .signedIn(response.user)
+    }
+
+    private var preferredLanguageForServer: String {
+        UserDefaults.standard.string(forKey: AppLanguage.storageKey) ?? AppLanguage.japanese.rawValue
+    }
+
     func deleteAccount() async throws {
         guard let token = try tokenStore.load() else {
             status = .signedOut
@@ -265,7 +280,8 @@ final class AuthStore {
                 id: "developer",
                 name: "Developer",
                 email: "developer@localhost",
-                profileImageURL: nil
+                profileImageURL: nil,
+                preferredLanguage: AppLanguage.japanese.rawValue
             )
         )
     }
@@ -392,7 +408,8 @@ struct AuthClient {
     func completeEmailSignup(
         enrollmentToken: String,
         name: String,
-        password: String
+        password: String,
+        preferredLanguage: String
     ) async throws -> AuthResponse {
         try await send(
             path: "api/auth/email/complete",
@@ -401,13 +418,15 @@ struct AuthClient {
                 "enrollmentToken": enrollmentToken,
                 "name": name,
                 "password": password,
+                "preferredLanguage": preferredLanguage,
             ]
         )
     }
 
     func signInWithGoogle(
         identityToken: String,
-        profileImageURL: String?
+        profileImageURL: String?,
+        preferredLanguage: String
     ) async throws -> AuthResponse {
         try await send(
             path: "api/auth/google",
@@ -415,6 +434,7 @@ struct AuthClient {
             body: [
                 "identityToken": identityToken,
                 "profileImageURL": profileImageURL ?? "",
+                "preferredLanguage": preferredLanguage,
             ]
         )
     }
@@ -422,7 +442,8 @@ struct AuthClient {
     func signInWithApple(
         identityToken: String,
         rawNonce: String,
-        name: String?
+        name: String?,
+        preferredLanguage: String
     ) async throws -> AuthResponse {
         try await send(
             path: "api/auth/apple",
@@ -431,6 +452,7 @@ struct AuthClient {
                 "identityToken": identityToken,
                 "rawNonce": rawNonce,
                 "name": name ?? "",
+                "preferredLanguage": preferredLanguage,
             ]
         )
     }
@@ -442,6 +464,15 @@ struct AuthClient {
             token: token
         )
         return response.user
+    }
+
+    fileprivate func updatePreferredLanguage(_ language: String, token: String) async throws -> CurrentUserResponse {
+        try await send(
+            path: "api/auth/account",
+            method: "PATCH",
+            body: ["preferredLanguage": language],
+            token: token
+        )
     }
 
     func billingSubscription(token: String) async throws -> BillingSubscriptionSnapshot? {

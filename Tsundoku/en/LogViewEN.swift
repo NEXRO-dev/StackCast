@@ -7,8 +7,8 @@ import Charts
 import SwiftUI
 
 struct LogViewEN: View {
-    @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
+    @State private var browserDestination: InAppBrowserDestination?
 
     var body: some View {
         NavigationStack {
@@ -25,6 +25,10 @@ struct LogViewEN: View {
                 .padding(.bottom, 36)
             }
             .background(Color(.systemGroupedBackground))
+            .sheet(item: $browserDestination) { destination in
+                InAppBrowserView(url: destination.url)
+                    .ignoresSafeArea()
+            }
         }
     }
 
@@ -121,7 +125,9 @@ struct LogViewEN: View {
             } else {
                 VStack(spacing: 18) {
                     ForEach(Array(completedArticles.prefix(5).enumerated()), id: \.element.id) { index, article in
-                        Button { openURL(article.url) } label: {
+                        Button {
+                            browserDestination = InAppBrowserDestination(url: article.url)
+                        } label: {
                             ArticleRow(article: article.displayArticle(language: .english), showsStatus: false, language: .english)
                         }
                         .buttonStyle(.plain)

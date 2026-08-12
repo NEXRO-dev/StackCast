@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       name: input.name,
       email: enrollment.email,
       profileImageURL: null,
+      preferredLanguage: input.preferredLanguage,
     };
     const passwordHash = await hashPassword(input.password);
     const session = createSession();
@@ -69,9 +70,17 @@ export async function POST(request: Request) {
         },
         {
           sql: `INSERT INTO users
-            (id, name, email, password_hash, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-          args: [user.id, user.name, user.email, passwordHash, now, now],
+            (id, name, email, password_hash, preferred_language, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            user.id,
+            user.name,
+            user.email,
+            passwordHash,
+            user.preferredLanguage,
+            now,
+            now,
+          ],
         },
         {
           sql: `INSERT INTO auth_sessions

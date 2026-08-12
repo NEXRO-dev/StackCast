@@ -66,13 +66,26 @@ struct SignupCardView: View {
                 .frame(maxWidth: 430)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
-                .padding(.top, 52)
+                .padding(.top, 80)
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
 
+            AuthenticationModeTabs(
+                language: copy.isEnglish ? .english : .japanese,
+                isLoginSelected: false,
+                onSelectSignup: {},
+                onSelectLogin: onShowLogin
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 10)
+
             closeButton
         }
+        .appErrorAlert(
+            isPresented: errorAlertBinding,
+            language: copy.isEnglish ? .english : .japanese
+        )
     }
 
     private var emailStep: some View {
@@ -117,12 +130,6 @@ struct SignupCardView: View {
 
             errorText
 
-            Button(action: onShowLogin) {
-                Text(copy.loginPrompt)
-                    .font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.tint)
         }
     }
 
@@ -295,12 +302,7 @@ struct SignupCardView: View {
 
     @ViewBuilder
     private var errorText: some View {
-        if let errorMessage {
-            Text(errorMessage)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        EmptyView()
     }
 
     private func socialButton(
@@ -521,11 +523,14 @@ struct SignupCardView: View {
     }
 
     private func show(_ error: Error) {
-        if let authError = error as? AuthServiceError {
-            errorMessage = authError.message(isEnglish: copy.isEnglish)
-        } else {
-            errorMessage = copy.genericError
-        }
+        errorMessage = copy.genericError
+    }
+
+    private var errorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )
     }
 
     private static func randomNonce(length: Int = 32) -> String {

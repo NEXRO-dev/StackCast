@@ -15,6 +15,7 @@ export async function signInWithSocialIdentity(input: {
   email: string | null;
   name: string | null;
   profileImageURL: string | null;
+  preferredLanguage: "japanese" | "english";
 }): Promise<Response> {
   const existingIdentity = await findIdentity(input.provider, input.subject);
 
@@ -33,6 +34,7 @@ export async function signInWithSocialIdentity(input: {
 
   const existingUser = (await getTurso().get(
     `SELECT users.id, users.name, users.email,
+            users.preferred_language AS preferredLanguage,
             user_profiles.profile_image_url AS profileImageURL
      FROM users
      LEFT JOIN user_profiles ON user_profiles.user_id = users.id
@@ -46,6 +48,7 @@ export async function signInWithSocialIdentity(input: {
       name: normalizedName(input.name, input.email),
       email: input.email,
       profileImageURL: input.profileImageURL,
+      preferredLanguage: input.preferredLanguage,
     };
   const session = createSession();
   const statements = [];
@@ -53,13 +56,14 @@ export async function signInWithSocialIdentity(input: {
   if (!existingUser) {
     statements.push({
       sql: `INSERT INTO users
-        (id, name, email, password_hash, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)`,
+        (id, name, email, password_hash, preferred_language, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [
         user.id,
         user.name,
         user.email,
         `external$${randomBytes(32).toString("base64url")}`,
+        user.preferredLanguage,
         now,
         now,
       ],
@@ -127,6 +131,7 @@ async function findIdentity(
 ): Promise<AuthUser | null> {
   const row = (await getTurso().get(
     `SELECT users.id, users.name, users.email,
+            users.preferred_language AS preferredLanguage,
             user_profiles.profile_image_url AS profileImageURL,
             auth_identities.user_id
      FROM auth_identities
@@ -145,6 +150,7 @@ async function findIdentity(
         name: row.name,
         email: row.email,
         profileImageURL: row.profileImageURL,
+        preferredLanguage: row.preferredLanguage,
       }
     : null;
 }

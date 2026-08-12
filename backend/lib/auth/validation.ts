@@ -22,18 +22,23 @@ export type CompleteEnrollmentInput = {
   enrollmentToken: string;
   name: string;
   password: string;
+  preferredLanguage: PreferredLanguage;
 };
 
 export type GoogleAuthInput = {
   identityToken: string;
   profileImageURL: string | null;
+  preferredLanguage: PreferredLanguage;
 };
 
 export type AppleAuthInput = {
   identityToken: string;
   rawNonce: string;
   name: string | null;
+  preferredLanguage: PreferredLanguage;
 };
+
+export type PreferredLanguage = "japanese" | "english";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,128}$/;
@@ -103,6 +108,7 @@ export function validateCompleteEnrollmentInput(
   const enrollmentToken = normalizedString(value.enrollmentToken);
   const name = normalizedString(value.name);
   const password = typeof value.password === "string" ? value.password : "";
+  const preferredLanguage = normalizedPreferredLanguage(value.preferredLanguage);
 
   if (
     enrollmentToken.length < 32 ||
@@ -114,7 +120,7 @@ export function validateCompleteEnrollmentInput(
     return null;
   }
 
-  return { enrollmentToken, name, password };
+  return { enrollmentToken, name, password, preferredLanguage };
 }
 
 export function validateGoogleAuthInput(value: unknown): GoogleAuthInput | null {
@@ -124,8 +130,9 @@ export function validateGoogleAuthInput(value: unknown): GoogleAuthInput | null 
 
   const identityToken = normalizedString(value.identityToken);
   const profileImageURL = normalizedGoogleProfileImageURL(value.profileImageURL);
+  const preferredLanguage = normalizedPreferredLanguage(value.preferredLanguage);
   return identityToken.length >= 100
-    ? { identityToken, profileImageURL }
+    ? { identityToken, profileImageURL, preferredLanguage }
     : null;
 }
 
@@ -137,12 +144,17 @@ export function validateAppleAuthInput(value: unknown): AppleAuthInput | null {
   const identityToken = normalizedString(value.identityToken);
   const rawNonce = normalizedString(value.rawNonce);
   const name = normalizedString(value.name) || null;
+  const preferredLanguage = normalizedPreferredLanguage(value.preferredLanguage);
 
   if (identityToken.length < 100 || rawNonce.length < 32 || rawNonce.length > 256) {
     return null;
   }
 
-  return { identityToken, rawNonce, name };
+  return { identityToken, rawNonce, name, preferredLanguage };
+}
+
+function normalizedPreferredLanguage(value: unknown): PreferredLanguage {
+  return value === "english" ? "english" : "japanese";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

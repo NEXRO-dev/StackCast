@@ -26,6 +26,13 @@ struct SubscriptionManagementView: View {
         SubscriptionCopy(language: language)
     }
 
+    private var subscriptionErrorBinding: Binding<Bool> {
+        Binding(
+            get: { subscriptionStore.errorMessage != nil },
+            set: { if !$0 { subscriptionStore.clearError() } }
+        )
+    }
+
     init(
         subscriptionStore: SubscriptionStore,
         language: AppLanguage,
@@ -80,6 +87,11 @@ struct SubscriptionManagementView: View {
         } message: {
             Text(copy.planChangedMessage(planName: currentTier.title(copy: copy)))
         }
+        .appErrorAlert(
+            isPresented: subscriptionErrorBinding,
+            language: language,
+            onDismiss: subscriptionStore.clearError
+        )
         .task {
             guard loadsSubscriptionData else { return }
             await subscriptionStore.refresh()
@@ -310,14 +322,6 @@ struct SubscriptionManagementView: View {
 
     private var supportSection: some View {
         VStack(spacing: 12) {
-            if let errorMessage = subscriptionStore.errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
-            }
-
             HStack(spacing: 18) {
                 Button {
                     openURL(termsURL)

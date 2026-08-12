@@ -1,0 +1,84 @@
+import { bearerToken, hashSessionToken } from "@/lib/auth/session";
+import { errorResponse } from "@/lib/auth/response";
+import { createCast, listCasts, type CreateCastInput } from "@/lib/cast/pipeline";
+import { getTurso } from "@/lib/turso";
+import { randomUUID } from "node:crypto";
+
+export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  const userID = await authenticatedUserID(request);
+  if (!userID) return errorResponse("unauthorized", "Session is invalid or expired.", 401);
+
+  try {
+    return Response.json({ casts: await listCasts(userID) });
+  } catch (error) {
+    console.error("Cast list failed", error);
+    return errorResponse("server_error", "Unable to load casts.", 500);
+  }
+}
+
+export async function POST(request: Request) {
+  const requestID = randomUUID();
+  const userID = await authenticatedUserID(request);
+  if (!userID) {
+    console.warn("[cast] request rejected", { requestID, reason: "unauthorized" });
+    return errorResponse("unauthorized", "Session is invalid or expired.", 401);
+  }
+
+  let input: CreateCastInput;
+  try {
+    input = (await request.json()) as CreateCastInput;
+  } catch {
+    console.warn("[cast] request rejected", { requestID, userID, reason: "invalid_json" });
+    return errorResponse("invalid_request", "Request body must be valid JSON.", 400);
+  }
+
+  console.info("[cast] request received", {
+    requestID,
+    userID,
+    sourceCount: Array.isArray(input.sources) ? input.sources.length : null,
+    durationMinutes: input.durationMinutes ?? 10,
+  });
+
+  try {
+    const cast = await createCast(userID, input);
+    console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
+    return Response.json({ cast }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "CAST_GENERATION_FAILED";
+    console.error("[cast] request failed", {
+      requestID,
+      userID,
+      code: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    if (message === "CAST_REQUIRES_THREE_TO_FOUR_SOURCES") {
+      return errorResponse("invalid_sources", "Select one to four articles in development, or three to four articles in production.", 400);
+    }
+    if (message === "CAST_INSUFFICIENT_CREDITS") {
+      return errorResponse("insufficient_credits", "You do not have enough Cast credits.", 402);
+    }
+    if (message === "CAST_NOT_FOUND") {
+      return errorResponse("not_found", "Cast was not found.", 404);
+    }
+    console.error("Cast generation failed", error);
+    return errorResponse("cast_generation_failed", "Unable to generate the cast.", 502);
+  }
+}
+
+async function authenticatedUserID(request: Request): Promise<string | null> {
+  const token = bearerToken(request);
+  if (!token) return null;
+
+  const session = (await getTurso().get(
+    `SELECT user_id AS userID
+     FROM auth_sessions
+     WHERE token_hash = ? AND expires_at > ?
+     LIMIT 1`,
+    hashSessionToken(token),
+    new Date().toISOString(),
+  )) as { userID?: string } | null;
+
+  return session?.userID ?? null;
+}

@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SafariServices
 
 enum AppLanguage: String, CaseIterable, Identifiable {
     static let storageKey = "appLanguage"
@@ -24,6 +25,22 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 enum AppDesign {
     static let pagePadding: CGFloat = 20
     static let cardRadius: CGFloat = 22
+}
+
+struct InAppBrowserDestination: Identifiable {
+    let url: URL
+
+    var id: URL { url }
+}
+
+struct InAppBrowserView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ viewController: SFSafariViewController, context: Context) {}
 }
 
 struct AccountAvatarView: View {
@@ -371,19 +388,23 @@ enum ArticleStatus: String, CaseIterable {
     }
 }
 
+enum StockFilter: CaseIterable {
+    case all
+    case expiring
+    case completed
+}
+
 struct ArticleArtwork: View {
     let article: MockArticle
     var size: CGFloat = 64
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
-                .fill(article.color.gradient)
-
-            Image(systemName: article.symbol)
-                .font(.system(size: size * 0.34, weight: .semibold))
-                .foregroundStyle(.white)
-        }
+        ArticleFaviconView(
+            url: article.originalURL,
+            size: size,
+            isArtwork: true,
+            fallbackColor: article.color
+        )
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
@@ -393,7 +414,9 @@ struct DigestTabAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
 
     let language: AppLanguage
-    @Binding var isPlaying: Bool
+    let cast: CastRecord
+    let playbackStore: CastPlaybackStore
+    let subscriptionTier: SubscriptionPlanTier
     let openPlayer: () -> Void
     let close: () -> Void
 
@@ -417,7 +440,7 @@ struct DigestTabAccessory: View {
                     .frame(width: 28, height: 28)
                     .background(.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-                Text(language == .english ? "Morning News Cast" : "朝のニュースCast")
+                Text(cast.title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -435,19 +458,19 @@ struct DigestTabAccessory: View {
             .frame(maxWidth: .infinity)
             .clipped()
 
-            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+            Image(systemName: playbackStore.isPlaying ? "pause.fill" : "play.fill")
                 .font(.caption.weight(.bold))
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    isPlaying.toggle()
+                    togglePlayback()
                 }
                 .accessibilityElement()
                 .accessibilityLabel(playbackAccessibilityLabel)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction {
-                    isPlaying.toggle()
+                    togglePlayback()
                 }
                 .fixedSize()
 
@@ -464,12 +487,12 @@ struct DigestTabAccessory: View {
                     digestArtwork
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(language == .english ? "Morning News Cast" : "朝のニュースCast")
+                        Text(cast.title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
 
-                        Text(language == .english ? "Article 1 of 3 · 3:37 / 9:32" : "3記事中1件目 · 3:37 / 9:32")
+                        Text("\(playbackStore.elapsedTime) / \(playbackStore.durationTime)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -488,21 +511,21 @@ struct DigestTabAccessory: View {
                 .frame(maxWidth: .infinity)
                 .clipped()
 
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                Image(systemName: playbackStore.isPlaying ? "pause.fill" : "play.fill")
                     .font(.headline)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         withAnimation(.snappy) {
-                            isPlaying.toggle()
+                            togglePlayback()
                         }
                     }
                     .accessibilityElement()
                     .accessibilityLabel(playbackAccessibilityLabel)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction {
-                        isPlaying.toggle()
+                        togglePlayback()
                     }
                     .fixedSize()
 
@@ -511,7 +534,7 @@ struct DigestTabAccessory: View {
             .padding(.horizontal, 12)
             .frame(height: 56)
 
-            ProgressView(value: 0.38)
+            ProgressView(value: playbackStore.progress)
                 .progressViewStyle(.linear)
                 .tint(.indigo)
                 .padding(.horizontal, 12)
@@ -521,8 +544,8 @@ struct DigestTabAccessory: View {
 
     private var playbackAccessibilityLabel: String {
         language == .english
-            ? (isPlaying ? "Pause" : "Play")
-            : (isPlaying ? "一時停止" : "再生")
+            ? (playbackStore.isPlaying ? "Pause" : "Play")
+            : (playbackStore.isPlaying ? "一時停止" : "再生")
     }
 
     private func closeControl(size: CGFloat, font: Font) -> some View {
@@ -551,6 +574,10 @@ struct DigestTabAccessory: View {
         }
         .frame(width: 42, height: 42)
         .accessibilityHidden(true)
+    }
+
+    private func togglePlayback() {
+        playbackStore.toggle(cast, subscriptionTier: subscriptionTier)
     }
 }
 
@@ -792,6 +819,66 @@ struct ArticleRow: View {
         return language == .english
             ? "\(article.source) · \(readingTime) min"
             : "\(article.source) ・ \(readingTime)分"
+    }
+}
+
+struct ArticleFaviconView: View {
+    let url: URL?
+    var size: CGFloat = 14
+    var isArtwork = false
+    var fallbackColor: Color = .blue
+
+    var body: some View {
+        AsyncImage(url: faviconURL) { phase in
+            switch phase {
+            case .success(let image):
+                if isArtwork {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size, height: size)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+                } else {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: size, height: size)
+                }
+            default:
+                fallbackArtwork
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var fallbackArtwork: some View {
+        if isArtwork {
+            ZStack {
+                RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
+                    .fill(fallbackColor.gradient)
+
+                Image(systemName: "safari.fill")
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        } else {
+            Image(systemName: "safari.fill")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(fallbackColor)
+        }
+    }
+
+    private var faviconURL: URL? {
+        guard let url, let host = url.host, !host.isEmpty else { return nil }
+        var components = URLComponents()
+        components.scheme = url.scheme ?? "https"
+        components.host = host
+        components.path = "/favicon.ico"
+        return components.url
     }
 }
 

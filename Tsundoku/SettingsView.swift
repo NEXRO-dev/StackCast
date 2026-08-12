@@ -21,6 +21,10 @@ final class SubscriptionStore {
     private(set) var hasBillingIssue = false
     private(set) var serverSubscription: BillingSubscriptionSnapshot?
 
+    func clearError() {
+        errorMessage = nil
+    }
+
     var subscriptionManagementURL: URL? {
         managementURL ?? URL(string: "https://apps.apple.com/account/subscriptions")
     }
@@ -77,7 +81,7 @@ final class SubscriptionStore {
             }
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
+            errorMessage = "SUBSCRIPTION_ERROR"
         }
     }
 
@@ -108,7 +112,7 @@ final class SubscriptionStore {
             let customerInfo = try await Purchases.shared.customerInfo()
             updateEntitlement(from: customerInfo)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "SUBSCRIPTION_ERROR"
         }
 
         isLoading = false
@@ -132,7 +136,7 @@ final class SubscriptionStore {
             let result = try await Purchases.shared.purchase(package: package)
             updateEntitlement(from: result.customerInfo)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "SUBSCRIPTION_ERROR"
         }
 
         isLoading = false
@@ -146,7 +150,7 @@ final class SubscriptionStore {
             let customerInfo = try await Purchases.shared.restorePurchases()
             updateEntitlement(from: customerInfo)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "SUBSCRIPTION_ERROR"
         }
 
         isLoading = false
@@ -299,8 +303,6 @@ struct SettingsView: View {
     private func deleteAccount() async {
         do {
             try await authStore.deleteAccount()
-        } catch let error as AuthServiceError {
-            destructiveAction = .error(error.message(isEnglish: false))
         } catch {
             destructiveAction = .error("アカウントを削除できませんでした。もう一度お試しください。")
         }

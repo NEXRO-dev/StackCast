@@ -6,16 +6,29 @@
 import SwiftUI
 
 struct StockViewEN: View {
-    @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
     let subscriptionStore: SubscriptionStore
-    @State private var selectedStatus: ArticleStatus = .unread
+    let castStore: CastStore
+    let authStore: AuthStore
+    @State private var selectedFilter: StockFilter = .all
+    @State private var selectedArticleIDs: Set<UUID> = []
+    @State private var isShowingCastCreated = false
+    @State private var isShowingCastError = false
+    @State private var browserDestination: InAppBrowserDestination?
     @State private var isAddingURL = false
 
     private var filteredArticles: [MockArticle] {
-        articleLibrary.articles
-            .map { $0.displayArticle(language: .english) }
-            .filter { $0.status == selectedStatus }
+        let articles: [SavedArticle]
+        switch selectedFilter {
+        case .all:
+            articles = articleLibrary.articles
+        case .expiring:
+            articles = articleLibrary.articles.filter(isExpiring)
+        case .completed:
+            articles = articleLibrary.articles.filter { $0.state == .completed }
+        }
+
+        return articles.map { $0.displayArticle(language: .english) }
     }
 
     var body: some View {
@@ -27,25 +40,31 @@ struct StockViewEN: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(filteredArticles) { article in
-                            Button {
-                                articleLibrary.mark(article.id, as: .inProgress)
-                                if let url = article.originalURL { openURL(url) }
-                            } label: {
-                                ArticleRow(article: article, language: .english)
-                                    .tsundokuCard()
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                if let url = article.originalURL {
-                                    Button("Open Original", systemImage: "safari") {
-                                        openURL(url)
+                            HStack(spacing: 8) {
+                                selectionControl(for: article)
+
+                                Button {
+                                    if let url = article.originalURL {
+                                        articleLibrary.mark(article.id, as: .inProgress)
+                                        browserDestination = InAppBrowserDestination(url: url)
                                     }
+                                } label: {
+                                    ArticleRow(article: article, language: .english)
+                                        .tsundokuCard()
                                 }
-                                Button("Mark as Completed", systemImage: "checkmark.circle") {
-                                    articleLibrary.mark(article.id, as: .completed)
-                                }
-                                Button("Delete", systemImage: "trash", role: .destructive) {
-                                    articleLibrary.delete(article.id)
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    if let url = article.originalURL {
+                                        Button("Open Original", systemImage: "safari") {
+                                            browserDestination = InAppBrowserDestination(url: url)
+                                        }
+                                    }
+                                    Button("Mark as Completed", systemImage: "checkmark.circle") {
+                                        articleLibrary.mark(article.id, as: .completed)
+                                    }
+                                    Button("Delete", systemImage: "trash", role: .destructive) {
+                                        articleLibrary.delete(article.id)
+                                    }
                                 }
                             }
                         }
@@ -58,26 +77,45 @@ struct StockViewEN: View {
                     if filteredArticles.isEmpty {
                         ContentUnavailableView(
                             "No Articles",
-                            systemImage: selectedStatus == .completed ? "checkmark.circle" : "tray",
-                            description: Text("There are no articles with this status yet.")
+                            systemImage: emptyStateSymbol,
+                            description: Text(emptyStateDescription)
                         )
                     }
                 }
             }
             .background(Color(.systemGroupedBackground))
             .safeAreaInset(edge: .bottom) {
-                HStack {
-                    Spacer()
-
-                    GlassAddButton(accessibilityLabel: "Add Article from URL") {
-                        isAddingURL = true
+                Group {
+                    if selectedArticleIDs.isEmpty {
+                        HStack {
+                            Spacer()
+                            GlassAddButton(accessibilityLabel: "Add Article from URL") {
+                                isAddingURL = true
+                            }
+                        }
+                    } else {
+                        selectionActionBar
                     }
                 }
                 .padding(.horizontal, AppDesign.pagePadding)
                 .padding(.bottom, 61)
+                .animation(.snappy, value: selectedArticleIDs.count)
             }
+            .alert("Cast created", isPresented: $isShowingCastCreated) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("You can play it from the Podcast screen.")
+            }
+            .appErrorAlert(
+                isPresented: $isShowingCastError,
+                language: .english
+            )
             .sheet(isPresented: $isAddingURL) {
                 AddArticleSheetEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+            }
+            .sheet(item: $browserDestination) { destination in
+                InAppBrowserView(url: destination.url)
+                    .ignoresSafeArea()
             }
         }
     }
@@ -114,23 +152,162 @@ struct StockViewEN: View {
     }
 
     private var statusPicker: some View {
-        Picker("Article Status", selection: $selectedStatus) {
-            ForEach(ArticleStatus.allCases, id: \.self) { status in
-                Text(filterTitle(for: status)).tag(status)
-            }
+        Picker("Stock filter", selection: $selectedFilter) {
+            Text("All").tag(StockFilter.all)
+            Text("Expiring").tag(StockFilter.expiring)
+            Text("Done").tag(StockFilter.completed)
         }
         .pickerStyle(.segmented)
         .padding(.horizontal, AppDesign.pagePadding)
         .padding(.bottom, 8)
     }
 
-    private func filterTitle(for status: ArticleStatus) -> String {
-        switch status {
-        case .unread: "Unread"
-        case .inProgress: "Reading"
-        case .completed: "Done"
-        case .expired: "Expired"
+    private var emptyStateSymbol: String {
+        switch selectedFilter {
+        case .all, .expiring: "tray"
+        case .completed: "checkmark.circle"
         }
+    }
+
+    private var emptyStateDescription: String {
+        switch selectedFilter {
+        case .all: "Add articles from the Share menu."
+        case .expiring: "No articles expire within 24 hours."
+        case .completed: "No completed articles yet."
+        }
+    }
+
+    private func isExpiring(_ article: SavedArticle) -> Bool {
+        guard article.state != .completed,
+              let retentionInterval = SharedArticleRepository.subscriptionTier.retentionInterval
+        else { return false }
+
+        let expirationDate = article.savedAt.addingTimeInterval(retentionInterval)
+        return expirationDate <= Date.now.addingTimeInterval(24 * 60 * 60)
+    }
+
+    private var selectionActionBar: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Articles for Cast")
+                        .font(.headline)
+                    Text(selectionStatusText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    withAnimation(.snappy) {
+                        selectedArticleIDs.removeAll()
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 30, height: 30)
+                        .background(.secondary.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear all selections")
+            }
+
+            Button {
+                let sources = articleLibrary.articles.filter { selectedArticleIDs.contains($0.id) }
+                Task {
+                    let cast = await castStore.create(
+                        token: authStore.sessionToken(),
+                        durationMinutes: castTestDuration,
+                        sources: sources
+                    )
+                    if cast != nil {
+                        sources.forEach { articleLibrary.mark($0.id, as: .completed) }
+                        selectedArticleIDs.removeAll()
+                        isShowingCastCreated = true
+                    } else {
+                        isShowingCastError = true
+                    }
+                }
+            } label: {
+                HStack {
+                    if castStore.isGenerating {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Creating Cast…")
+                    } else {
+                        Text("Create Cast")
+                    }
+                    Spacer()
+                    Image(systemName: castStore.isGenerating ? "waveform" : "arrow.right")
+                }
+                .font(.headline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedArticleIDs.count < minimumCastArticleCount || castStore.isGenerating)
+        }
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(.primary.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
+    }
+
+    private var selectionStatusText: String {
+        if selectedArticleIDs.count < minimumCastArticleCount {
+            return "Select \(minimumCastArticleCount - selectedArticleIDs.count) more"
+        }
+        return "\(selectedArticleIDs.count) selected · Ready to create a Cast"
+    }
+
+    private var minimumCastArticleCount: Int {
+        #if DEBUG
+        return 1
+        #else
+        return 3
+        #endif
+    }
+
+    private var castTestDuration: Int {
+        #if DEBUG
+        return 2
+        #else
+        return 10
+        #endif
+    }
+
+    private func toggleSelection(for articleID: UUID) {
+        guard articleLibrary.articles.first(where: { $0.id == articleID })?.state != .completed else { return }
+
+        if selectedArticleIDs.contains(articleID) {
+            selectedArticleIDs.remove(articleID)
+        } else {
+            selectedArticleIDs.insert(articleID)
+        }
+    }
+
+    private func selectionControl(for article: MockArticle) -> some View {
+        Button {
+            toggleSelection(for: article.id)
+        } label: {
+            Image(systemName: selectedArticleIDs.contains(article.id) ? "checkmark.circle.fill" : "circle")
+                .font(.title2)
+                .foregroundStyle(selectedArticleIDs.contains(article.id) ? Color.accentColor : Color.secondary)
+                .frame(width: 34, height: 54)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(article.status == .completed)
+        .accessibilityLabel(selectedArticleIDs.contains(article.id) ? "Deselect article" : "Select article")
     }
 }
 
@@ -197,5 +374,10 @@ private struct AddArticleSheetEN: View {
 }
 
 #Preview {
-    StockViewEN(articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
+    StockViewEN(
+        articleLibrary: ArticleLibrary(),
+        subscriptionStore: SubscriptionStore(),
+        castStore: CastStore(),
+        authStore: AuthStore()
+    )
 }
