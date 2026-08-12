@@ -7,6 +7,8 @@ import AVFoundation
 import Observation
 import SwiftUI
 
+let castPlaybackRateKey = "castPlaybackRate"
+
 @MainActor
 @Observable
 final class CastPlaybackStore {
@@ -16,10 +18,15 @@ final class CastPlaybackStore {
     private(set) var progress = 0.0
     private(set) var elapsedTime = "0:00"
     private(set) var durationTime = "0:00"
+    private(set) var playbackRate: Double
 
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+
+    init() {
+        playbackRate = UserDefaults.standard.object(forKey: castPlaybackRateKey) as? Double ?? 1.0
+    }
 
     func toggle(_ cast: CastRecord, subscriptionTier: SubscriptionPlanTier) {
         if currentCast?.id == cast.id, isPlaying {
@@ -34,7 +41,7 @@ final class CastPlaybackStore {
 
         if currentCast?.id == cast.id, player != nil {
             activateAudioSession()
-            player?.play()
+            player?.playImmediately(atRate: Float(playbackRate))
             isPlaying = true
             hasStartedPlayback = true
             return
@@ -51,9 +58,20 @@ final class CastPlaybackStore {
         elapsedTime = "0:00"
         durationTime = formatTime(cast.durationMinutes * 60)
         observe(item: item, player: nextPlayer)
-        nextPlayer.play()
+        nextPlayer.playImmediately(atRate: Float(playbackRate))
         isPlaying = true
         hasStartedPlayback = true
+    }
+
+    func setPlaybackRate(_ rate: Double) {
+        playbackRate = rate
+        UserDefaults.standard.set(rate, forKey: castPlaybackRateKey)
+        guard let player else { return }
+        if isPlaying {
+            player.playImmediately(atRate: Float(rate))
+        } else {
+            player.rate = Float(rate)
+        }
     }
 
     func pause() {

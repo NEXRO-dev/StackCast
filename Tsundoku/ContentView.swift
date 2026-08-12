@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var subscriptionStore = SubscriptionStore()
     @State private var castStore = CastStore()
     @State private var playbackStore = CastPlaybackStore()
+    @State private var networkStatus = NetworkStatusMonitor()
     @State private var isShowingSubscription = false
     @State private var isDeepLinkErrorPresented = false
     @State private var isCastDetailPresented = false
@@ -82,6 +83,14 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             playbackStore.handleScenePhase(phase, subscriptionTier: subscriptionStore.planTier)
         }
+        .overlay(alignment: .top) {
+            if !networkStatus.isConnected {
+                OfflineBanner(language: currentLanguage)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: networkStatus.isConnected)
     }
 
     private var currentLanguage: AppLanguage {
@@ -249,9 +258,9 @@ struct ContentView: View {
 
             Tab(value: .settings) {
                 if currentLanguage == .english {
-                    SettingsViewEN(authStore: authStore, subscriptionStore: subscriptionStore)
+                    SettingsViewEN(authStore: authStore, playbackStore: playbackStore, subscriptionStore: subscriptionStore)
                 } else {
-                    SettingsView(authStore: authStore, subscriptionStore: subscriptionStore)
+                    SettingsView(authStore: authStore, playbackStore: playbackStore, subscriptionStore: subscriptionStore)
                 }
             } label: {
                 Image(systemName: "gearshape")

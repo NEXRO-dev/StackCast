@@ -6,7 +6,7 @@ export function GET() {
       details: [
         {
           appIDs: ["5TXL5P4663.com.nexro.Tsundoku"],
-          components: [{ "/": "/c/*", comment: "Open shared Casts in StashCast" }],
+          components: [{ "/": "/c/*", comment: "Open shared Casts in StackCast" }],
         },
       ],
     },

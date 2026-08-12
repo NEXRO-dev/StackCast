@@ -20,7 +20,7 @@ export default async function LoginPage({
       <div className="login-backdrop login-backdrop-one" />
       <div className="login-backdrop login-backdrop-two" />
       <LoginForm initialIdentity={pendingIdentity} initialError={error} />
-      <p className="login-footer">StashCast Internal Management · Authorized personnel only</p>
+      <p className="login-footer">StackCast Internal Management · Authorized personnel only</p>
     </main>
   );
 }

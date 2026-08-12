@@ -476,6 +476,9 @@ private struct CastDetailView: View {
     @State private var sharePayload: CastSharePayload?
     @State private var isErrorPresented = false
     @State private var isShowingTranscript = false
+    @State private var isShowingReportReasons = false
+    @State private var isShowingReportSent = false
+    @State private var isShowingShareRevoked = false
 
     let cast: CastRecord
     let authStore: AuthStore
@@ -526,9 +529,22 @@ private struct CastDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         OnePassMarqueeTitle(text: cast.title)
 
-                        Text(language == .english ? "Cast" : "Cast")
-                            .font(.subheadline)
+                        HStack(alignment: .center, spacing: 12) {
+                            Text(language == .english ? "Cast" : "Cast")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            Spacer(minLength: 0)
+
+                            moderationButton
+                        }
+
+                        Text(language == .english
+                             ? "AI-generated summary; not a verbatim reproduction or a guarantee of factual accuracy."
+                             : "AIが生成した要約です。元記事の転載ではなく、内容の正確性を保証するものではありません。")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.top, 32)
                     .offset(y: 65)
@@ -630,13 +646,94 @@ private struct CastDetailView: View {
                 .presentationDetents([.medium, .large])
         }
         .appErrorAlert(isPresented: $isErrorPresented, language: language)
+        .confirmationDialog(
+            language == .english ? "Report this Cast" : "このCastを通報",
+            isPresented: $isShowingReportReasons,
+            titleVisibility: .visible
+        ) {
+            reportButton(reason: "inappropriate", title: language == .english ? "Inappropriate content" : "不適切なコンテンツ")
+            reportButton(reason: "copyright", title: language == .english ? "Copyright concern" : "著作権に関する問題")
+            reportButton(reason: "privacy", title: language == .english ? "Privacy concern" : "プライバシーに関する問題")
+            Button(language == .english ? "Cancel" : "キャンセル", role: .cancel) { }
+        }
+        .alert(language == .english ? "Report sent" : "通報を送信しました", isPresented: $isShowingReportSent) {
+            Button(language == .english ? "OK" : "確認", role: .cancel) { }
+        } message: {
+            Text(language == .english ? "Thank you. We will review this Cast." : "ありがとうございます。内容を確認します。")
+        }
+        .alert(language == .english ? "Sharing stopped" : "共有を停止しました", isPresented: $isShowingShareRevoked) {
+            Button(language == .english ? "OK" : "確認", role: .cancel) { }
+        }
     }
 
     private var detailActions: some View {
-        HStack(spacing: 60) {
+        HStack(spacing: 38) {
             transcriptButton
             playbackScreenButton
             shareButton
+        }
+    }
+
+    private var moderationButton: some View {
+        Menu {
+            if cast.shareToken != nil {
+                Button {
+                    isShowingReportReasons = true
+                } label: {
+                    Label(language == .english ? "Report" : "通報", systemImage: "exclamationmark.bubble")
+                }
+            }
+            if cast.shareToken != nil {
+                Button(role: .destructive) {
+                    Task {
+                        if await castStore.revokeShare(token: authStore.sessionToken(), castID: cast.id) {
+                            isShowingShareRevoked = true
+                        } else {
+                            isErrorPresented = true
+                        }
+                    }
+                } label: {
+                    Label(language == .english ? "Stop sharing" : "共有を停止", systemImage: "link.badge.minus")
+                }
+            }
+
+            Menu {
+                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
+                    Button {
+                        playbackStore.setPlaybackRate(speed)
+                    } label: {
+                        HStack {
+                            Text("\(speed.formatted())x")
+                            if playbackStore.playbackRate == speed {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(language == .english ? "Playback speed" : "再生速度", systemImage: "speedometer")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 24, weight: .semibold))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Color.black)
+                .frame(width: 46, height: 46)
+        }
+        .accessibilityLabel(language == .english ? "Cast options" : "Castのオプション")
+    }
+
+    private func reportButton(reason: String, title: String) -> some View {
+        Button(title) {
+            guard let shareToken = cast.shareToken else { return }
+            Task {
+                if await castStore.reportSharedCast(shareToken: shareToken, reason: reason, details: nil) {
+                    isShowingReportSent = true
+                } else {
+                    isErrorPresented = true
+                }
+            }
         }
     }
 

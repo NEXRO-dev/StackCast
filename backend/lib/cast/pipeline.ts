@@ -2,6 +2,7 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash, randomUUID } from "node:crypto";
 import { getTurso } from "@/lib/turso";
+import { buildCastGenerationPrompt, buildFishAudioInput, castSafetyPolicy, type CastLanguage } from "./prompt";
 
 const openAIModel = "gpt-5.6-luna";
 const fishAudioEndpoint = "https://api.fish.audio/v1/tts";
@@ -22,8 +23,6 @@ export type CreateCastInput = {
   sources: CastSourceInput[];
 };
 
-type CastLanguage = "japanese" | "english";
-
 type GeneratedCastContent = {
   title: string;
   script: string;
@@ -43,6 +42,7 @@ export type CastRecord = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  shareToken?: string | null;
 };
 
 type CastRow = {
@@ -58,6 +58,7 @@ type CastRow = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  shareToken?: string | null;
 };
 
 let r2Client: S3Client | undefined;
@@ -372,6 +373,8 @@ export async function createCast(userID: string, input: CreateCastInput): Promis
     elapsedMs: Date.now() - pipelineStartedAt,
   });
 
+  await moderateSourceContents(sourceContents, language);
+
   try {
     await database.batch(
       [
@@ -535,16 +538,55 @@ export async function createCast(userID: string, input: CreateCastInput): Promis
   }
 }
 
+async function moderateSourceContents(
+  sources: Array<CastSourceInput & { text: string }>,
+  language: CastLanguage,
+): Promise<void> {
+  const apiKey = requiredEnvironmentVariable("OPENAI_API_KEY");
+  const input = sources
+    .map((source) => `${source.title ?? ""}\n${source.text}`)
+    .join("\n\n")
+    .slice(0, 100_000);
+  const response = await fetch("https://api.openai.com/v1/moderations", {
+    method: "POST",
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model: "omni-moderation-latest", input }),
+  });
+
+  if (!response.ok) throw new Error(`CONTENT_MODERATION_FAILED_${response.status}`);
+  const payload = (await response.json()) as {
+    results?: Array<{ flagged?: boolean; categories?: Record<string, boolean> }>;
+  };
+  const matchedCategories = new Set(
+    payload.results?.flatMap((result) =>
+      castSafetyPolicy.blockedCategories.filter((category) => result.categories?.[category] === true),
+    ) ?? [],
+  );
+  if (matchedCategories.size > 0 || payload.results?.some((result) => result.flagged)) {
+    console.warn("[cast] source content rejected by safety policy", {
+      language,
+      categories: [...matchedCategories],
+    });
+    throw new Error(`CAST_CONTENT_NOT_ALLOWED_${[...matchedCategories].join("_") || "SAFETY"}`);
+  }
+}
+
 export async function listCasts(userID: string): Promise<CastRecord[]> {
   const database = getTurso();
   const rows = (await database.all(
-    `SELECT id, title, summary, transcript, duration_minutes AS durationMinutes,
-            status, audio_object_key AS audioObjectKey, credit_cost AS creditCost,
-            error_message AS errorMessage, created_at AS createdAt,
-            updated_at AS updatedAt, completed_at AS completedAt
+    `SELECT casts.id, casts.title, casts.summary, casts.transcript, casts.duration_minutes AS durationMinutes,
+            casts.status, casts.audio_object_key AS audioObjectKey, casts.credit_cost AS creditCost,
+            casts.error_message AS errorMessage, casts.created_at AS createdAt,
+            casts.updated_at AS updatedAt, casts.completed_at AS completedAt,
+            cast_shares.token AS shareToken
      FROM casts
-     WHERE user_id = ?
-     ORDER BY created_at DESC
+     LEFT JOIN cast_shares ON cast_shares.cast_id = casts.id
+     WHERE casts.user_id = ?
+     ORDER BY casts.created_at DESC
      LIMIT 100`,
     userID,
   )) as CastRow[];
@@ -555,12 +597,14 @@ export async function listCasts(userID: string): Promise<CastRecord[]> {
 export async function getCast(userID: string, castID: string): Promise<CastRecord> {
   const database = getTurso();
   const row = (await database.get(
-    `SELECT id, title, summary, transcript, duration_minutes AS durationMinutes,
-            status, audio_object_key AS audioObjectKey, credit_cost AS creditCost,
-            error_message AS errorMessage, created_at AS createdAt,
-            updated_at AS updatedAt, completed_at AS completedAt
+    `SELECT casts.id, casts.title, casts.summary, casts.transcript, casts.duration_minutes AS durationMinutes,
+            casts.status, casts.audio_object_key AS audioObjectKey, casts.credit_cost AS creditCost,
+            casts.error_message AS errorMessage, casts.created_at AS createdAt,
+            casts.updated_at AS updatedAt, casts.completed_at AS completedAt,
+            cast_shares.token AS shareToken
      FROM casts
-     WHERE id = ? AND user_id = ?
+     LEFT JOIN cast_shares ON cast_shares.cast_id = casts.id
+     WHERE casts.id = ? AND casts.user_id = ?
      LIMIT 1`,
     castID,
     userID,
@@ -631,9 +675,7 @@ async function createCastContent(
     body: JSON.stringify({
       model: openAIModel,
       reasoning: { effort: "low", context: "current_turn" },
-      instructions: language === "english"
-        ? `You are an editor for an English audio program. Create a compelling single-line title of no more than 40 characters and an engaging, easy-to-listen script that accurately combines the articles. Write approximately ${durationMinutes} minutes of audio, about ${targetCharacters} characters. Do not add facts that are not in the articles. Use natural transitions and end with a recap of the key points. Do not use Markdown or bullet symbols in the script.`
-        : `あなたは日本語の音声番組の編集者です。記事の内容を表す魅力的なタイトルを18文字以内・改行なしで作り、複数の記事を正確に統合した聞きやすい台本を作成してください。台本は約${durationMinutes}分、目安${targetCharacters}文字で読める分量にし、記事にない事実を追加しないでください。自然なつなぎを使い、最後に要点を振り返ってください。台本にMarkdownや箇条書き記号は使わないでください。`,
+      instructions: buildCastGenerationPrompt(language, durationMinutes, targetCharacters),
       input: `参考タイトル: ${title}\n\n${articleText}`,
       text: {
         format: {
@@ -767,7 +809,7 @@ async function createAudio(script: string): Promise<Uint8Array> {
       model: fishAudioModel,
     },
     body: JSON.stringify({
-      text: script,
+      text: buildFishAudioInput(script),
       ...(referenceID ? { reference_id: referenceID } : {}),
       format: "mp3",
       mp3_bitrate: 128,

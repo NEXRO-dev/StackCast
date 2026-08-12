@@ -59,6 +59,21 @@ export async function POST(request: Request) {
     if (message === "CAST_INSUFFICIENT_CREDITS") {
       return errorResponse("insufficient_credits", "You do not have enough Cast credits.", 402);
     }
+    if (message.startsWith("CAST_CONTENT_NOT_ALLOWED")) {
+      return errorResponse("content_not_allowed", "This article content cannot be processed into a Cast.", 422);
+    }
+    if (message.startsWith("CONTENT_MODERATION_FAILED_")) {
+      return errorResponse("moderation_unavailable", "Content safety screening is temporarily unavailable. Please try again later.", 503);
+    }
+    if (message.startsWith("OPENAI_")) {
+      return errorResponse("ai_generation_failed", "The AI summary could not be generated. Please try again later.", 502);
+    }
+    if (message.startsWith("FISH_AUDIO_")) {
+      return errorResponse("audio_generation_failed", "The audio could not be generated. Please try again later.", 502);
+    }
+    if (message.startsWith("SOURCE_")) {
+      return errorResponse("source_fetch_failed", "One of the selected articles could not be read. Please try different articles.", 422);
+    }
     if (message === "CAST_NOT_FOUND") {
       return errorResponse("not_found", "Cast was not found.", 404);
     }

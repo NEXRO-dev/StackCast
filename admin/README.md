@@ -1,6 +1,6 @@
-# StashCast Admin
+# StackCast Admin
 
-StashCastのユーザー、オンボーディング、RevenueCat課金状態を管理する内部向けNext.jsアプリです。
+StackCastのユーザー、オンボーディング、RevenueCat課金状態を管理する内部向けNext.jsアプリです。
 
 ## 環境変数
 

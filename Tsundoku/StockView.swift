@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct StockView: View {
+    @Environment(\.openURL) private var openURL
     let articleLibrary: ArticleLibrary
     let subscriptionStore: SubscriptionStore
     let castStore: CastStore
@@ -16,6 +17,8 @@ struct StockView: View {
     @State private var isShowingCastError = false
     @State private var browserDestination: InAppBrowserDestination?
     @State private var isAddingURL = false
+    @State private var isShowingAIConsent = false
+    @AppStorage("aiArticleProcessingConsentAccepted") private var aiProcessingConsentAccepted = false
 
     private var filteredArticles: [MockArticle] {
         let articles: [SavedArticle]
@@ -106,12 +109,31 @@ struct StockView: View {
             } message: {
                 Text("ポッドキャスト画面から再生できます。")
             }
-            .appErrorAlert(
+            .confirmationDialog(
+                "Castの生成に失敗しました",
                 isPresented: $isShowingCastError,
-                language: .japanese
-            )
+                titleVisibility: .visible
+            ) {
+                if canRetryCast {
+                    Button("再試行") {
+                        createCast()
+                    }
+                }
+                Button("選択中の記事を削除", role: .destructive) {
+                    deleteSelectedArticles()
+                }
+                Button("問い合わせ") {
+                    contactSupport()
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text(AppErrorMessage.cast(language: .japanese, code: castStore.errorCode))
+            }
             .sheet(isPresented: $isAddingURL) {
                 AddArticleSheet(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+            }
+            .sheet(isPresented: $isShowingAIConsent) {
+                AIDataConsentSheet(language: .japanese)
             }
             .sheet(item: $browserDestination) { destination in
                 InAppBrowserView(url: destination.url)
@@ -218,21 +240,11 @@ struct StockView: View {
             }
 
             Button {
-                let sources = articleLibrary.articles.filter { selectedArticleIDs.contains($0.id) }
-                Task {
-                    let cast = await castStore.create(
-                        token: authStore.sessionToken(),
-                        durationMinutes: castTestDuration,
-                        sources: sources
-                    )
-                    if cast != nil {
-                        sources.forEach { articleLibrary.mark($0.id, as: .completed) }
-                        selectedArticleIDs.removeAll()
-                        isShowingCastCreated = true
-                    } else {
-                        isShowingCastError = true
-                    }
+                guard aiProcessingConsentAccepted else {
+                    isShowingAIConsent = true
+                    return
                 }
+                createCast()
             } label: {
                 HStack {
                     if castStore.isGenerating {
@@ -260,6 +272,43 @@ struct StockView: View {
                 .stroke(.primary.opacity(0.08), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
+    }
+
+    private func createCast() {
+        let sources = articleLibrary.articles.filter { selectedArticleIDs.contains($0.id) }
+        Task {
+            let cast = await castStore.create(
+                token: authStore.sessionToken(),
+                durationMinutes: castTestDuration,
+                sources: sources
+            )
+            if cast != nil {
+                sources.forEach { articleLibrary.mark($0.id, as: .completed) }
+                selectedArticleIDs.removeAll()
+                isShowingCastCreated = true
+            } else {
+                isShowingCastError = true
+            }
+        }
+    }
+
+    private var canRetryCast: Bool {
+        switch castStore.errorCode {
+        case "content_not_allowed", "insufficient_credits", "invalid_sources":
+            return false
+        default:
+            return true
+        }
+    }
+
+    private func deleteSelectedArticles() {
+        selectedArticleIDs.forEach { articleLibrary.delete($0) }
+        selectedArticleIDs.removeAll()
+    }
+
+    private func contactSupport() {
+        guard let url = URL(string: "mailto:support@stackcast.app?subject=StackCast%20Cast%20generation%20support") else { return }
+        openURL(url)
     }
 
     private var selectionStatusText: String {

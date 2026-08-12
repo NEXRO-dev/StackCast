@@ -15,16 +15,10 @@
 		AA000014302316AF001EA23E /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004302316AF001EA23E /* PlayerView.swift */; };
 		AA000015302316AF001EA23E /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005302316AF001EA23E /* LogView.swift */; };
 		AA000016302316AF001EA23E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006302316AF001EA23E /* SettingsView.swift */; };
-		B1000001302316AF001EA23E /* SubscriptionManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000302316AF001EA23E /* SubscriptionManagementView.swift */; };
-		B2000001302316AF001EA23E /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000302316AF001EA23E /* ErrorView.swift */; };
-		B2000002302316AF001EA23E /* RequestReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004302316AF001EA23E /* RequestReview.swift */; };
-		B3000001302316AF001EA23E /* AuthenticationModeTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000004302316AF001EA23E /* AuthenticationModeTabs.swift */; };
-		B4000001302316AF001EA23E /* CastPlaybackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000004302316AF001EA23E /* CastPlaybackStore.swift */; };
 		AA000017302316AF001EA23E /* TsundokuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000007302316AF001EA23E /* TsundokuApp.swift */; };
 		AA000018302316AF001EA23E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000008302316AF001EA23E /* Assets.xcassets */; };
 		AA000019302316AF001EA23E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000009302316AF001EA23E /* OnboardingView.swift */; };
 		AA00001A302316AF001EA23E /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000A302316AF001EA23E /* SignupView.swift */; };
-		C1000001302316AF001EA23E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000302316AF001EA23E /* LoginView.swift */; };
 		AA00001B302316AF001EA23E /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000B302316AF001EA23E /* AppDesign.swift */; };
 		AB000011302316AF001EA23E /* HomeViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000001302316AF001EA23E /* HomeViewEN.swift */; };
 		AB000012302316AF001EA23E /* StockViewEN.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000002302316AF001EA23E /* StockViewEN.swift */; };
@@ -40,6 +34,15 @@
 		AD000011302316AF001EA23E /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD000001302316AF001EA23E /* AuthService.swift */; };
 		AE000011302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
 		AF000011302316AF001EA23E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = AF000021302316AF001EA23E /* GoogleSignIn */; };
+		B1000001302316AF001EA23E /* SubscriptionManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000302316AF001EA23E /* SubscriptionManagementView.swift */; };
+		B2000001302316AF001EA23E /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000302316AF001EA23E /* ErrorView.swift */; };
+		B2000002302316AF001EA23E /* RequestReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004302316AF001EA23E /* RequestReview.swift */; };
+		B3000001302316AF001EA23E /* AuthenticationModeTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000004302316AF001EA23E /* AuthenticationModeTabs.swift */; };
+		B4000001302316AF001EA23E /* CastPlaybackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000004302316AF001EA23E /* CastPlaybackStore.swift */; };
+		B5000001302316AF001EA23E /* AIDataUseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5000004302316AF001EA23E /* AIDataUseView.swift */; };
+		B5000002302316AF001EA23E /* NetworkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5000005302316AF001EA23E /* NetworkStatus.swift */; };
+		B6000001302316AF001EA23E /* SupportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6000000302316AF001EA23E /* SupportView.swift */; };
+		C1000001302316AF001EA23E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000302316AF001EA23E /* LoginView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,7 +97,6 @@
 		AA000008302316AF001EA23E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000009302316AF001EA23E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		AA00000A302316AF001EA23E /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
-		C1000000302316AF001EA23E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		AA00000B302316AF001EA23E /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
 		AB000001302316AF001EA23E /* HomeViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewEN.swift; sourceTree = "<group>"; };
 		AB000002302316AF001EA23E /* StockViewEN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockViewEN.swift; sourceTree = "<group>"; };
@@ -117,6 +119,10 @@
 		B2000004302316AF001EA23E /* RequestReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestReview.swift; sourceTree = "<group>"; };
 		B3000004302316AF001EA23E /* AuthenticationModeTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationModeTabs.swift; sourceTree = "<group>"; };
 		B4000004302316AF001EA23E /* CastPlaybackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastPlaybackStore.swift; sourceTree = "<group>"; };
+		B5000004302316AF001EA23E /* AIDataUseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDataUseView.swift; sourceTree = "<group>"; };
+		B5000005302316AF001EA23E /* NetworkStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatus.swift; sourceTree = "<group>"; };
+		B6000000302316AF001EA23E /* SupportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportView.swift; sourceTree = "<group>"; };
+		C1000000302316AF001EA23E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -210,6 +216,9 @@
 				B2000004302316AF001EA23E /* RequestReview.swift */,
 				B3000004302316AF001EA23E /* AuthenticationModeTabs.swift */,
 				B4000004302316AF001EA23E /* CastPlaybackStore.swift */,
+				B5000004302316AF001EA23E /* AIDataUseView.swift */,
+				B5000005302316AF001EA23E /* NetworkStatus.swift */,
+				B6000000302316AF001EA23E /* SupportView.swift */,
 				AA00000A302316AF001EA23E /* SignupView.swift */,
 				C1000000302316AF001EA23E /* LoginView.swift */,
 				AA000003302316AF001EA23E /* StockView.swift */,
@@ -439,6 +448,9 @@
 				B2000002302316AF001EA23E /* RequestReview.swift in Sources */,
 				B3000001302316AF001EA23E /* AuthenticationModeTabs.swift in Sources */,
 				B4000001302316AF001EA23E /* CastPlaybackStore.swift in Sources */,
+				B5000001302316AF001EA23E /* AIDataUseView.swift in Sources */,
+				B5000002302316AF001EA23E /* NetworkStatus.swift in Sources */,
+				B6000001302316AF001EA23E /* SupportView.swift in Sources */,
 				AA000019302316AF001EA23E /* OnboardingView.swift in Sources */,
 				AA00001A302316AF001EA23E /* SignupView.swift in Sources */,
 				C1000001302316AF001EA23E /* LoginView.swift in Sources */,
@@ -630,7 +642,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Tsundoku/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = StashCast;
+				INFOPLIST_KEY_CFBundleDisplayName = StackCast;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -670,7 +682,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Tsundoku/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = StashCast;
+				INFOPLIST_KEY_CFBundleDisplayName = StackCast;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

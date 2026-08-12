@@ -235,12 +235,14 @@ enum SettingsDestructiveAction: Identifiable {
 
 struct SettingsView: View {
     let authStore: AuthStore
+    let playbackStore: CastPlaybackStore
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.japanese.rawValue
     @State private var notificationsEnabled = true
     @State private var defaultDuration = 10
-    @State private var defaultSpeed = 1.0
+    @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
     @State private var isShowingSubscription = false
+    @State private var isShowingAIDataUse = false
     @State private var destructiveAction: SettingsDestructiveAction?
     let subscriptionStore: SubscriptionStore
 
@@ -252,6 +254,7 @@ struct SettingsView: View {
                 planSection
                 playbackSection
                 notificationSection
+                dataUseSection
                 supportSection
                 appSection
                 if case .signedIn = authStore.status {
@@ -264,6 +267,9 @@ struct SettingsView: View {
             .listSectionSpacing(.custom(4))
             .sheet(isPresented: $isShowingSubscription) {
                 SubscriptionManagementView(subscriptionStore: subscriptionStore, language: .japanese)
+            }
+            .sheet(isPresented: $isShowingAIDataUse) {
+                AIDataConsentSheet(language: .japanese)
             }
             .alert(item: $destructiveAction) { action in
                 destructiveAlert(for: action)
@@ -358,10 +364,15 @@ struct SettingsView: View {
             }
 
             Picker("既定の再生速度", selection: $defaultSpeed) {
-                ForEach([1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
+                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
                     Text("\(speed.formatted())x").tag(speed)
                 }
             }
+            .onChange(of: defaultSpeed) { _, speed in
+                playbackStore.setPlaybackRate(speed)
+            }
+
+            LabeledContent("URLコンテンツの保存期間", value: "5日間")
         }
     }
 
@@ -378,23 +389,40 @@ struct SettingsView: View {
     private var supportSection: some View {
         Section("サポート") {
             NavigationLink {
+                SupportView(language: .japanese)
+            } label: {
+                Label("サポートに問い合わせ", systemImage: "envelope")
+            }
+            NavigationLink {
                 ContentUnavailableView("準備中です", systemImage: "hammer")
             } label: {
                 Label("使い方", systemImage: "questionmark.circle")
             }
-            Link(destination: URL(string: "https://example.com/terms")!) {
+            Link(destination: URL(string: "https://stackcast.app/terms")!) {
                 Label("利用規約", systemImage: "doc.text")
             }
-            Link(destination: URL(string: "https://example.com/privacy")!) {
+            Link(destination: URL(string: "https://stackcast.app/privacy")!) {
                 Label("プライバシーポリシー", systemImage: "hand.raised")
             }
+        }
+    }
+
+    private var dataUseSection: some View {
+        Section {
+            Button {
+                isShowingAIDataUse = true
+            } label: {
+                Label("記事とAI処理について", systemImage: "doc.text")
+                    .foregroundStyle(Color.black)
+            }
+        } header: {
+            Text("データ利用")
         }
     }
 
     private var appSection: some View {
         Section("アプリ情報") {
             LabeledContent("バージョン", value: appVersion)
-            LabeledContent("保存期限", value: "5日間")
         }
     }
 
@@ -486,5 +514,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView(authStore: AuthStore(), subscriptionStore: SubscriptionStore())
+    SettingsView(authStore: AuthStore(), playbackStore: CastPlaybackStore(), subscriptionStore: SubscriptionStore())
 }

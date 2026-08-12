@@ -11,9 +11,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleDisplayName</key>
-	<string>StashCast</string>
+	<string>StackCast</string>
 	<key>CFBundleName</key>
-	<string>StashCast</string>
+	<string>StackCast</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

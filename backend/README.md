@@ -1,4 +1,4 @@
-# StashCast Backend
+# StackCast Backend
 
 ## Authentication
 
@@ -29,7 +29,7 @@ npm run dev
 
 1. Resendで送信元ドメインを確認します。
 2. `RESEND_API_KEY`をバックエンド環境変数に保存します。
-3. `AUTH_EMAIL_FROM`を`StashCast <no-reply@auth.your-domain.com>`の形式で設定します。
+3. `AUTH_EMAIL_FROM`を`StackCast <no-reply@auth.your-domain.com>`の形式で設定します。
 4. `AUTH_OTP_SECRET`には十分に長いランダム値を設定します。アプリへは入れません。
 
 ### Google Sign-In

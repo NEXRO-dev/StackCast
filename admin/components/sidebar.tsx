@@ -30,7 +30,7 @@ export function Sidebar({
       <div className="sidebar-brand">
         <div className="brand-mark">S</div>
         <div className="sidebar-brand-copy">
-          <p className="brand-name">StashCast</p>
+          <p className="brand-name">StackCast</p>
           <p className="brand-caption">ADMIN CONSOLE</p>
         </div>
         <button className="sidebar-toggle" type="button" onClick={onToggle} aria-label={collapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"} aria-expanded={!collapsed}>

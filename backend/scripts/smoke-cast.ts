@@ -12,7 +12,7 @@ if (!user?.id) {
 }
 
 const cast = await createCast(user.id, {
-  title: "StashCast 接続テスト",
+  title: "StackCast 接続テスト",
   durationMinutes: 5,
   sources: [
     {

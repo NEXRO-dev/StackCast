@@ -31,15 +31,15 @@ export async function sendVerificationEmail({
     body: JSON.stringify({
       from,
       to: [to],
-      subject: "StashCastの確認コード",
+      subject: "StackCastの確認コード",
       text: [
-        "StashCastのメールアドレス確認コードです。",
+        "StackCastのメールアドレス確認コードです。",
         "",
         code,
         "",
         "このコードは10分間有効です。心当たりがない場合は、このメールを無視してください。",
       ].join("\n"),
-      html: `<p>StashCastのメールアドレス確認コードです。</p><p style="font-size:32px;font-weight:700;letter-spacing:8px">${code}</p><p>このコードは10分間有効です。心当たりがない場合は、このメールを無視してください。</p>`,
+      html: `<p>StackCastのメールアドレス確認コードです。</p><p style="font-size:32px;font-weight:700;letter-spacing:8px">${code}</p><p>このコードは10分間有効です。心当たりがない場合は、このメールを無視してください。</p>`,
     }),
   });
 

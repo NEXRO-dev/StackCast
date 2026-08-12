@@ -11,8 +11,8 @@ struct SubscriptionManagementView: View {
     let language: AppLanguage
     private let loadsSubscriptionData: Bool
     private let showsUpgradeHeader: Bool
-    private let termsURL = URL(string: "https://example.com/terms")!
-    private let privacyURL = URL(string: "https://example.com/privacy")!
+    private let termsURL = URL(string: "https://stackcast.app/terms")!
+    private let privacyURL = URL(string: "https://stackcast.app/privacy")!
 
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
@@ -55,6 +55,7 @@ struct SubscriptionManagementView: View {
                 }
                 billingPeriodSwitcher
                 tierCards
+                billingDisclosure
                 supportSection
             }
             .padding(.horizontal, 20)
@@ -340,6 +341,19 @@ struct SubscriptionManagementView: View {
         }
     }
 
+    private var billingDisclosure: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(copy.billingDisclosureTitle, systemImage: "creditcard")
+                .font(.subheadline.weight(.semibold))
+            Text(copy.billingDisclosure)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
     private var subscriptionActionsMenu: some View {
         Menu {
             if subscriptionStore.isPro,
@@ -554,7 +568,7 @@ private struct SubscriptionCopy {
     fileprivate var isEnglish: Bool { language == .english }
 
     var navigationTitle: String { isEnglish ? "Subscription" : "サブスクリプション" }
-    var proPlan: String { isEnglish ? "StashCast Pro" : "StashCast Pro" }
+    var proPlan: String { isEnglish ? "StackCast Pro" : "StackCast Pro" }
     var proDescription: String { isEnglish ? "Your Pro features are ready to use." : "Proのすべての機能を利用できます。" }
     var choosePlan: String { isEnglish ? "Choose your plan" : "プランを選ぶ" }
     var upgradeTitle: String { isEnglish ? "Upgrade" : "アップグレード" }
@@ -643,6 +657,12 @@ private struct SubscriptionCopy {
     var lifetimePurchaseNotice: String { isEnglish ? "One-time purchase. No recurring charges." : "買い切り購入です。継続課金はありません。" }
     var termsOfUse: String { isEnglish ? "Terms of Use" : "利用規約" }
     var privacyPolicy: String { isEnglish ? "Privacy Policy" : "プライバシーポリシー" }
+    var billingDisclosureTitle: String { isEnglish ? "Billing details" : "課金について" }
+    var billingDisclosure: String {
+        isEnglish
+            ? "The displayed price is charged through your Apple ID. Monthly and yearly plans renew automatically unless canceled at least 24 hours before the current period ends. You can cancel or manage your subscription in Apple ID Settings."
+            : "表示価格はApple IDを通じて請求されます。月額・年額プランは、現在の期間終了の24時間以上前までに解約しない限り自動更新されます。解約・管理はApple IDのサブスクリプション設定から行えます。"
+    }
 
     func startPro(tier: SubscriptionTier, period: SubscriptionBillingPeriod, price: String) -> String {
         let tierName = tier.title(copy: self)

@@ -26,6 +26,7 @@ export async function GET(
         errorMessage: null,
         createdAt: cast.createdAt,
         completedAt: cast.completedAt,
+        shareToken: token,
       },
     },
     { headers: { "Cache-Control": "private, no-store" } },

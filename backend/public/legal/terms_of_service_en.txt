@@ -1,0 +1,86 @@
+StackCast Terms of Service (Current Version)
+
+Important: These Terms are the current terms applicable to StackCast. The operator will update them when the service, pricing, contact details, privacy information, or third-party service conditions change.
+
+1. Scope
+
+These Terms govern the use of StackCast, operated by [legal name]. By creating an account, signing in, saving a URL, creating a Cast, or otherwise using StackCast, you agree to these Terms.
+
+2. The Service
+
+StackCast lets users save URLs and, when the user explicitly chooses to create a Cast and agrees to the data-use explanation, generate an AI summary and audio Cast. A Cast is not the full text of the source article, an official statement, professional advice, or a guarantee that every fact is accurate.
+
+3. Accounts
+
+Users must provide accurate information and protect their authentication credentials. Accounts may not be transferred, rented, shared, or used to impersonate another person. Users must promptly report suspected unauthorized access.
+
+4. URL Content and Rights
+
+Users are responsible for confirming that they have the right to save, process, summarize, convert, and share the URLs and content they submit. Copyright, privacy, confidentiality, terms of use, and other rights in source material generally belong to the relevant rights holders. StackCast does not obtain permission on a user’s behalf.
+
+5. AI Processing and Consent
+
+Saving a URL alone does not send its article body to an external AI service. When a user selects content, starts Cast creation, and accepts the data-use explanation, the selected URL, title, and article text are sent through the backend to OpenAI for safety screening, summarization, and script generation. The generated script is then sent to Fish Audio for text-to-speech generation. Passwords, payment card numbers, and authentication tokens are not sent for Cast generation.
+
+Users should not submit sensitive personal information, confidential information, credentials, or information they are not authorized to process. AI outputs can contain errors, omissions, or loss of context. Important decisions must be based on the original source and reliable primary information.
+
+6. Safety and Prohibited Content
+
+Users may not use StackCast to process or share illegal, infringing, threatening, hateful, discriminatory, sexually explicit, exploitative, child sexual abuse, or graphic violent content. Users may not bypass safety filters, misuse external AI services, submit unauthorized personal information, conduct fraud, overload the service, scrape it, or make false reports.
+
+Cast generation may be refused even when saving the URL is permitted. Safety checks are not a guarantee that every harmful or inaccurate output will be detected.
+
+7. Public Casts and Reports
+
+When a user shares a Cast, anyone who knows the share URL may be able to view or play it. Users must check the content and rights before sharing. A public Cast may be reported for inappropriate content, copyright, privacy, or other concerns. StackCast may suspend sharing, invalidate a share token, remove a Cast, restrict an account, or take other reasonable action after a report or rights-holder request.
+
+Stopping sharing prevents new access through StackCast, but cannot necessarily recover copies, recordings, screenshots, or reposts already made by others.
+
+8. Subscriptions and Payments
+
+Paid features are offered through Apple’s App Store and may be managed using RevenueCat. Prices, periods, features, limits, automatic renewal, and cancellation information are shown before purchase. Subscriptions renew unless cancelled through the user’s Apple Account settings. Apple handles payment, refunds, and App Store cancellation procedures. Users may restore eligible purchases in the app.
+
+9. Support and Attachments
+
+Users may contact support through the app or support@stackcast.app. Support requests may include the request text, category, attachments, app version, and technical information needed to investigate the issue. Do not attach passwords, payment information, private keys, or another person’s personal information.
+
+10. Availability and External Services
+
+The service depends on authentication, database, hosting, object storage, Apple, Google, OpenAI, Fish Audio, RevenueCat, and other external services. Maintenance, outages, policy changes, rate limits, or failures of those services may interrupt some features. Offline operation may be limited.
+
+11. Intellectual Property
+
+StackCast software, branding, and service design belong to the operator or its licensors. Users retain rights they already hold in their submitted content. Users grant StackCast the limited rights needed to store, process, generate, display, play, share, investigate, and delete content to provide the service and comply with law.
+
+12. Privacy
+
+Information is handled as described in the StackCast Privacy Policy. The Privacy Policy explains information collected, purposes, external recipients, AI processing, retention, deletion, reports, and user requests.
+
+13. Account Deletion
+
+Users may request account deletion from the app. Account data, saved URLs, Casts, source data, sharing information, and app-side billing links become deletion targets. Legal records, dispute records, security records, backups, and records held by external services may take longer to delete or may need to be retained.
+
+14. Suspension and Termination
+
+StackCast may suspend processing, sharing, or an account when necessary for safety, security, legal compliance, rights protection, payment problems, investigation, or a material violation of these Terms. Where appropriate, users may contact support for review.
+
+15. Disclaimers and Liability
+
+The service and AI-generated content are provided subject to reasonable availability and without a guarantee of uninterrupted operation, accuracy, completeness, or fitness for a particular purpose. Nothing in these Terms excludes rights that cannot be excluded under applicable consumer protection law. Liability is limited to the extent permitted by applicable law.
+
+16. Changes and Contact
+
+These Terms may be updated when the service, law, security requirements, or third-party services change. Important changes will be announced in the app or on the website.
+
+Operator: [legal name]
+Address: [address]
+Email: support@stackcast.app
+Website: https://stackcast.app
+
+Date information
+
+Established: August 13, 2026
+Last updated: August 13, 2026
+Effective date: August 13, 2026
+
+This English text is a translation draft. If there is a conflict with the Japanese version, the version designated by the operator at publication will control.

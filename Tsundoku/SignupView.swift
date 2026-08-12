@@ -607,7 +607,7 @@ enum SignupCopy {
     var loginAppleButton: String { isEnglish ? "Continue with Apple" : "Appleで続ける" }
     var loginDivider: String { isEnglish ? "or log in with email" : "または、メールアドレスでログイン" }
     var loginButton: String { isEnglish ? "Log in" : "ログイン" }
-    var signupPrompt: String { isEnglish ? "New to StashCast? Create an account" : "初めてですか？アカウントを作成" }
+    var signupPrompt: String { isEnglish ? "New to StackCast? Create an account" : "初めてですか？アカウントを作成" }
 }
 
 private enum SignupStep: Hashable {

@@ -207,5 +207,5 @@ function normalizedName(name: string | null, email: string): string {
   if (trimmed) {
     return trimmed;
   }
-  return email.split("@")[0]?.slice(0, 100) || "StashCast User";
+  return email.split("@")[0]?.slice(0, 100) || "StackCast User";
 }

@@ -1,0 +1,82 @@
+StackCast Privacy Policy (Current Version)
+
+Important: This is the current StackCast Privacy Policy. It describes the information handled by StackCast, purposes, external services, retention, deletion, and support requests. It will be updated when the service or operator information changes.
+
+1. Operator and Contact
+
+StackCast is operated by [legal name]. Address: [address]. Contact: support@stackcast.app. Privacy, deletion, AI-processing, public-Cast, and support inquiries may be sent through the app or this email address.
+
+2. Information Collected
+
+Depending on how the service is used, StackCast may handle account identifiers, email address, display name, selected language, Apple or Google sign-in results, saved URLs, page titles, retrieved article text, timestamps, Cast titles, summaries, scripts, audio, processing status, errors, sharing state, reports, support messages, attached photos, app version, purchase and entitlement status, and technical logs such as IP address, request time, request information, and errors.
+
+StackCast does not directly collect or store payment card numbers. Firebase, AdMob, advertising networks, and advertising-purpose tracking SDKs are not currently used.
+
+3. Purposes
+
+Information is used to authenticate users, save and display URLs, manage retention limits, create and play Casts, manage sharing, process reports, handle purchases and entitlements, answer support requests, investigate failures and abuse, secure and improve the service, and comply with law.
+
+4. AI Processing
+
+Saving a URL does not automatically send its article body to an external AI service. When a user selects content, starts Cast creation, and accepts the data-use explanation, the selected URL, title, article text, and processing information are sent to OpenAI for safety screening, summarization, and script generation. The generated script and necessary voice settings are sent to Fish Audio for audio generation. Article text is not designed to be sent directly to Fish Audio, but the generated script may contain article content.
+
+Passwords, payment card numbers, and authentication tokens are not sent as Cast-generation inputs. If the submitted article itself contains personal or confidential information, that information may be included in the content sent for processing.
+
+5. OpenAI
+
+OpenAI is used for moderation, summarization, and script generation. OpenAI API inputs and outputs are generally not used to train or improve models unless the API customer opts in. Under standard settings, OpenAI may retain content in abuse-monitoring logs for up to 30 days, subject to legal, safety, and service-protection exceptions. The exact retention controls depend on the API project and contract settings. StackCast sends requests with storage disabled where supported, but this does not mean that no OpenAI logs can ever exist.
+
+6. Fish Audio
+
+Fish Audio is used to convert generated scripts into audio. Fish Audio’s Terms, Privacy Policy, Acceptable Use Policy, account configuration, and plan determine its handling of submitted scripts, logs, retention, deletion, and any training or improvement use. StackCast does not send article text directly to Fish Audio as part of the intended design.
+
+7. Other Providers
+
+Apple provides App Store and subscription services. Google may provide sign-in when selected. RevenueCat may process purchase and entitlement information as a service provider. Turso may provide database services. Cloudflare R2 or another object-storage provider may store generated audio. Vercel or another hosting provider may run the backend. Only information needed for the relevant function should be sent to each provider.
+
+8. Public Casts and Reports
+
+When a user shares a Cast, the title, summary, script, audio, creation information, and sharing identifiers may be accessible to people who know the share URL. Reports may include the target Cast, reason, explanation, contact information, timestamp, and response records. These are used to review, suspend, remove, or investigate public content and rights complaints.
+
+9. Support Attachments
+
+Support messages and attached photos are used to answer requests and investigate problems. Users should remove passwords, payment details, authentication data, confidential documents, and third-party personal information before attaching a screenshot or photo. Support information may be handled through an email or support-management provider when needed.
+
+10. Retention and Deletion
+
+The current basic URL retention period is five days for Free and fifteen days for Plus. Other plan limits are shown in the app. Casts and audio may be retained while an account and relevant service are active so that they can be displayed, played, shared, and removed. Reports, security records, legal records, disputes, and backups may be retained for the time needed for those purposes.
+
+Users may request account deletion from the app. Account data, saved URLs, Casts, source data, sharing information, and app-side billing links become deletion targets. Apple purchase records, external-provider records, and backups may not be deleted immediately or automatically by deleting a StackCast account.
+
+11. Security
+
+Reasonable technical and organizational safeguards are used, including access control, authentication protection, encrypted communications where supported, limited permissions, logging, and backup management. No internet service or storage system can guarantee absolute security.
+
+12. Children and Sensitive Information
+
+StackCast is not intended to collect children’s personal information. Users should not submit medical, financial, location, contact, credential, confidential business, or other sensitive information unless they have confirmed that the processing is authorized and appropriate.
+
+13. Rights and Requests
+
+Users may contact support to request confirmation, correction, deletion, restriction, or information about processing, subject to identity verification, legal obligations, security requirements, and the rights of others.
+
+14. Advertising and Tracking
+
+StackCast currently does not use Firebase, AdMob, advertising networks, or advertising-purpose tracking SDKs. If this changes, the Privacy Policy and relevant App Store privacy disclosures will be updated.
+
+15. Changes and Contact
+
+This Policy may change when the service, law, providers, data types, purposes, or security measures change. Important changes will be announced in the app or on the website.
+
+Operator: [legal name]
+Address: [address]
+Email: support@stackcast.app
+Website: https://stackcast.app
+
+Date information
+
+Established: August 13, 2026
+Last updated: August 13, 2026
+Effective date: August 13, 2026
+
+This English text is a translation draft. If there is a conflict with the Japanese version, the version designated by the operator at publication will control.

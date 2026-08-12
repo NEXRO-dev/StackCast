@@ -326,6 +326,7 @@ struct CastRecord: Codable, Identifiable, Equatable, Sendable {
     let errorMessage: String?
     let createdAt: String
     let completedAt: String?
+    let shareToken: String?
 }
 
 private struct CastSourceRequest: Encodable {
@@ -349,6 +350,7 @@ private struct CastAPIErrorResponse: Decodable {
     let error: APIError
 
     struct APIError: Decodable {
+        let code: String
         let message: String
     }
 }
@@ -360,11 +362,13 @@ final class CastStore {
     private(set) var isLoading = false
     private(set) var isGenerating = false
     private(set) var errorMessage: String?
+    private(set) var errorCode: String?
     private(set) var pendingOpenCastID: String?
 
     func clear() {
         casts = []
         errorMessage = nil
+        errorCode = nil
         isLoading = false
         isGenerating = false
         pendingOpenCastID = nil
@@ -390,6 +394,7 @@ final class CastStore {
             }
             casts = loadedCasts
             errorMessage = nil
+            errorCode = nil
         } catch {
             errorMessage = "Castの読み込みに失敗しました。"
         }
@@ -418,7 +423,8 @@ final class CastStore {
             errorMessage = nil
             return cast
         } catch {
-            errorMessage = "Castの作成に失敗しました。"
+            errorMessage = error.localizedDescription
+            errorCode = (error as NSError).userInfo["CastAPIErrorCode"] as? String
             return nil
         }
     }
@@ -432,10 +438,35 @@ final class CastStore {
         do {
             let shareURL = try await CastAPI.createShareURL(token: token, castID: castID)
             errorMessage = nil
+            errorCode = nil
             return shareURL
         } catch {
             errorMessage = "共有リンクを作成できませんでした。"
+            errorCode = "share_failed"
             return nil
+        }
+    }
+
+    func revokeShare(token: String?, castID: String) async -> Bool {
+        guard let token else { return false }
+        do {
+            try await CastAPI.revokeShare(token: token, castID: castID)
+            return true
+        } catch {
+            errorMessage = "共有リンクを停止できませんでした。"
+            errorCode = "share_revoke_failed"
+            return false
+        }
+    }
+
+    func reportSharedCast(shareToken: String, reason: String, details: String?) async -> Bool {
+        do {
+            try await CastAPI.reportSharedCast(shareToken: shareToken, reason: reason, details: details)
+            return true
+        } catch {
+            errorMessage = "通報を送信できませんでした。"
+            errorCode = "report_failed"
+            return false
         }
     }
 
@@ -446,9 +477,11 @@ final class CastStore {
             casts.insert(cast, at: 0)
             pendingOpenCastID = cast.id
             errorMessage = nil
+            errorCode = nil
             return true
         } catch {
             errorMessage = "共有されたCastを開けませんでした。"
+            errorCode = "shared_cast_failed"
             return false
         }
     }
@@ -505,6 +538,22 @@ private enum CastAPI {
         return try JSONDecoder().decode(CastShareResponse.self, from: data).shareURL
     }
 
+    static func revokeShare(token: String, castID: String) async throws {
+        let request = try makeRequest(path: "api/casts/\(castID)/share", method: "DELETE", token: token)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: Data())
+    }
+
+    static func reportSharedCast(shareToken: String, reason: String, details: String?) async throws {
+        var request = URLRequest(url: baseURL.appending(path: "api/public/casts/\(shareToken)/report"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(CastReportRequest(reason: reason, details: details))
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+    }
+
     static func publicCast(shareToken: String) async throws -> CastRecord {
         var request = URLRequest(
             url: baseURL.appending(path: "api/public/casts/\(shareToken)")
@@ -540,6 +589,7 @@ private enum CastAPI {
             if let payload = try? JSONDecoder().decode(CastAPIErrorResponse.self, from: data) {
                 throw NSError(domain: "CastAPI", code: responseCode(response), userInfo: [
                     NSLocalizedDescriptionKey: payload.error.message,
+                    "CastAPIErrorCode": payload.error.code,
                 ])
             }
             throw NSError(domain: "CastAPI", code: responseCode(response), userInfo: [
@@ -563,4 +613,9 @@ private struct AnyEncodable: Encodable {
     func encode(to encoder: Encoder) throws {
         try encodeValue(encoder)
     }
+}
+
+private struct CastReportRequest: Encodable {
+    let reason: String
+    let details: String?
 }

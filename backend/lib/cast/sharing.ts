@@ -70,6 +70,27 @@ export async function revokeCastShare(userID: string, castID: string): Promise<v
   if (result.changes !== 1) throw new Error("CAST_SHARE_NOT_FOUND");
 }
 
+export async function reportCastShare(
+  castID: string,
+  shareToken: string,
+  reason: string,
+  details: string | null,
+  reporterKey: string,
+): Promise<void> {
+  await getTurso().run(
+    `INSERT INTO cast_reports
+     (id, cast_id, share_token, reason, details, reporter_key, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'open', ?)`,
+    randomBytes(16).toString("hex"),
+    castID,
+    shareToken,
+    reason,
+    details,
+    reporterKey,
+    new Date().toISOString(),
+  );
+}
+
 export async function getPublicCastByToken(token: string): Promise<PublicCast | null> {
   if (!shareTokenPattern.test(token)) return null;
 

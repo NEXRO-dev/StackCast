@@ -7,12 +7,14 @@ import SwiftUI
 
 struct SettingsViewEN: View {
     let authStore: AuthStore
+    let playbackStore: CastPlaybackStore
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.english.rawValue
     @State private var notificationsEnabled = true
     @State private var defaultDuration = 10
-    @State private var defaultSpeed = 1.0
+    @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
     @State private var isShowingSubscription = false
+    @State private var isShowingAIDataUse = false
     @State private var destructiveAction: SettingsDestructiveAction?
     let subscriptionStore: SubscriptionStore
 
@@ -24,6 +26,7 @@ struct SettingsViewEN: View {
                 planSection
                 playbackSection
                 notificationSection
+                dataUseSection
                 supportSection
                 appSection
                 if case .signedIn = authStore.status {
@@ -36,6 +39,9 @@ struct SettingsViewEN: View {
             .listSectionSpacing(.custom(4))
             .sheet(isPresented: $isShowingSubscription) {
                 SubscriptionManagementView(subscriptionStore: subscriptionStore, language: .english)
+            }
+            .sheet(isPresented: $isShowingAIDataUse) {
+                AIDataConsentSheet(language: .english)
             }
             .alert(item: $destructiveAction) { action in
                 destructiveAlert(for: action)
@@ -130,10 +136,15 @@ struct SettingsViewEN: View {
             }
 
             Picker("Default Playback Speed", selection: $defaultSpeed) {
-                ForEach([1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
+                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
                     Text("\(speed.formatted())x").tag(speed)
                 }
             }
+            .onChange(of: defaultSpeed) { _, speed in
+                playbackStore.setPlaybackRate(speed)
+            }
+
+            LabeledContent("URL Content Retention", value: "5 days")
         }
     }
 
@@ -150,23 +161,40 @@ struct SettingsViewEN: View {
     private var supportSection: some View {
         Section("Support") {
             NavigationLink {
+                SupportView(language: .english)
+            } label: {
+                Label("Contact Support", systemImage: "envelope")
+            }
+            NavigationLink {
                 ContentUnavailableView("Coming Soon", systemImage: "hammer")
             } label: {
-                Label("How to Use StashCast", systemImage: "questionmark.circle")
+                Label("How to Use StackCast", systemImage: "questionmark.circle")
             }
-            Link(destination: URL(string: "https://example.com/terms")!) {
+            Link(destination: URL(string: "https://stackcast.app/terms")!) {
                 Label("Terms of Service", systemImage: "doc.text")
             }
-            Link(destination: URL(string: "https://example.com/privacy")!) {
+            Link(destination: URL(string: "https://stackcast.app/privacy")!) {
                 Label("Privacy Policy", systemImage: "hand.raised")
             }
+        }
+    }
+
+    private var dataUseSection: some View {
+        Section {
+            Button {
+                isShowingAIDataUse = true
+            } label: {
+                Label("Articles and AI processing", systemImage: "doc.text")
+                    .foregroundStyle(Color.black)
+            }
+        } header: {
+            Text("Data Use")
         }
     }
 
     private var appSection: some View {
         Section("App Information") {
             LabeledContent("Version", value: appVersion)
-            LabeledContent("Article Expiration", value: "5 days")
         }
     }
 
@@ -258,5 +286,5 @@ struct SettingsViewEN: View {
 }
 
 #Preview {
-    SettingsViewEN(authStore: AuthStore(), subscriptionStore: SubscriptionStore())
+    SettingsViewEN(authStore: AuthStore(), playbackStore: CastPlaybackStore(), subscriptionStore: SubscriptionStore())
 }

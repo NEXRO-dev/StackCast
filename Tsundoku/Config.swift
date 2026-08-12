@@ -19,7 +19,7 @@ enum Config {
     private static let developmentBaseURL = URL(string: "http://localhost:3000")!
 
     // 本番バックエンドをデプロイしたら、実際のURLに置き換えてください。
-    private static let productionBaseURL = URL(string: "https://stash-cast.vercel.app")!
+    private static let productionBaseURL = URL(string: "https://stackcast.app/api")!
 
     static var apiBaseURL: URL {
         isProduction ? productionBaseURL : developmentBaseURL

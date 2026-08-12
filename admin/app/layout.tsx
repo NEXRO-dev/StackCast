@@ -3,10 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "StashCast Admin",
-    template: "%s | StashCast Admin",
+    default: "StackCast Admin",
+    template: "%s | StackCast Admin",
   },
-  description: "StashCastのユーザー・課金・運用管理画面",
+  description: "StackCastのユーザー・課金・運用管理画面",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
