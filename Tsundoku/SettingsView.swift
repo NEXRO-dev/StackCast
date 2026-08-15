@@ -243,6 +243,7 @@ struct SettingsView: View {
     @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
     @State private var isShowingSubscription = false
     @State private var isShowingAIDataUse = false
+    @State private var browserDestination: InAppBrowserDestination?
     @State private var destructiveAction: SettingsDestructiveAction?
     let subscriptionStore: SubscriptionStore
 
@@ -270,6 +271,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isShowingAIDataUse) {
                 AIDataConsentSheet(language: .japanese)
+            }
+            .sheet(item: $browserDestination) { destination in
+                InAppBrowserView(url: destination.url)
             }
             .alert(item: $destructiveAction) { action in
                 destructiveAlert(for: action)
@@ -393,15 +397,18 @@ struct SettingsView: View {
             } label: {
                 Label("サポートに問い合わせ", systemImage: "envelope")
             }
-            NavigationLink {
-                ContentUnavailableView("準備中です", systemImage: "hammer")
-            } label: {
+            Button {} label: {
                 Label("使い方", systemImage: "questionmark.circle")
             }
-            Link(destination: URL(string: "https://stackcast.app/terms")!) {
+            .disabled(true)
+            Button {
+                browserDestination = InAppBrowserDestination(url: URL(string: "https://stackcast.app/terms")!)
+            } label: {
                 Label("利用規約", systemImage: "doc.text")
             }
-            Link(destination: URL(string: "https://stackcast.app/privacy")!) {
+            Button {
+                browserDestination = InAppBrowserDestination(url: URL(string: "https://stackcast.app/privacy")!)
+            } label: {
                 Label("プライバシーポリシー", systemImage: "hand.raised")
             }
         }

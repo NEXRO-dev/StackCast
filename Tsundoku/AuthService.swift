@@ -371,7 +371,7 @@ struct AuthClient {
 
     func signup(name: String, email: String, password: String) async throws -> AuthResponse {
         try await send(
-            path: "api/auth/signup",
+            path: "auth/signup",
             method: "POST",
             body: ["name": name, "email": email, "password": password]
         )
@@ -379,7 +379,7 @@ struct AuthClient {
 
     func login(email: String, password: String) async throws -> AuthResponse {
         try await send(
-            path: "api/auth/login",
+            path: "auth/login",
             method: "POST",
             body: ["email": email, "password": password]
         )
@@ -387,7 +387,7 @@ struct AuthClient {
 
     func requestEmailCode(email: String) async throws -> Bool {
         let response: EmailCodeRequestResponse = try await send(
-            path: "api/auth/email/request-code",
+            path: "auth/email/request-code",
             method: "POST",
             body: ["email": email]
         )
@@ -399,7 +399,7 @@ struct AuthClient {
         code: String
     ) async throws -> EmailVerificationResponse {
         try await send(
-            path: "api/auth/email/verify-code",
+            path: "auth/email/verify-code",
             method: "POST",
             body: ["email": email, "code": code]
         )
@@ -412,7 +412,7 @@ struct AuthClient {
         preferredLanguage: String
     ) async throws -> AuthResponse {
         try await send(
-            path: "api/auth/email/complete",
+            path: "auth/email/complete",
             method: "POST",
             body: [
                 "enrollmentToken": enrollmentToken,
@@ -429,7 +429,7 @@ struct AuthClient {
         preferredLanguage: String
     ) async throws -> AuthResponse {
         try await send(
-            path: "api/auth/google",
+            path: "auth/google",
             method: "POST",
             body: [
                 "identityToken": identityToken,
@@ -446,7 +446,7 @@ struct AuthClient {
         preferredLanguage: String
     ) async throws -> AuthResponse {
         try await send(
-            path: "api/auth/apple",
+            path: "auth/apple",
             method: "POST",
             body: [
                 "identityToken": identityToken,
@@ -459,7 +459,7 @@ struct AuthClient {
 
     func currentUser(token: String) async throws -> AuthUser {
         let response: CurrentUserResponse = try await send(
-            path: "api/auth/me",
+            path: "auth/me",
             method: "GET",
             token: token
         )
@@ -468,7 +468,7 @@ struct AuthClient {
 
     fileprivate func updatePreferredLanguage(_ language: String, token: String) async throws -> CurrentUserResponse {
         try await send(
-            path: "api/auth/account",
+            path: "auth/account",
             method: "PATCH",
             body: ["preferredLanguage": language],
             token: token
@@ -477,7 +477,7 @@ struct AuthClient {
 
     func billingSubscription(token: String) async throws -> BillingSubscriptionSnapshot? {
         let response: BillingSubscriptionResponse = try await send(
-            path: "api/billing/subscription",
+            path: "billing/subscription",
             method: "GET",
             token: token
         )
@@ -485,7 +485,7 @@ struct AuthClient {
     }
 
     func logout(token: String) async throws {
-        let url = baseURL.appending(path: "api/auth/logout")
+        let url = baseURL.appending(path: "auth/logout")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -506,7 +506,7 @@ struct AuthClient {
     }
 
     func deleteAccount(token: String) async throws {
-        let url = baseURL.appending(path: "api/auth/account")
+        let url = baseURL.appending(path: "auth/account")
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"

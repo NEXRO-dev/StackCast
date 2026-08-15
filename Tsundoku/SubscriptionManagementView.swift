@@ -21,6 +21,7 @@ struct SubscriptionManagementView: View {
     @State private var selectedTier: SubscriptionTier = .pro
     @State private var hasLoadedSubscriptionState = false
     @State private var isShowingPlanChangeAlert = false
+    @State private var browserDestination: InAppBrowserDestination?
 
     private var copy: SubscriptionCopy {
         SubscriptionCopy(language: language)
@@ -93,6 +94,9 @@ struct SubscriptionManagementView: View {
             language: language,
             onDismiss: subscriptionStore.clearError
         )
+        .sheet(item: $browserDestination) { destination in
+            InAppBrowserView(url: destination.url)
+        }
         .task {
             guard loadsSubscriptionData else { return }
             await subscriptionStore.refresh()
@@ -317,7 +321,7 @@ struct SubscriptionManagementView: View {
             return copy.freePrice
         }
 
-        guard let package else { return copy.comingSoon }
+        guard let package else { return copy.unavailable }
         return "\(package.storeProduct.localizedPriceString)\(period.priceSuffix(copy: copy))"
     }
 
@@ -325,13 +329,13 @@ struct SubscriptionManagementView: View {
         VStack(spacing: 12) {
             HStack(spacing: 18) {
                 Button {
-                    openURL(termsURL)
+                    browserDestination = InAppBrowserDestination(url: termsURL)
                 } label: {
                     Label(copy.termsOfUse, systemImage: "doc.text")
                 }
 
                 Button {
-                    openURL(privacyURL)
+                    browserDestination = InAppBrowserDestination(url: privacyURL)
                 } label: {
                     Label(copy.privacyPolicy, systemImage: "hand.raised")
                 }
@@ -631,7 +635,7 @@ private struct SubscriptionCopy {
     var lifetimeFeatures: [String] {
         isEnglish ? ["All Pro features included", "No recurring charges"] : ["Proのすべての機能を利用", "追加の継続課金なし"]
     }
-    var comingSoon: String { isEnglish ? "Coming soon" : "準備中" }
+    var unavailable: String { isEnglish ? "Currently unavailable" : "現在利用できません" }
     var plan: String { isEnglish ? "Plan" : "プラン" }
     var renewalDate: String { isEnglish ? "Renews" : "次回更新日" }
     var endsOn: String { isEnglish ? "Ends" : "利用終了日" }

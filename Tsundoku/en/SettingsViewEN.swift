@@ -15,6 +15,7 @@ struct SettingsViewEN: View {
     @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
     @State private var isShowingSubscription = false
     @State private var isShowingAIDataUse = false
+    @State private var browserDestination: InAppBrowserDestination?
     @State private var destructiveAction: SettingsDestructiveAction?
     let subscriptionStore: SubscriptionStore
 
@@ -42,6 +43,9 @@ struct SettingsViewEN: View {
             }
             .sheet(isPresented: $isShowingAIDataUse) {
                 AIDataConsentSheet(language: .english)
+            }
+            .sheet(item: $browserDestination) { destination in
+                InAppBrowserView(url: destination.url)
             }
             .alert(item: $destructiveAction) { action in
                 destructiveAlert(for: action)
@@ -165,15 +169,18 @@ struct SettingsViewEN: View {
             } label: {
                 Label("Contact Support", systemImage: "envelope")
             }
-            NavigationLink {
-                ContentUnavailableView("Coming Soon", systemImage: "hammer")
-            } label: {
+            Button {} label: {
                 Label("How to Use StackCast", systemImage: "questionmark.circle")
             }
-            Link(destination: URL(string: "https://stackcast.app/terms")!) {
+            .disabled(true)
+            Button {
+                browserDestination = InAppBrowserDestination(url: URL(string: "https://stackcast.app/terms")!)
+            } label: {
                 Label("Terms of Service", systemImage: "doc.text")
             }
-            Link(destination: URL(string: "https://stackcast.app/privacy")!) {
+            Button {
+                browserDestination = InAppBrowserDestination(url: URL(string: "https://stackcast.app/privacy")!)
+            } label: {
                 Label("Privacy Policy", systemImage: "hand.raised")
             }
         }

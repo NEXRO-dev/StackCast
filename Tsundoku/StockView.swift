@@ -319,19 +319,11 @@ struct StockView: View {
     }
 
     private var minimumCastArticleCount: Int {
-        #if DEBUG
-        return 1
-        #else
-        return 3
-        #endif
+        Config.isProduction ? 3 : 1
     }
 
     private var castTestDuration: Int {
-        #if DEBUG
-        return 2
-        #else
-        return 10
-        #endif
+        Config.isProduction ? 10 : 2
     }
 
     private func toggleSelection(for articleID: UUID) {
@@ -372,7 +364,7 @@ private struct AddArticleSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("https://example.com/article", text: $urlText)
+                    TextField("記事URLを入力", text: $urlText)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()

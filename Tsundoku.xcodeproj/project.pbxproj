@@ -30,6 +30,7 @@
 		AC000011302316AF001EA23E /* ArticleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000001302316AF001EA23E /* ArticleLibrary.swift */; };
 		AC000012302316AF001EA23E /* ArticleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000001302316AF001EA23E /* ArticleLibrary.swift */; };
 		AC000013302316AF001EA23E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000004302316AF001EA23E /* ShareViewController.swift */; };
+		AE000012302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
 		AC000014302316AF001EA23E /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AC000003302316AF001EA23E /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD000011302316AF001EA23E /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD000001302316AF001EA23E /* AuthService.swift */; };
 		AE000011302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
@@ -485,6 +486,7 @@
 			files = (
 				AC000012302316AF001EA23E /* ArticleLibrary.swift in Sources */,
 				AC000013302316AF001EA23E /* ShareViewController.swift in Sources */,
+				AE000012302316AF001EA23E /* Config.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -684,7 +686,6 @@
 				INFOPLIST_FILE = Tsundoku/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = StackCast;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

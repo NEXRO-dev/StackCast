@@ -124,12 +124,12 @@ struct HomeViewEN: View {
                     .foregroundStyle(.white)
             }
 
-            Text("Available after the audio generation backend is connected")
+            Text("Audio generation is currently unavailable")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.8))
 
             Button {} label: {
-                Label("Cast Generation Coming Soon", systemImage: "waveform.badge.exclamationmark")
+                Label("Cast generation is currently unavailable", systemImage: "waveform.badge.exclamationmark")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)

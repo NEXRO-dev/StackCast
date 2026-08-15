@@ -8,7 +8,7 @@ import Foundation
 enum Config {
     // false: 開発環境 / true: 本番環境
     // 変更後にアプリを再ビルドして起動してください。
-    static let isProduction = false
+    static let isProduction = true
     // RevenueCatのiOS用公開キー。test_で始まるキーはアプリに埋め込んで使用できます。
     // 本番公開時はRevenueCatのProduction用公開キーに差し替えてください。
     static let revenueCatAPIKey = "test_cKuqaflkDdQLjaJdJlrvbuRwpND"
@@ -16,13 +16,29 @@ enum Config {
     // RevenueCatのEntitlement Identifier。RevenueCatの管理画面で作成した値と一致させます。
     static let revenueCatEntitlementID = "StashCast Pro"
 
+#if DEBUG
+    // 開発用URLはDebugビルドにだけ含める。Releaseバイナリにはlocalhostを含めない。
     private static let developmentBaseURL = URL(string: "http://localhost:3000")!
+#endif
 
     // 本番バックエンドをデプロイしたら、実際のURLに置き換えてください。
     private static let productionBaseURL = URL(string: "https://stackcast.app/api")!
 
     static var apiBaseURL: URL {
+#if DEBUG
         isProduction ? productionBaseURL : developmentBaseURL
+#else
+        productionBaseURL
+#endif
+    }
+
+    // Cast APIなど、パス側で「api/...」を付ける機能が使用するホストURL。
+    static var backendBaseURL: URL {
+#if DEBUG
+        isProduction ? productionBaseURL.deletingLastPathComponent() : developmentBaseURL
+#else
+        productionBaseURL.deletingLastPathComponent()
+#endif
     }
 
     // OAuth Client IDは秘密情報ではないため、Info.plistから読み込みます。

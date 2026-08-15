@@ -124,12 +124,12 @@ struct HomeView: View {
                     .foregroundStyle(.white)
             }
 
-            Text("音声生成バックエンド接続後に利用できます")
+            Text("音声生成は現在利用できません")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.8))
 
             Button {} label: {
-                Label("Cast生成は準備中", systemImage: "waveform.badge.exclamationmark")
+                Label("Cast生成は現在利用できません", systemImage: "waveform.badge.exclamationmark")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)

@@ -372,7 +372,7 @@ private struct AddArticleSheetEN: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("https://example.com/article", text: $urlText)
+                    TextField("Enter article URL", text: $urlText)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()

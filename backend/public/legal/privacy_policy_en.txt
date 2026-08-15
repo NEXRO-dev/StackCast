@@ -4,7 +4,7 @@ Important: This is the current StackCast Privacy Policy. It describes the inform
 
 1. Operator and Contact
 
-StackCast is operated by [legal name]. Address: [address]. Contact: support@stackcast.app. Privacy, deletion, AI-processing, public-Cast, and support inquiries may be sent through the app or this email address.
+StackCast is operated by [legal name]. Address: [address]. The operator name, representative, address, and applicable legal entity must be confirmed before publication. Contact: support@stackcast.app. Privacy, deletion, AI-processing, public-Cast, and support inquiries may be sent through the app or this email address.
 
 2. Information Collected
 
@@ -44,9 +44,9 @@ Support messages and attached photos are used to answer requests and investigate
 
 10. Retention and Deletion
 
-The current basic URL retention period is five days for Free and fifteen days for Plus. Other plan limits are shown in the app. Casts and audio may be retained while an account and relevant service are active so that they can be displayed, played, shared, and removed. Reports, security records, legal records, disputes, and backups may be retained for the time needed for those purposes.
+The current basic URL retention period is five days for Free and fifteen days for Plus. Other plan limits are shown in the app. Casts and audio may be retained while an account and relevant service are active so that they can be displayed, played, shared, and removed. Account-side Cast, source, and sharing records are deletion targets when an account is deleted. The current account-deletion flow does not yet confirm automatic deletion of generated-audio objects in object storage, so the storage-object deletion procedure, retention period, and backup handling must be finalized before publication. Reports, security records, legal records, disputes, and backups may be retained for the time needed for those purposes.
 
-Users may request account deletion from the app. Account data, saved URLs, Casts, source data, sharing information, and app-side billing links become deletion targets. Apple purchase records, external-provider records, and backups may not be deleted immediately or automatically by deleting a StackCast account.
+Users may request account deletion from the app. Account data, saved URLs, Casts, source data, sharing information, and app-side billing links become deletion targets. Generated-audio objects in object storage, Apple purchase records, external-provider records, and backups may not be deleted immediately or automatically by deleting a StackCast account; the applicable deletion procedure must be finalized before publication.
 
 11. Security
 

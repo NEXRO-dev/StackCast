@@ -492,11 +492,7 @@ final class CastStore {
 }
 
 private enum CastAPI {
-    #if DEBUG
-    private static let baseURL = URL(string: "http://localhost:3000")!
-    #else
-    private static let baseURL = URL(string: "https://stash-cast.vercel.app")!
-    #endif
+    private static let baseURL = Config.backendBaseURL
 
     static func list(token: String) async throws -> [CastRecord] {
         let request = try makeRequest(path: "api/casts", method: "GET", token: token)
