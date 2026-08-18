@@ -76,3 +76,19 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 - `true`: 本番URL
 
 変更後はアプリを再ビルドして起動してください。
+
+## Personal News / Daily Cast
+
+毎日1:00（日本時間）の処理は `vercel.json` から `GET /api/internal/news/daily` を呼び出します。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
+
+主な環境変数:
+
+- `CRON_SECRET`: cronエンドポイント認証用。必須
+- `PERSONAL_NEWS_ENABLED`: `false` でPersonal News APIと日次処理を停止（既定 `true`）
+- `DAILY_NEWS_EDITION_ENABLED`: `false` で日次候補取得・版生成を停止（既定 `true`）
+- `GDELT_PROVIDER_ENABLED`: `false` でGDELT取得を停止（既定 `true`）
+- `RECOMMENDATION_MEMORY_ENABLED`: `false` で行動イベントからのメモリ学習を停止（既定 `true`）
+- `DAILY_CAST_ENABLED`: `false` で自動Castのキュー投入・実行を停止（既定 `true`）
+- `DAILY_CAST_INLINE_LIMIT`: 1回のcron内で処理する自動Cast数。`0...3`（既定 `3`）
+
+自動Castは、Plus/Pro、アプリ内で自動作成を有効化済み、AI処理への同意済み、直近7日以内に利用したユーザーだけが対象です。日次エンドポイントを手動実行するとOpenAI/Fish Audioの実費処理が発生し得るため、本番環境での動作確認は対象アカウントを限定してください。

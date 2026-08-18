@@ -63,9 +63,14 @@ struct LogView: View {
 
     private func logMetric(value: String, unit: String, label: String, symbol: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: symbol)
-                .font(.title3)
-                .foregroundStyle(color)
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.14))
+                Image(systemName: symbol)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(color)
+            }
+            .frame(width: 42, height: 42)
 
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value).font(.title.bold())
@@ -77,7 +82,7 @@ struct LogView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 105, alignment: .leading)
-        .tsundokuCard()
+        .logCard()
     }
 
     private var activityChart: some View {
@@ -109,7 +114,7 @@ struct LogView: View {
             }
             .frame(height: 180)
         }
-        .tsundokuCard()
+        .logCard()
     }
 
     private var unreadCard: some View {
@@ -131,7 +136,7 @@ struct LogView: View {
 
             Spacer()
         }
-        .tsundokuCard()
+        .logCard()
     }
 
     @ViewBuilder
@@ -147,7 +152,7 @@ struct LogView: View {
                     description: Text("ストックで記事を完了にすると、ここに記録されます。")
                 )
                 .frame(maxWidth: .infinity)
-                .tsundokuCard()
+                .logCard()
             } else {
                 VStack(spacing: 18) {
                     ForEach(Array(completedArticles.prefix(5).enumerated()), id: \.element.id) { index, article in
@@ -163,7 +168,7 @@ struct LogView: View {
                         }
                     }
                 }
-                .tsundokuCard()
+                .logCard()
             }
         }
     }

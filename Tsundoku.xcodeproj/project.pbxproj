@@ -15,6 +15,8 @@
 		AA000014302316AF001EA23E /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004302316AF001EA23E /* PlayerView.swift */; };
 		AA000015302316AF001EA23E /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005302316AF001EA23E /* LogView.swift */; };
 		AA000016302316AF001EA23E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006302316AF001EA23E /* SettingsView.swift */; };
+		AA00001C302316AF001EA23E /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000C302316AF001EA23E /* AccountView.swift */; };
+		AA00001D302316AF001EA23E /* PersonalNewsFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000D302316AF001EA23E /* PersonalNewsFeature.swift */; };
 		AA000017302316AF001EA23E /* TsundokuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000007302316AF001EA23E /* TsundokuApp.swift */; };
 		AA000018302316AF001EA23E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000008302316AF001EA23E /* Assets.xcassets */; };
 		AA000019302316AF001EA23E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000009302316AF001EA23E /* OnboardingView.swift */; };
@@ -107,6 +109,8 @@
 		AA000004302316AF001EA23E /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
 		AA000005302316AF001EA23E /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
 		AA000006302316AF001EA23E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA00000C302316AF001EA23E /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		AA00000D302316AF001EA23E /* PersonalNewsFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalNewsFeature.swift; sourceTree = "<group>"; };
 		AA000007302316AF001EA23E /* TsundokuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TsundokuApp.swift; sourceTree = "<group>"; };
 		AA000008302316AF001EA23E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000009302316AF001EA23E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -242,6 +246,8 @@
 				AA000009302316AF001EA23E /* OnboardingView.swift */,
 				AA000004302316AF001EA23E /* PlayerView.swift */,
 				AA000006302316AF001EA23E /* SettingsView.swift */,
+				AA00000C302316AF001EA23E /* AccountView.swift */,
+				AA00000D302316AF001EA23E /* PersonalNewsFeature.swift */,
 				B1000000302316AF001EA23E /* SubscriptionManagementView.swift */,
 				B2000000302316AF001EA23E /* ErrorView.swift */,
 				B2000004302316AF001EA23E /* RequestReview.swift */,
@@ -520,6 +526,8 @@
 				AA000014302316AF001EA23E /* PlayerView.swift in Sources */,
 				AA000015302316AF001EA23E /* LogView.swift in Sources */,
 				AA000016302316AF001EA23E /* SettingsView.swift in Sources */,
+				AA00001C302316AF001EA23E /* AccountView.swift in Sources */,
+				AA00001D302316AF001EA23E /* PersonalNewsFeature.swift in Sources */,
 				B1000001302316AF001EA23E /* SubscriptionManagementView.swift in Sources */,
 				B2000001302316AF001EA23E /* ErrorView.swift in Sources */,
 				B2000002302316AF001EA23E /* RequestReview.swift in Sources */,

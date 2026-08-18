@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   });
 
   try {
-    const cast = await createCast(userID, input);
+    const cast = await createCast(userID, { ...input, internalKind: undefined });
     console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
     return Response.json({ cast }, { status: 201 });
   } catch (error) {

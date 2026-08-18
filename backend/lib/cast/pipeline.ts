@@ -22,6 +22,7 @@ export type CreateCastInput = {
   title?: string;
   durationMinutes?: 2 | 5 | 10 | 15 | 20;
   sources: CastSourceInput[];
+  internalKind?: "daily_news";
 };
 
 type GeneratedCastContent = {
@@ -844,8 +845,10 @@ async function resolveSourceText(source: CastSourceInput): Promise<string> {
 
 function validateInput(input: CreateCastInput): void {
   const isDevelopmentTest = process.env.NODE_ENV !== "production";
-  const minimumSources = isDevelopmentTest ? 1 : 3;
-  if (!Array.isArray(input.sources) || input.sources.length < minimumSources || input.sources.length > 4) {
+  const isDailyNews = input.internalKind === "daily_news";
+  const minimumSources = isDailyNews ? 5 : (isDevelopmentTest ? 1 : 3);
+  const maximumSources = isDailyNews ? 5 : 4;
+  if (!Array.isArray(input.sources) || input.sources.length < minimumSources || input.sources.length > maximumSources) {
     throw new Error("CAST_REQUIRES_THREE_TO_FOUR_SOURCES");
   }
   for (const source of input.sources) {

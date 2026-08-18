@@ -7,7 +7,7 @@ import SwiftUI
 import AVFoundation
 import UIKit
 
-private enum FavoriteCastStorage {
+enum FavoriteCastStorage {
     private static let key = "favoriteCastIDs"
 
     static func load() -> Set<String> {
@@ -33,7 +33,7 @@ struct PlayerView: View {
 }
 
 struct CastListView: View {
-    private enum CastCategory: CaseIterable {
+    private enum CastCategory: String, CaseIterable {
         case all
         case unplayed
         case favorites
@@ -68,12 +68,17 @@ struct CastListView: View {
     @State private var isSearchPresented = false
     @State private var searchText = ""
     @State private var sortOrder: CastSortOrder = .newest
-    @State private var selectedCategory: CastCategory = .all
+    @AppStorage("castLibrarySelectedCategory") private var selectedCategoryRaw = CastCategory.all.rawValue
     @State private var favoriteCastIDs = FavoriteCastStorage.load()
     @State private var downloadStore = CastDownloadStore.shared
     @State private var sharePayload: CastSharePayload?
     @State private var isErrorPresented = false
     @FocusState private var isSearchFocused: Bool
+
+    private var selectedCategory: CastCategory {
+        get { CastCategory(rawValue: selectedCategoryRaw) ?? .all }
+        nonmutating set { selectedCategoryRaw = newValue.rawValue }
+    }
 
     private var completedCasts: [CastRecord] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -23,20 +23,16 @@ struct SettingsViewEN: View {
     var body: some View {
         NavigationStack {
             Form {
-                accountSection
                 languageSection
                 appearanceSection
-                planSection
                 playbackSection
                 notificationSection
                 dataUseSection
                 supportSection
                 appSection
-                if case .signedIn = authStore.status {
-                    dangerSectionDivider
-                    logoutSection
-                }
             }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .listSectionSpacing(.custom(4))

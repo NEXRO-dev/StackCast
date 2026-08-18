@@ -1084,6 +1084,19 @@ extension View {
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppDesign.cardRadius, style: .continuous))
     }
 
+    func logCard() -> some View {
+        padding(20)
+            .background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(.systemBackground))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(.primary.opacity(0.07), lineWidth: 1)
+                    }
+            }
+            .shadow(color: .black.opacity(0.09), radius: 16, y: 8)
+    }
+
     func detoxMetricCard(tint: Color) -> some View {
         padding(18)
             .background(

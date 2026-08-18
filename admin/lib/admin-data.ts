@@ -551,6 +551,60 @@ export async function getDatabaseStatus() {
   };
 }
 
+export type PersonalNewsStats = {
+  editionDate: string | null;
+  editions: number;
+  readyEditions: number;
+  fallbackEditions: number;
+  failedEditions: number;
+  articlePool: number;
+  queuedCasts: number;
+  processingCasts: number;
+  completedCasts: number;
+  failedCasts: number;
+};
+
+export async function getPersonalNewsStats(): Promise<PersonalNewsStats> {
+  await requireAdminSession();
+  const database = getDatabase();
+  const [latest, editions, articles, jobs] = await Promise.all([
+    database.get("SELECT MAX(edition_date) AS editionDate FROM daily_news_editions"),
+    database.get(
+      `SELECT COUNT(*) AS editions,
+              SUM(CASE WHEN status = 'ready' THEN 1 ELSE 0 END) AS readyEditions,
+              SUM(CASE WHEN status = 'fallback' THEN 1 ELSE 0 END) AS fallbackEditions,
+              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failedEditions
+       FROM daily_news_editions
+       WHERE edition_date = (SELECT MAX(edition_date) FROM daily_news_editions)`,
+    ),
+    database.get("SELECT COUNT(*) AS articlePool FROM news_articles WHERE expires_at > ?", new Date().toISOString()),
+    database.get(
+      `SELECT SUM(CASE WHEN status IN ('queued', 'retry_wait') THEN 1 ELSE 0 END) AS queuedCasts,
+              SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processingCasts,
+              SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completedCasts,
+              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failedCasts
+       FROM daily_cast_jobs
+       WHERE created_at >= datetime('now', '-2 days')`,
+    ),
+  ]);
+  const latestRow = latest as Record<string, unknown> | null;
+  const editionRow = editions as Record<string, unknown> | null;
+  const articleRow = articles as Record<string, unknown> | null;
+  const jobRow = jobs as Record<string, unknown> | null;
+  return {
+    editionDate: typeof latestRow?.editionDate === "string" ? latestRow.editionDate : null,
+    editions: numberValue(editionRow?.editions),
+    readyEditions: numberValue(editionRow?.readyEditions),
+    fallbackEditions: numberValue(editionRow?.fallbackEditions),
+    failedEditions: numberValue(editionRow?.failedEditions),
+    articlePool: numberValue(articleRow?.articlePool),
+    queuedCasts: numberValue(jobRow?.queuedCasts),
+    processingCasts: numberValue(jobRow?.processingCasts),
+    completedCasts: numberValue(jobRow?.completedCasts),
+    failedCasts: numberValue(jobRow?.failedCasts),
+  };
+}
+
 function numberValue(value: unknown): number {
   if (typeof value === "bigint") return Number(value);
   if (typeof value === "number") return value;

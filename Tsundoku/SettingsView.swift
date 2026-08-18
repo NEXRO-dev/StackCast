@@ -343,20 +343,16 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                accountSection
                 languageSection
                 appearanceSection
-                planSection
                 playbackSection
                 notificationSection
                 dataUseSection
                 supportSection
                 appSection
-                if case .signedIn = authStore.status {
-                    dangerSectionDivider
-                    logoutSection
-                }
             }
+            .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.inline)
             .refreshable {
                 await subscriptionStore.refresh()
             }

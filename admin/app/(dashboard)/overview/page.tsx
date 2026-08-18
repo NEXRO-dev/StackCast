@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Avatar, PageHeader, PlanBadge, SectionCard, StatCard, StatusBadge } from "@/components/ui";
-import { getOverviewData, getUserGrowthData } from "@/lib/admin-data";
+import { getOverviewData, getPersonalNewsStats, getUserGrowthData } from "@/lib/admin-data";
 import { UserGrowthChart } from "@/components/user-growth-chart";
 import { formatDateTime } from "@/lib/format";
 
@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "概要" };
 
 export default async function OverviewPage() {
   const data = await getOverviewData();
-  const growth = await getUserGrowthData();
+  const [growth, personalNews] = await Promise.all([getUserGrowthData(), getPersonalNewsStats()]);
   const completionRate = data.totalUsers
     ? Math.round((data.onboardingCompleted / data.totalUsers) * 100)
     : 0;
@@ -38,6 +38,15 @@ export default async function OverviewPage() {
       </div>
 
       <UserGrowthChart sevenDays={growth.sevenDays} thirtyDays={growth.thirtyDays} />
+
+      <SectionCard title="パーソナルニュース" description={`日次版 ${personalNews.editionDate ?? "未生成"}`}>
+        <div className="stat-grid stat-grid-four">
+          <StatCard label="記事候補プール" value={personalNews.articlePool} helper="期限内の共通候補" icon="onboarding" tone="blue" />
+          <StatCard label="今日の5件" value={personalNews.readyEditions} helper={`Fallback ${personalNews.fallbackEditions} · 失敗 ${personalNews.failedEditions}`} icon="trend" tone="green" />
+          <StatCard label="Cast生成待ち" value={personalNews.queuedCasts} helper={`処理中 ${personalNews.processingCasts}`} icon="billing" tone="amber" />
+          <StatCard label="Cast生成完了" value={personalNews.completedCasts} helper={`失敗 ${personalNews.failedCasts}`} icon="dashboard" tone="violet" />
+        </div>
+      </SectionCard>
 
       <div className="dashboard-columns">
         <SectionCard title="最近登録したユーザー" description="新しいアカウント" href="/user">

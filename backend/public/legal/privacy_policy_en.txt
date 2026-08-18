@@ -8,17 +8,17 @@ StackCast is operated by NEXRO. Contact: support@stackcast.app. NEXRO is also id
 
 2. Information Collected
 
-Depending on how the service is used, StackCast may handle account identifiers, email address, display name, selected language, Apple or Google sign-in results, saved URLs, page titles, retrieved article text, timestamps, Cast titles, summaries, scripts, audio, processing status, errors, sharing state, reports, support messages, attached photos, app version, purchase and entitlement status, and technical logs such as IP address, request time, request information, and errors.
+Depending on how the service is used, StackCast may handle account identifiers, email address, display name, selected language, Apple or Google sign-in results, saved URLs, page titles, retrieved article text, timestamps, Cast titles, summaries, scripts, audio, processing status, errors, sharing state, reports, support messages, attached photos, app version, purchase and entitlement status, and technical logs such as IP address, request time, request information, and errors. For Personal News, StackCast may also store selected topics, age range, optional gender, personalization and automatic-Cast settings, recommendation impressions, opens, saves, dismissals, Cast actions, and interest memory inferred from those actions. This information is not used to build advertising profiles.
 
 StackCast does not directly collect or store payment card numbers. Firebase, AdMob, advertising networks, and advertising-purpose tracking SDKs are not currently used.
 
 3. Purposes
 
-Information is used to authenticate users, save and display URLs, manage retention limits, create and play Casts, manage sharing, process reports, handle purchases and entitlements, answer support requests, investigate failures and abuse, secure and improve the service, and comply with law.
+Information is used to authenticate users, save and display URLs, manage retention limits, create and play Casts, manage sharing, process reports, handle purchases and entitlements, answer support requests, investigate failures and abuse, secure and improve the service, and comply with law. Selected topics and recommendation activity are also used to choose five daily news items and improve personalization. For eligible Plus/Pro users who separately enable the feature and accept the AI data-use explanation, StackCast may automatically create one daily Cast.
 
 4. AI Processing
 
-Saving a URL does not automatically send its article body to an external AI service. When a user selects content, starts Cast creation, and accepts the data-use explanation, the selected URL, title, article text, and processing information are sent to OpenAI for safety screening, summarization, and script generation. The generated script and necessary voice settings are sent to Fish Audio for audio generation. Article text is not designed to be sent directly to Fish Audio, but the generated script may contain article content.
+Saving or viewing an article does not automatically send its body to an external AI service. When a user selects content, starts Cast creation, and accepts the data-use explanation—or when an eligible Plus/Pro user accepts that explanation and enables automatic daily Cast creation—the selected URL, title, article text, and processing information are sent to OpenAI for safety screening, summarization, and script generation. The generated script and necessary voice settings are sent to Fish Audio for audio generation. Article text is not designed to be sent directly to Fish Audio, but the generated script may contain article content. Automatic creation can be disabled in the app at any time.
 
 Passwords, payment card numbers, and authentication tokens are not sent as Cast-generation inputs. If the submitted article itself contains personal or confidential information, that information may be included in the content sent for processing.
 
@@ -32,7 +32,7 @@ Fish Audio is used to convert generated scripts into audio. Fish Audio’s Terms
 
 7. Other Providers
 
-Apple provides App Store and subscription services. Google may provide sign-in when selected. RevenueCat may process purchase and entitlement information as a service provider. Turso may provide database services. Cloudflare R2 or another object-storage provider may store generated audio. Vercel or another hosting provider may run the backend. Only information needed for the relevant function should be sent to each provider.
+Apple provides App Store and subscription services. Google may provide sign-in when selected. RevenueCat may process purchase and entitlement information as a service provider. Turso may provide database services. Cloudflare R2 or another object-storage provider may store generated audio. Vercel or another hosting provider may run the backend. GDELT is queried with shared topic search terms to obtain news candidates; StackCast user identifiers, email addresses, and recommendation memory are not sent to GDELT. Only information needed for the relevant function should be sent to each provider.
 
 8. Public Casts and Reports
 
@@ -46,7 +46,7 @@ Support messages and attached photos are used to answer requests and investigate
 
 The current basic URL retention period is five days for Free and fifteen days for Plus. Other plan limits are shown in the app. Casts and audio may be retained while an account and relevant service are active so that they can be displayed, played, shared, and removed. Account-side Cast, source, sharing records, and the account’s generated-audio objects in R2 are deletion targets when an account is deleted. The account-deletion flow attempts to delete the R2 objects before deleting the app-side account records. External-provider records and backups may be retained according to their applicable procedures and retention periods. Reports, security records, legal records, and disputes may be retained for the time needed for those purposes.
 
-Users may request account deletion from the app. The account’s generated-audio objects in R2 are targeted for deletion first, followed by account data, saved URLs, Casts, source data, sharing information, and app-side billing links. Apple purchase records, external-provider records, and backups may not be deleted immediately or automatically by deleting a StackCast account.
+Users may request account deletion from the app. The account’s generated-audio objects in R2 are targeted for deletion first, followed by account data, saved URLs, Casts, source data, sharing information, recommendation settings, events, memory, daily editions, automatic-Cast jobs, and app-side billing links. Recommendation memory can also be deleted individually or reset in the app. Apple purchase records, external-provider records, and backups may not be deleted immediately or automatically by deleting a StackCast account.
 
 11. Security
 
@@ -75,7 +75,7 @@ Website: https://stackcast.app
 Date information
 
 Established: August 13, 2026
-Last updated: August 13, 2026
-Effective date: August 13, 2026
+Last updated: August 19, 2026
+Effective date: August 19, 2026
 
 This English text is a translation draft. If there is a conflict with the Japanese version, the version designated by the operator at publication will control.

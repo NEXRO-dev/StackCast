@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct HomeViewEN: View {
+    let authStore: AuthStore
     let articleLibrary: ArticleLibrary
     let subscriptionStore: SubscriptionStore
     @AppStorage("customDigestDuration") private var customDuration = 20
@@ -14,6 +15,7 @@ struct HomeViewEN: View {
     @State private var isShowingCustomDuration = false
     @State private var isShowingSubscription = false
     @State private var browserDestination: InAppBrowserDestination?
+    @State private var recommendationStore = RecommendationStore()
 
     private let durations = [5, 10, 15, 20]
 
@@ -24,6 +26,7 @@ struct HomeViewEN: View {
                     greeting
                     durationPicker
                     // digestCard
+                    personalizedNewsSection
                     expiringSection
                     weeklySummary
                 }
@@ -51,6 +54,65 @@ struct HomeViewEN: View {
                     .ignoresSafeArea()
             }
         }
+    }
+
+    private var personalizedNewsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            NavigationLink {
+                PersonalNewsFeedScreen(
+                    authStore: authStore,
+                    articleLibrary: articleLibrary,
+                    subscriptionStore: subscriptionStore,
+                    language: .english,
+                    store: recommendationStore
+                )
+            } label: {
+            HStack(spacing: 16) {
+                Image(systemName: "newspaper.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        LinearGradient(colors: [.indigo, .purple], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("News for you")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("Today's five, picked from your interests")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("News for you. View today's five")
+
+            Divider()
+                .padding(.leading, 82)
+
+            PersonalNewsHomePreview(
+                authStore: authStore,
+                language: .english,
+                store: recommendationStore
+            )
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(.indigo.opacity(0.12), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     private var greeting: some View {
@@ -236,5 +298,5 @@ struct HomeViewEN: View {
 }
 
 #Preview {
-    HomeViewEN(articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
+    HomeViewEN(authStore: AuthStore(), articleLibrary: ArticleLibrary(), subscriptionStore: SubscriptionStore())
 }

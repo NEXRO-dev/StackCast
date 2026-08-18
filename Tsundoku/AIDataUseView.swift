@@ -56,6 +56,8 @@ struct AIDataUseView: View {
 
         本アプリでは、保存した記事を要約し、音声Castとして再生できる形に変換する機能を提供しています。この機能を利用するには、保存した記事の中からCastの対象にする記事をあなた自身で選択し、Cast作成の操作を行う必要があります。
 
+        PlusまたはProプランで「デイリーニュースCastを自動生成」を有効にした場合は、あなたが設定した興味ジャンルとおすすめメモリをもとにバックエンドが毎日5件の記事を選び、個別の作成操作を行わなくても自動的に要約と音声を生成します。この設定はいつでもおすすめ設定から無効にできます。
+
         Castを作成すると、選択した記事のタイトル・URL・本文が、要約と音声を生成するためにアプリのバックエンドを経由して外部サービスへ送信されます。記事を保存しただけでは、記事本文が外部AIサービスへ送信されることはありません。
 
         送信先は、記事の要約生成に利用するOpenAIと、要約テキストの音声生成に利用するFish Audioです。OpenAIでは選択した記事の内容をもとに要約テキストを生成し、Fish Audioではその要約テキストを音声データへ変換します。各サービスは、Castを生成してアプリの機能を提供するために送信されたデータを処理します。
@@ -77,6 +79,8 @@ struct AIDataUseView: View {
         About data use
 
         This app can summarize saved articles and turn them into audio Casts. To use this feature, you select the articles to include and explicitly start Cast creation. When you create a Cast, the title, URL, and content of the selected articles are sent through the app backend to external services to generate a summary and audio. Saving an article alone does not send its content to an external AI service.
+
+        If you are on Plus or Pro and enable automatic Daily News Casts, the backend selects five articles each day using your chosen interests and recommendation memory. Those articles are summarized and converted to audio automatically without a separate creation action. You can disable automatic creation at any time in Personalization settings.
 
         OpenAI is used to generate the article summary, and Fish Audio is used to convert the summary into speech. OpenAI receives the selected article content for summarization, and Fish Audio receives the generated summary for text-to-speech processing. These services process the submitted data to provide the Cast feature.
 

@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var isDeepLinkErrorPresented = false
     @State private var isCastDetailPresented = false
     @State private var selectedCast: CastRecord?
+    @State private var tabAccountAvatar: UIImage?
 
     var body: some View {
         Group {
@@ -69,6 +70,9 @@ struct ContentView: View {
                 castStore.clear()
             }
         }
+        .task(id: signedInProfileImageURL) {
+            tabAccountAvatar = await loadCircularTabAvatar(from: signedInProfileImageURL)
+        }
         .onChange(of: authStore.status) { _, status in
             guard case .signedIn(let user) = status,
                   user.preferredLanguage == AppLanguage.japanese.rawValue ||
@@ -106,6 +110,11 @@ struct ContentView: View {
     private var signedInUserID: String? {
         guard case .signedIn(let user) = authStore.status else { return nil }
         return user.id
+    }
+
+    private var signedInProfileImageURL: URL? {
+        guard case .signedIn(let user) = authStore.status else { return nil }
+        return user.profileImageURL
     }
 
     private var unreadArticleCount: Int {
@@ -221,9 +230,9 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             Tab(value: .home) {
                 if currentLanguage == .english {
-                    HomeViewEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+                    HomeViewEN(authStore: authStore, articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
                 } else {
-                    HomeView(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+                    HomeView(authStore: authStore, articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
                 }
             } label: {
                 Image(systemName: "house")
@@ -253,26 +262,38 @@ struct ContentView: View {
                     .accessibilityLabel(currentLanguage == .english ? "Podcast" : "ポッドキャスト")
             }
 
-            Tab(value: .log) {
-                if currentLanguage == .english {
-                    LogViewEN(articleLibrary: articleLibrary)
-                } else {
-                    LogView(articleLibrary: articleLibrary)
-                }
-            } label: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .accessibilityLabel(currentLanguage == .english ? "Log" : "ログ")
-            }
-
             Tab(value: .settings) {
-                if currentLanguage == .english {
-                    SettingsViewEN(authStore: authStore, playbackStore: playbackStore, subscriptionStore: subscriptionStore)
-                } else {
-                    SettingsView(authStore: authStore, playbackStore: playbackStore, subscriptionStore: subscriptionStore)
-                }
+                AccountView(
+                    authStore: authStore,
+                    subscriptionStore: subscriptionStore,
+                    articleLibrary: articleLibrary,
+                    castStore: castStore,
+                    playbackStore: playbackStore,
+                    language: currentLanguage,
+                    openSavedArticles: {
+                        Task { @MainActor in
+                            selectedTab = .stock
+                        }
+                    },
+                    openCastLibrary: { category in
+                        UserDefaults.standard.set(category, forKey: "castLibrarySelectedCategory")
+                        Task { @MainActor in
+                            selectedTab = .player
+                        }
+                    }
+                )
             } label: {
-                Image(systemName: "gearshape")
-                    .accessibilityLabel(currentLanguage == .english ? "Settings" : "設定")
+                if let tabAccountAvatar {
+                    Image(uiImage: tabAccountAvatar)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .accessibilityLabel(currentLanguage == .english ? "Account" : "アカウント")
+                } else {
+                    Image(systemName: "person.crop.circle")
+                        .accessibilityLabel(currentLanguage == .english ? "Account" : "アカウント")
+                }
             }
         }
         .tabBarMinimizeBehavior(selectedTab == .player ? .onScrollDown : .never)
@@ -366,6 +387,46 @@ struct ContentView: View {
         isCastDetailPresented = true
         selectedCast = cast
     }
+
+    private func loadCircularTabAvatar(from url: URL?) async -> UIImage? {
+        guard let url else { return nil }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let response = response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode),
+                  let image = UIImage(data: data) else { return nil }
+            return circularTabAvatar(from: image)
+        } catch {
+            return nil
+        }
+    }
+
+    private func circularTabAvatar(from image: UIImage) -> UIImage {
+        let size = CGSize(width: 28, height: 28)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        format.opaque = false
+
+        let avatar = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let outputRect = CGRect(origin: .zero, size: size)
+            UIBezierPath(ovalIn: outputRect).addClip()
+
+            let scale = max(size.width / image.size.width, size.height / image.size.height)
+            let drawSize = CGSize(
+                width: image.size.width * scale,
+                height: image.size.height * scale
+            )
+            let drawRect = CGRect(
+                x: (size.width - drawSize.width) / 2,
+                y: (size.height - drawSize.height) / 2,
+                width: drawSize.width,
+                height: drawSize.height
+            )
+            image.draw(in: drawRect)
+        }
+        return avatar.withRenderingMode(.alwaysOriginal)
+    }
 }
 
 private enum AuthenticationMode {
@@ -395,7 +456,6 @@ private enum AppTab: Hashable {
     case home
     case stock
     case player
-    case log
     case settings
 }
 
