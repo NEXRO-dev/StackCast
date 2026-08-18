@@ -24,7 +24,7 @@ struct StockViewEN: View {
         let articles: [SavedArticle]
         switch selectedFilter {
         case .all:
-            articles = articleLibrary.articles
+            articles = articleLibrary.articles.filter { $0.state == .unread }
         case .expiring:
             articles = articleLibrary.articles.filter(isExpiring)
         case .completed:
@@ -152,15 +152,8 @@ struct StockViewEN: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
-
-            Text("\(unreadCount)")
-                .font(.title2.bold())
-                .foregroundStyle(.tint)
-                .padding(12)
-                .background(.tint.opacity(0.12), in: Circle())
-                .accessibilityLabel("\(unreadCount) unread articles")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, AppDesign.pagePadding)
         .padding(.top, 18)
         .padding(.bottom, 16)
@@ -175,7 +168,7 @@ struct StockViewEN: View {
 
     private var statusPicker: some View {
         Picker("Stock filter", selection: $selectedFilter) {
-            Text("All").tag(StockFilter.all)
+            Text("Unread").tag(StockFilter.all)
             Text("Expiring").tag(StockFilter.expiring)
             Text("Done").tag(StockFilter.completed)
         }
@@ -193,7 +186,7 @@ struct StockViewEN: View {
 
     private var emptyStateDescription: String {
         switch selectedFilter {
-        case .all: "Add articles from the Share menu."
+        case .all: "There are no unread articles."
         case .expiring: "No articles expire within 24 hours."
         case .completed: "No completed articles yet."
         }

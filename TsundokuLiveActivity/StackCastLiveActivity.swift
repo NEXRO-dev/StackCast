@@ -6,41 +6,69 @@ import WidgetKit
 struct StackCastLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CastPlaybackActivityAttributes.self) { context in
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: context.state.isPlaying ? "waveform" : "pause.fill")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    activityArtwork
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(context.attributes.castTitle)
                             .font(.headline)
-                            .lineLimit(1)
-                        Text(context.attributes.subtitle)
+                            .lineLimit(2)
+                        Text(context.state.isPlaying ? "再生中" : "一時停止中")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.7))
                     }
 
-                    Spacer()
+                    Spacer(minLength: 0)
+                }
 
+                HStack(spacing: 8) {
                     elapsedView(for: context)
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.7))
-                }
+                        .font(.caption2.monospacedDigit())
+                        .frame(width: 36, alignment: .leading)
 
-                ProgressView(value: context.state.progress)
-                    .tint(.white)
+                    GeometryReader { geometry in
+                        let progress = min(max(context.state.progress, 0), 1)
 
-                HStack {
-                    Text(context.state.isPlaying ? "再生中" : "一時停止中")
-                    Spacer()
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(.white.opacity(0.22))
+                            Capsule()
+                                .fill(.white)
+                                .frame(width: geometry.size.width * progress)
+                        }
+                    }
+                    .frame(height: 10)
+
                     Text(context.state.durationLabel)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.7))
+                        .frame(width: 36, alignment: .trailing)
                 }
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
+
+                HStack(spacing: 34) {
+                    Button(intent: SeekCastBackwardIntent()) {
+                        Image(systemName: "gobackward.10")
+                            .font(.system(size: 24, weight: .bold))
+                    }
+
+                    Button(intent: ToggleCastPlaybackIntent()) {
+                        Image(systemName: context.state.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 30, weight: .bold))
+                            .frame(width: 46, height: 34)
+                    }
+
+                    Button(intent: SeekCastForwardIntent()) {
+                        Image(systemName: "goforward.10")
+                            .font(.system(size: 24, weight: .bold))
+                    }
+                }
+                .foregroundStyle(.white)
+                .buttonStyle(.plain)
             }
-            .padding()
-            .activityBackgroundTint(.black)
+            .padding(16)
+            .lockScreenGlassSurface()
+            .activityBackgroundTint(.clear)
             .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
@@ -82,8 +110,18 @@ struct StackCastLiveActivity: Widget {
                                 .font(.caption2.monospacedDigit())
                                 .frame(width: 34, alignment: .leading)
 
-                            ProgressView(value: context.state.progress)
-                                .tint(.white)
+                            GeometryReader { geometry in
+                                let progress = min(max(context.state.progress, 0), 1)
+
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(.white.opacity(0.22))
+                                    Capsule()
+                                        .fill(.white)
+                                        .frame(width: geometry.size.width * progress)
+                                }
+                            }
+                            .frame(height: 10)
 
                             Text(context.state.durationLabel)
                                 .font(.caption2.monospacedDigit())
@@ -94,18 +132,18 @@ struct StackCastLiveActivity: Widget {
                         HStack(spacing: 28) {
                             Button(intent: SeekCastBackwardIntent()) {
                                 Image(systemName: "gobackward.10")
-                                    .font(.title3)
+                                    .font(.system(size: 22, weight: .bold))
                             }
 
                             Button(intent: ToggleCastPlaybackIntent()) {
                                 Image(systemName: context.state.isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.title2)
-                                    .frame(width: 36, height: 28)
+                                    .font(.system(size: 26, weight: .bold))
+                                    .frame(width: 42, height: 32)
                             }
 
                             Button(intent: SeekCastForwardIntent()) {
                                 Image(systemName: "goforward.10")
-                                    .font(.title3)
+                                    .font(.system(size: 22, weight: .bold))
                             }
                         }
                         .foregroundStyle(.white)
@@ -141,6 +179,24 @@ struct StackCastLiveActivity: Widget {
         }
     }
 
+    private var activityArtwork: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [.indigo, .purple.opacity(0.85)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image(systemName: "waveform")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 56, height: 56)
+    }
+
     @ViewBuilder
     private func elapsedView(
         for context: ActivityViewContext<CastPlaybackActivityAttributes>
@@ -158,6 +214,24 @@ struct StackCastLiveActivity: Widget {
         }
     }
 
+}
+
+private extension View {
+    @ViewBuilder
+    func lockScreenGlassSurface() -> some View {
+        if #available(iOS 26.0, *) {
+            background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.clear)
+                    .glassEffect(
+                        .regular.tint(.black.opacity(0.08)),
+                        in: .rect(cornerRadius: 24)
+                    )
+            }
+        } else {
+            background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
 }
 
 @main

@@ -23,7 +23,7 @@ struct HomeViewEN: View {
                 VStack(alignment: .leading, spacing: 28) {
                     greeting
                     durationPicker
-                    digestCard
+                    // digestCard
                     expiringSection
                     weeklySummary
                 }

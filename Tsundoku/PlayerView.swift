@@ -650,13 +650,21 @@ private struct CastDetailView: View {
             ZStack(alignment: .top) {
                 Color(red: 0.95, green: 0.95, blue: 0.98)
 
-                Capsule()
-                    .fill(.primary.opacity(0.55))
-                    .frame(width: 52, height: 6)
-                    .padding(.top, proxy.safeAreaInsets.top + 60)
-                    .accessibilityHidden(true)
+                if proxy.size.width > proxy.size.height {
+                    landscapeContent(proxy: proxy)
+                        .allowsHitTesting(!isShowingTranscript)
 
-                VStack(spacing: 0) {
+                    if isShowingTranscript {
+                        transcriptOverlay(proxy: proxy)
+                    }
+                } else {
+                    Capsule()
+                        .fill(.primary.opacity(0.55))
+                        .frame(width: 52, height: 6)
+                        .padding(.top, proxy.safeAreaInsets.top + 60)
+                        .accessibilityHidden(true)
+
+                    VStack(spacing: 0) {
                     Spacer(minLength: proxy.safeAreaInsets.top + 68)
 
                     CastArtwork(cast: cast, size: 280)
@@ -746,12 +754,13 @@ private struct CastDetailView: View {
                         .offset(y: 20)
 
                     Spacer(minLength: proxy.safeAreaInsets.bottom + 48)
-                }
-                .padding(.horizontal, 24)
-                .allowsHitTesting(!isShowingTranscript)
+                    }
+                    .padding(.horizontal, 24)
+                    .allowsHitTesting(!isShowingTranscript)
 
-                if isShowingTranscript {
-                    transcriptOverlay(proxy: proxy)
+                    if isShowingTranscript {
+                        transcriptOverlay(proxy: proxy)
+                    }
                 }
 
             }
@@ -802,6 +811,72 @@ private struct CastDetailView: View {
         .alert(language == .english ? "Sharing stopped" : "共有を停止しました", isPresented: $isShowingShareRevoked) {
             Button(language == .english ? "OK" : "確認", role: .cancel) { }
         }
+    }
+
+    private func landscapeContent(proxy: GeometryProxy) -> some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 24) {
+                CastArtwork(cast: cast, size: min(proxy.size.height * 0.48, 220))
+                    .frame(maxHeight: 220)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    OnePassMarqueeTitle(text: cast.title)
+                        .frame(height: 36)
+
+                    Text(language == .english ? "Cast" : "Cast")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    CastSeekBar(progress: progress) { value in
+                        playbackStore.seek(toProgress: value, in: cast)
+                    }
+
+                    HStack {
+                        Text(elapsedTime)
+                        Spacer()
+                        Text(durationTime)
+                    }
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+
+                    HStack(spacing: 34) {
+                        Button {
+                            playbackStore.seek(by: -10, in: cast)
+                        } label: {
+                            Image(systemName: "gobackward.10")
+                                .font(.title2.weight(.semibold))
+                        }
+
+                        Button {
+                            playbackStore.toggle(cast, subscriptionTier: subscriptionTier)
+                        } label: {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 38, weight: .bold))
+                        }
+
+                        Button {
+                            playbackStore.seek(by: 10, in: cast)
+                        } label: {
+                            Image(systemName: "goforward.10")
+                                .font(.title2.weight(.semibold))
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider()
+
+            detailActions
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, proxy.safeAreaInsets.top + 18)
+        .padding(.bottom, proxy.safeAreaInsets.bottom + 18)
+        .frame(width: proxy.size.width, height: proxy.size.height)
     }
 
     private var detailActions: some View {

@@ -24,7 +24,7 @@ struct StockView: View {
         let articles: [SavedArticle]
         switch selectedFilter {
         case .all:
-            articles = articleLibrary.articles
+            articles = articleLibrary.articles.filter { $0.state == .unread }
         case .expiring:
             articles = articleLibrary.articles.filter(isExpiring)
         case .completed:
@@ -152,15 +152,8 @@ struct StockView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
-
-            Text("\(unreadCount)")
-                .font(.title2.bold())
-                .foregroundStyle(.tint)
-                .padding(12)
-                .background(.tint.opacity(0.12), in: Circle())
-                .accessibilityLabel("未消化\(unreadCount)件")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, AppDesign.pagePadding)
         .padding(.top, 18)
         .padding(.bottom, 16)
@@ -175,7 +168,7 @@ struct StockView: View {
 
     private var statusPicker: some View {
         Picker("ストックフィルター", selection: $selectedFilter) {
-            Text("すべて").tag(StockFilter.all)
+            Text("未読").tag(StockFilter.all)
             Text("期限間近").tag(StockFilter.expiring)
             Text("完了").tag(StockFilter.completed)
         }
@@ -193,7 +186,7 @@ struct StockView: View {
 
     private var emptyStateDescription: String {
         switch selectedFilter {
-        case .all: "Webページの共有から記事を追加できます。"
+        case .all: "未読の記事はありません。"
         case .expiring: "24時間以内に期限を迎える記事はありません。"
         case .completed: "完了した記事はまだありません。"
         }

@@ -5,6 +5,7 @@
 
 import AVFoundation
 import ActivityKit
+import MediaPlayer
 import Observation
 import OSLog
 import SwiftUI
@@ -91,6 +92,7 @@ final class CastPlaybackStore {
         PlaybackCommandRouter.handler = { [weak self] command in
             self?.executePlaybackCommand(command)
         }
+        configureRemoteCommandCenter()
         logger.info("Live Activity playback command handler registered")
     }
 
@@ -120,6 +122,7 @@ final class CastPlaybackStore {
             player?.playImmediately(atRate: Float(playbackRate))
             isPlaying = true
             hasStartedPlayback = true
+            updateNowPlayingInfo()
             updateLiveActivity(force: true)
             return
         }
@@ -138,6 +141,7 @@ final class CastPlaybackStore {
         nextPlayer.playImmediately(atRate: Float(playbackRate))
         isPlaying = true
         hasStartedPlayback = true
+        updateNowPlayingInfo()
         startLiveActivity(for: cast, subscriptionTier: subscriptionTier)
     }
 
@@ -150,12 +154,14 @@ final class CastPlaybackStore {
         } else {
             player.rate = Float(rate)
         }
+        updateNowPlayingInfo()
     }
 
     func pause() {
         player?.pause()
         persistCurrentProgress(force: true)
         isPlaying = false
+        updateNowPlayingInfo()
         updateLiveActivity(force: true)
     }
 
@@ -212,6 +218,7 @@ final class CastPlaybackStore {
         elapsedTime = "0:00"
         durationTime = "0:00"
         deactivateAudioSession()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         endLiveActivity()
     }
 
@@ -232,6 +239,7 @@ final class CastPlaybackStore {
                 self.isPlaying = false
                 self.progress = 1
                 self.persistCurrentProgress(force: true)
+                self.updateNowPlayingInfo()
                 self.updateLiveActivity(force: true)
                 AppReviewRequest.recordCompletedCastPlayback()
             }
@@ -249,6 +257,7 @@ final class CastPlaybackStore {
                 self.progress = min(max(current / total, 0), 1)
                 self.persistProgressIfNeeded(currentSeconds: current, force: false)
                 self.elapsedTime = self.formatTime(Int(current))
+                self.updateNowPlayingInfo(elapsedOverride: current, durationOverride: total)
                 self.updateLiveActivity()
                 self.durationTime = self.formatTime(Int(total))
             }
@@ -322,6 +331,108 @@ final class CastPlaybackStore {
         } catch {
             // Foreground playback can still work if another app owns the audio session.
         }
+    }
+
+    private func configureRemoteCommandCenter() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.skipBackwardCommand.isEnabled = true
+        commandCenter.skipBackwardCommand.preferredIntervals = [10]
+        commandCenter.skipForwardCommand.isEnabled = true
+        commandCenter.skipForwardCommand.preferredIntervals = [10]
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+
+        commandCenter.playCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.resumeFromRemoteCommand()
+            }
+            return .success
+        }
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.pause()
+            }
+            return .success
+        }
+        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.toggleFromRemoteCommand()
+            }
+            return .success
+        }
+        commandCenter.skipBackwardCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.seekCurrent(by: -10)
+            }
+            return .success
+        }
+        commandCenter.skipForwardCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.seekCurrent(by: 10)
+            }
+            return .success
+        }
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            Task { @MainActor [weak self] in
+                guard let self, let currentCast = self.currentCast else { return }
+                let duration = self.player?.currentItem?.duration.seconds ?? Double(currentCast.durationMinutes * 60)
+                guard duration.isFinite, duration > 0 else { return }
+                self.seek(toProgress: event.positionTime / duration, in: currentCast)
+            }
+            return .success
+        }
+    }
+
+    private func resumeFromRemoteCommand() {
+        guard let player, currentCast != nil else { return }
+        activateAudioSession()
+        player.playImmediately(atRate: Float(playbackRate))
+        isPlaying = true
+        hasStartedPlayback = true
+        updateNowPlayingInfo()
+        updateLiveActivity(force: true)
+    }
+
+    private func toggleFromRemoteCommand() {
+        guard currentCast != nil else { return }
+        if isPlaying {
+            pause()
+        } else {
+            resumeFromRemoteCommand()
+        }
+    }
+
+    private func updateNowPlayingInfo(
+        elapsedOverride: Double? = nil,
+        durationOverride: Double? = nil
+    ) {
+        guard let cast = currentCast else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            return
+        }
+
+        let playerElapsed = player?.currentTime().seconds ?? 0
+        let elapsed = elapsedOverride ?? (playerElapsed.isFinite ? max(playerElapsed, 0) : 0)
+        let playerDuration = player?.currentItem?.duration.seconds ?? 0
+        let duration = durationOverride
+            ?? (playerDuration.isFinite && playerDuration > 0
+                ? playerDuration
+                : Double(max(cast.durationMinutes * 60, 1)))
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+            MPMediaItemPropertyTitle: cast.title,
+            MPMediaItemPropertyArtist: "StackCast",
+            MPMediaItemPropertyAlbumTitle: "Cast",
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: min(max(elapsed, 0), duration),
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0,
+        ]
     }
 
     private func deactivateAudioSession() {
