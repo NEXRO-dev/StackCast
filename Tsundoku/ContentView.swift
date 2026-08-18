@@ -11,6 +11,7 @@ import UIKit
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.japanese.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appAppearance = AppAppearance.system.rawValue
     @State private var isShowingLaunchSplash = true
     @State private var isAuthenticationPresented = false
     @State private var authenticationMode: AuthenticationMode = .signup
@@ -19,7 +20,7 @@ struct ContentView: View {
     @State private var authStore = AuthStore()
     @State private var subscriptionStore = SubscriptionStore()
     @State private var castStore = CastStore()
-    @State private var playbackStore = CastPlaybackStore()
+    @State private var playbackStore = CastPlaybackStore.shared
     @State private var networkStatus = NetworkStatusMonitor()
     @State private var isShowingSubscription = false
     @State private var isDeepLinkErrorPresented = false
@@ -39,6 +40,7 @@ struct ContentView: View {
             }
         }
         .environment(\.locale, Locale(identifier: currentLanguage == .english ? "en" : "ja"))
+        .preferredColorScheme(AppAppearance(rawValue: appAppearance)?.colorScheme)
         .onOpenURL { url in
             handleIncomingURL(url)
         }
@@ -62,7 +64,7 @@ struct ContentView: View {
                     sessionToken: authStore.sessionToken()
                 )
                 await castStore.load(token: authStore.sessionToken())
-            } else {
+            } else if case .signedOut = authStore.status {
                 await subscriptionStore.signOut()
                 castStore.clear()
             }
@@ -82,6 +84,10 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             playbackStore.handleScenePhase(phase, subscriptionTier: subscriptionStore.planTier)
+            guard phase == .active, signedInUserID != nil else { return }
+            Task {
+                await subscriptionStore.refresh()
+            }
         }
         .overlay(alignment: .top) {
             if !networkStatus.isConnected {
@@ -174,13 +180,15 @@ struct ContentView: View {
 
             if let currentCast = playbackStore.currentCast,
                playbackStore.hasStartedPlayback,
-               !isCastDetailPresented {
+               !isCastDetailPresented,
+               selectedTab != .settings {
                 miniPlayerOverlay(for: currentCast)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.opacity)
             }
         }
         .animation(.snappy, value: playbackStore.hasStartedPlayback)
         .animation(.snappy, value: isCastDetailPresented)
+        .animation(.easeInOut(duration: 0.24), value: selectedTab == .settings)
     }
 
     @ViewBuilder
@@ -299,12 +307,19 @@ struct ContentView: View {
 
     private func handleIncomingURL(_ url: URL) {
         if url.scheme == "stashcast" {
+            if url.host == "playback" {
+                handlePlaybackCommand(url)
+                return
+            }
+
             switch url.host {
             case "subscription":
                 isShowingSubscription = true
             case "stock":
                 selectedTab = .stock
                 articleLibrary.refresh()
+            case "player":
+                selectedTab = .player
             case "cast":
                 guard let token = url.pathComponents.dropFirst().first else { return }
                 openSharedCast(token: token)
@@ -319,6 +334,22 @@ struct ContentView: View {
               url.pathComponents.count >= 3,
               url.pathComponents[1] == "c" else { return }
         openSharedCast(token: url.pathComponents[2])
+    }
+
+    private func handlePlaybackCommand(_ url: URL) {
+        switch url.path {
+        case "/toggle":
+            playbackStore.toggleCurrent(subscriptionTier: subscriptionStore.planTier)
+        case "/seek":
+            guard let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "seconds" })?
+                .value,
+                  let seconds = Double(value) else { return }
+            playbackStore.seekCurrent(by: seconds)
+        default:
+            break
+        }
     }
 
     private func openSharedCast(token: String) {

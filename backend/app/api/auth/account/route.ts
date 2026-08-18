@@ -1,5 +1,6 @@
 import { errorResponse } from "@/lib/auth/response";
 import { bearerToken, hashSessionToken } from "@/lib/auth/session";
+import { deleteUserAudioObjects } from "@/lib/r2-storage";
 import { getTurso } from "@/lib/turso";
 
 export const runtime = "nodejs";
@@ -87,6 +88,8 @@ export async function DELETE(request: Request) {
     if (!account) {
       return errorResponse("unauthorized", "Session is invalid or expired.", 401);
     }
+
+    await deleteUserAudioObjects(account.id);
 
     await getTurso().batch([
       {

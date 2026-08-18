@@ -11,7 +11,6 @@ import RevenueCat
 @Observable
 final class SubscriptionStore {
     private(set) var offering: Offering?
-    private(set) var isPro = false
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private(set) var managementURL: URL?
@@ -20,6 +19,19 @@ final class SubscriptionStore {
     private(set) var willRenew = false
     private(set) var hasBillingIssue = false
     private(set) var serverSubscription: BillingSubscriptionSnapshot?
+    private(set) var effectivePlanTier: SubscriptionPlanTier
+    private(set) var revenueCatPlanTier: SubscriptionPlanTier = .free
+    private var sessionToken: String?
+    private var revenueCatUserID: String?
+
+    init() {
+        switch SharedArticleRepository.subscriptionTier {
+        case .free: effectivePlanTier = .free
+        case .plus: effectivePlanTier = .plus
+        case .pro: effectivePlanTier = .pro
+        case .lifetime: effectivePlanTier = .lifetime
+        }
+    }
 
     func clearError() {
         errorMessage = nil
@@ -42,16 +54,24 @@ final class SubscriptionStore {
     }
 
     var planTier: SubscriptionPlanTier {
-        guard isPro else { return .free }
+        effectivePlanTier
+    }
 
-        let identifier = activeProductIdentifier?.lowercased() ?? ""
-        if identifier.contains("lifetime") || identifier.contains("one-time") || identifier.contains("onetime") {
-            return .lifetime
+    var isPro: Bool {
+        effectivePlanTier != .free
+    }
+
+    var activeBillingPlanTier: SubscriptionPlanTier {
+        if let billingIsActive = serverSubscription?.billingIsActive {
+            guard billingIsActive,
+                  let rawTier = serverSubscription?.billingPlanTier else { return .free }
+            return subscriptionPlanTier(rawTier)
         }
-        if identifier.contains("plus") {
-            return .plus
-        }
-        return .pro
+        return revenueCatPlanTier
+    }
+
+    var hasActiveStoreSubscription: Bool {
+        activeBillingPlanTier != .free && activeBillingPlanTier != .lifetime
     }
 
     func planTitle(language: AppLanguage) -> String {
@@ -69,16 +89,12 @@ final class SubscriptionStore {
     func identify(userID: String, sessionToken: String?) async {
         isLoading = true
         errorMessage = nil
+        self.sessionToken = sessionToken
+        revenueCatUserID = userID
 
         do {
             _ = try await Purchases.shared.logIn(userID)
             await refresh()
-            if let sessionToken {
-                serverSubscription = try? await AuthClient().billingSubscription(token: sessionToken)
-                if let serverSubscription, serverSubscription.source == "admin_override" {
-                    applyAdminOverride(serverSubscription)
-                }
-            }
         } catch {
             isLoading = false
             errorMessage = "SUBSCRIPTION_ERROR"
@@ -93,7 +109,8 @@ final class SubscriptionStore {
         }
 
         offering = nil
-        isPro = false
+        effectivePlanTier = .free
+        revenueCatPlanTier = .free
         errorMessage = nil
         managementURL = nil
         activeProductIdentifier = nil
@@ -101,6 +118,8 @@ final class SubscriptionStore {
         willRenew = false
         hasBillingIssue = false
         serverSubscription = nil
+        sessionToken = nil
+        revenueCatUserID = nil
         SharedArticleRepository.setSubscriptionTier(.free)
     }
 
@@ -110,10 +129,14 @@ final class SubscriptionStore {
             offering = offerings.current
 
             let customerInfo = try await Purchases.shared.customerInfo()
-            updateEntitlement(from: customerInfo)
+            updateRevenueCatMetadata(from: customerInfo)
         } catch {
             errorMessage = "SUBSCRIPTION_ERROR"
         }
+
+        // Access control is sourced from the backend DB even when RevenueCat
+        // metadata or offerings are temporarily unavailable on this device.
+        await refreshServerSubscription()
 
         isLoading = false
     }
@@ -133,8 +156,15 @@ final class SubscriptionStore {
         errorMessage = nil
 
         do {
+            // The app can be relaunched with RevenueCat anonymous even when
+            // the backend session is already restored. Re-identify immediately
+            // before purchasing so the receipt belongs to the signed-in user.
+            if let revenueCatUserID {
+                _ = try await Purchases.shared.logIn(revenueCatUserID)
+            }
             let result = try await Purchases.shared.purchase(package: package)
-            updateEntitlement(from: result.customerInfo)
+            updateRevenueCatMetadata(from: result.customerInfo)
+            await refreshServerSubscription(waitingForProduct: package.storeProduct.productIdentifier)
         } catch {
             errorMessage = "SUBSCRIPTION_ERROR"
         }
@@ -148,7 +178,8 @@ final class SubscriptionStore {
 
         do {
             let customerInfo = try await Purchases.shared.restorePurchases()
-            updateEntitlement(from: customerInfo)
+            updateRevenueCatMetadata(from: customerInfo)
+            await refreshServerSubscription(waitingForActivePlan: true)
         } catch {
             errorMessage = "SUBSCRIPTION_ERROR"
         }
@@ -156,25 +187,86 @@ final class SubscriptionStore {
         isLoading = false
     }
 
-    private func updateEntitlement(from customerInfo: CustomerInfo) {
+    private func updateRevenueCatMetadata(from customerInfo: CustomerInfo) {
         let entitlement = customerInfo.entitlements[Config.revenueCatEntitlementID]
-        isPro = entitlement?.isActive == true
+        revenueCatPlanTier = entitlement?.isActive == true
+            ? subscriptionPlanTier(entitlement?.productIdentifier ?? "free")
+            : .free
         managementURL = customerInfo.managementURL
         activeProductIdentifier = entitlement?.productIdentifier
         expirationDate = entitlement?.expirationDate
         willRenew = entitlement?.willRenew == true
         hasBillingIssue = entitlement?.billingIssueDetectedAt != nil
+    }
+
+    private func refreshServerSubscription(
+        waitingForProduct expectedProduct: String? = nil,
+        waitingForActivePlan: Bool = false
+    ) async {
+        guard let sessionToken else { return }
+        let attempts = expectedProduct == nil && !waitingForActivePlan ? 1 : 8
+
+        for attempt in 0..<attempts {
+            do {
+                let subscription = try await AuthClient().billingSubscription(token: sessionToken)
+                serverSubscription = subscription
+                applyServerSubscription(subscription)
+
+                let productMatches = expectedProduct == nil
+                    || subscription?.productId == expectedProduct
+                let activeMatches = !waitingForActivePlan
+                    || subscription?.effectiveIsActive == true
+                    || subscription?.isActive == true
+                if productMatches && activeMatches { return }
+            } catch {
+                if attempt == attempts - 1 {
+                    errorMessage = "SUBSCRIPTION_ERROR"
+                    return
+                }
+            }
+
+            if attempt < attempts - 1 {
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func applyServerSubscription(_ subscription: BillingSubscriptionSnapshot?) {
+        guard let subscription else {
+            applyEffectivePlan(.free)
+            return
+        }
+
+        let isActive = subscription.effectiveIsActive ?? subscription.isActive
+        let rawTier = subscription.effectivePlanTier
+            ?? subscription.planTier
+            ?? "free"
+        let tier = isActive ? subscriptionPlanTier(rawTier) : .free
+        applyEffectivePlan(tier)
+
+        activeProductIdentifier = subscription.source == "admin_override"
+            ? (tier == .free ? nil : "\(rawTier.lowercased())_admin_override")
+            : subscription.productId
+        expirationDate = parseServerDate(subscription.overrideExpiresAt ?? subscription.expiresAt)
+        if subscription.source == "admin_override" {
+            willRenew = false
+            hasBillingIssue = false
+        }
+    }
+
+    private func applyEffectivePlan(_ tier: SubscriptionPlanTier) {
+        effectivePlanTier = tier
         SharedArticleRepository.setSubscriptionTier(sharedSubscriptionTier)
     }
 
-    private func applyAdminOverride(_ subscription: BillingSubscriptionSnapshot) {
-        let tier = subscription.planTier?.lowercased() ?? "free"
-        isPro = subscription.isActive && (tier == "plus" || tier == "pro")
-        activeProductIdentifier = isPro ? "\(tier)_admin_override" : nil
-        expirationDate = parseServerDate(subscription.overrideExpiresAt ?? subscription.expiresAt)
-        willRenew = false
-        hasBillingIssue = false
-        SharedArticleRepository.setSubscriptionTier(sharedSubscriptionTier)
+    private func subscriptionPlanTier(_ value: String) -> SubscriptionPlanTier {
+        let normalized = value.lowercased()
+        if normalized.contains("lifetime") || normalized.contains("one-time") || normalized.contains("onetime") {
+            return .lifetime
+        }
+        if normalized.contains("plus") { return .plus }
+        if normalized.contains("pro") { return .pro }
+        return .free
     }
 
     private func parseServerDate(_ value: String?) -> Date? {
@@ -238,6 +330,7 @@ struct SettingsView: View {
     let playbackStore: CastPlaybackStore
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.japanese.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appAppearance = AppAppearance.system.rawValue
     @State private var notificationsEnabled = true
     @State private var defaultDuration = 10
     @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
@@ -252,6 +345,7 @@ struct SettingsView: View {
             Form {
                 accountSection
                 languageSection
+                appearanceSection
                 planSection
                 playbackSection
                 notificationSection
@@ -262,6 +356,9 @@ struct SettingsView: View {
                     dangerSectionDivider
                     logoutSection
                 }
+            }
+            .refreshable {
+                await subscriptionStore.refresh()
             }
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
@@ -323,6 +420,16 @@ struct SettingsView: View {
             Picker("表示言語", selection: $appLanguage) {
                 ForEach(AppLanguage.allCases) { language in
                     Text(language.displayName).tag(language.rawValue)
+                }
+            }
+        }
+    }
+
+    private var appearanceSection: some View {
+        Section("外観") {
+            Picker("表示モード", selection: $appAppearance) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Text(appearance.displayName(isEnglish: false)).tag(appearance.rawValue)
                 }
             }
         }

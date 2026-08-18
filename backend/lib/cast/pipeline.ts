@@ -2,6 +2,7 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash, randomUUID } from "node:crypto";
 import { getTurso } from "@/lib/turso";
+import { effectiveSubscriptionForUser } from "@/lib/billing/effective-plan";
 import { buildCastGenerationPrompt, buildFishAudioInput, castSafetyPolicy, type CastLanguage } from "./prompt";
 
 const openAIModel = "gpt-5.6-luna";
@@ -267,50 +268,16 @@ async function releaseCredits(userID: string, castID: string, amount: number, no
 }
 
 async function currentPlanTier(userID: string): Promise<string> {
-  const row = (await getTurso().get(
-    `WITH ranked_billing AS (
-       SELECT b.*,
-              ROW_NUMBER() OVER (
-                PARTITION BY b.user_id
-                ORDER BY b.is_active DESC, b.updated_at DESC
-              ) AS row_number
-       FROM billing_subscriptions b
-     )
-     SELECT LOWER(COALESCE(admin_override.plan_tier, billing.plan_tier, 'free')) AS planTier,
-            LOWER(billing.plan_tier) AS billingPlanTier,
-            LOWER(admin_override.plan_tier) AS overridePlanTier,
-            billing.is_active AS billingIsActive,
-            billing.updated_at AS billingUpdatedAt,
-            admin_override.expires_at AS overrideExpiresAt
-     FROM users
-     LEFT JOIN ranked_billing billing
-       ON billing.user_id = users.id AND billing.row_number = 1
-     LEFT JOIN admin_plan_overrides admin_override
-       ON admin_override.user_id = users.id
-      AND (admin_override.expires_at IS NULL OR admin_override.expires_at > ?)
-     WHERE users.id = ?
-     LIMIT 1`,
-    new Date().toISOString(),
-    userID,
-  )) as {
-    planTier?: string;
-    billingPlanTier?: string;
-    overridePlanTier?: string;
-    billingIsActive?: number;
-    billingUpdatedAt?: string;
-    overrideExpiresAt?: string;
-  } | null;
-
-  const tier = row?.planTier;
-  const resolvedTier = tier && tier in creditLimits ? tier : "free";
+  const subscription = await effectiveSubscriptionForUser(getTurso(), userID);
+  const resolvedTier = subscription.effectivePlanTier;
   logCastEvent("plan resolved", {
     userID,
     planTier: resolvedTier,
-    billingPlanTier: row?.billingPlanTier ?? null,
-    overridePlanTier: row?.overridePlanTier ?? null,
-    billingIsActive: row?.billingIsActive ?? null,
-    billingUpdatedAt: row?.billingUpdatedAt ?? null,
-    overrideExpiresAt: row?.overrideExpiresAt ?? null,
+    billingPlanTier: subscription.billingPlanTier,
+    effectiveIsActive: subscription.effectiveIsActive,
+    source: subscription.source,
+    updatedAt: subscription.updatedAt,
+    overrideExpiresAt: subscription.overrideExpiresAt,
   });
   return resolvedTier;
 }

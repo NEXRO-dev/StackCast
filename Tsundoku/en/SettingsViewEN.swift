@@ -10,6 +10,7 @@ struct SettingsViewEN: View {
     let playbackStore: CastPlaybackStore
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.english.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appAppearance = AppAppearance.system.rawValue
     @State private var notificationsEnabled = true
     @State private var defaultDuration = 10
     @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
@@ -24,6 +25,7 @@ struct SettingsViewEN: View {
             Form {
                 accountSection
                 languageSection
+                appearanceSection
                 planSection
                 playbackSection
                 notificationSection
@@ -95,6 +97,16 @@ struct SettingsViewEN: View {
             Picker("Display Language", selection: $appLanguage) {
                 ForEach(AppLanguage.allCases) { language in
                     Text(language.displayName).tag(language.rawValue)
+                }
+            }
+        }
+    }
+
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            Picker("Display Mode", selection: $appAppearance) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Text(appearance.displayName(isEnglish: true)).tag(appearance.rawValue)
                 }
             }
         }

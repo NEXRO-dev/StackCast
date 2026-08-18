@@ -214,16 +214,21 @@ struct SubscriptionManagementView: View {
     }
 
     private var currentTier: SubscriptionTier {
-        guard subscriptionStore.isPro else { return .free }
+        switch subscriptionStore.planTier {
+        case .free: return .free
+        case .plus: return .plus
+        case .pro: return .pro
+        case .lifetime: return .lifetime
+        }
+    }
 
-        let identifier = subscriptionStore.activeProductIdentifier?.lowercased() ?? ""
-        if identifier.contains("lifetime") || identifier.contains("one-time") || identifier.contains("onetime") {
-            return .lifetime
+    private var purchasedTier: SubscriptionTier {
+        switch subscriptionStore.activeBillingPlanTier {
+        case .free: return .free
+        case .plus: return .plus
+        case .pro: return .pro
+        case .lifetime: return .lifetime
         }
-        if identifier.contains("plus") {
-            return .plus
-        }
-        return .pro
     }
 
     private var displayedTiers: [SubscriptionTier] {
@@ -247,7 +252,8 @@ struct SubscriptionManagementView: View {
         let isSelected = tier == selectedTier
 
         return Button {
-            guard tier != .free, currentTier != tier else { return }
+            guard tier != .free,
+                  currentTier == .free || purchasedTier != tier else { return }
             selectedTier = tier
         } label: {
             VStack(alignment: .leading, spacing: 12) {
@@ -360,8 +366,7 @@ struct SubscriptionManagementView: View {
 
     private var subscriptionActionsMenu: some View {
         Menu {
-            if subscriptionStore.isPro,
-               subscriptionStore.planTier != .lifetime,
+            if subscriptionStore.hasActiveStoreSubscription,
                let managementURL = subscriptionStore.subscriptionManagementURL {
                 Button {
                     openURL(managementURL)
@@ -388,7 +393,8 @@ struct SubscriptionManagementView: View {
 
     @ViewBuilder
     private var purchaseArea: some View {
-        if selectedTier != .free && selectedTier != currentTier {
+        if selectedTier != .free
+            && (currentTier == .free || selectedTier != purchasedTier) {
             VStack(spacing: 10) {
                 if selectedBillingPeriod != .lifetime {
                     HStack(alignment: .top, spacing: 10) {

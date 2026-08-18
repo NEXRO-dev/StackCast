@@ -330,6 +330,8 @@ private struct CurrentUserResponse: Decodable {
 
 struct BillingSubscriptionSnapshot: Decodable, Equatable, Sendable {
     let planTier: String?
+    let effectivePlanTier: String?
+    let effectiveIsActive: Bool?
     let entitlementId: String
     let productId: String?
     let store: String?
@@ -342,6 +344,8 @@ struct BillingSubscriptionSnapshot: Decodable, Equatable, Sendable {
     let updatedAt: String
     let source: String?
     let overrideExpiresAt: String?
+    let billingPlanTier: String?
+    let billingIsActive: Bool?
 }
 
 private struct BillingSubscriptionResponse: Decodable {

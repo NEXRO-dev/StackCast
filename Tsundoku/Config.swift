@@ -8,17 +8,21 @@ import Foundation
 enum Config {
     // false: 開発環境 / true: 本番環境
     // 変更後にアプリを再ビルドして起動してください。
-    static let isProduction = true
-    // RevenueCatのiOS用公開キー。test_で始まるキーはアプリに埋め込んで使用できます。
-    // 本番公開時はRevenueCatのProduction用公開キーに差し替えてください。
+    static let isProduction = false
+    // DebugビルドはRevenueCat Test Store、ReleaseビルドはApp Store用の公開キーを使います。
+#if DEBUG
     static let revenueCatAPIKey = "test_cKuqaflkDdQLjaJdJlrvbuRwpND"
+#else
+    static let revenueCatAPIKey = "appl_hQKbZDAcmYQlJYWogimhFQbIYsy"
+#endif
 
     // RevenueCatのEntitlement Identifier。RevenueCatの管理画面で作成した値と一致させます。
     static let revenueCatEntitlementID = "StashCast Pro"
 
 #if DEBUG
     // 開発用URLはDebugビルドにだけ含める。Releaseバイナリにはlocalhostを含めない。
-    private static let developmentBaseURL = URL(string: "http://localhost:3000")!
+    private static let developmentAPIBaseURL = URL(string: "http://localhost:3000/api")!
+    private static let developmentBackendHostURL = URL(string: "http://localhost:3000")!
 #endif
 
     // 本番バックエンドをデプロイしたら、実際のURLに置き換えてください。
@@ -26,7 +30,7 @@ enum Config {
 
     static var apiBaseURL: URL {
 #if DEBUG
-        isProduction ? productionBaseURL : developmentBaseURL
+        isProduction ? productionBaseURL : developmentAPIBaseURL
 #else
         productionBaseURL
 #endif
@@ -35,7 +39,7 @@ enum Config {
     // Cast APIなど、パス側で「api/...」を付ける機能が使用するホストURL。
     static var backendBaseURL: URL {
 #if DEBUG
-        isProduction ? productionBaseURL.deletingLastPathComponent() : developmentBaseURL
+        isProduction ? productionBaseURL.deletingLastPathComponent() : developmentBackendHostURL
 #else
         productionBaseURL.deletingLastPathComponent()
 #endif

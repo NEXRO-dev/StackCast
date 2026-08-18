@@ -329,6 +329,148 @@ struct CastRecord: Codable, Identifiable, Equatable, Sendable {
     let shareToken: String?
 }
 
+@MainActor
+@Observable
+final class CastDownloadStore {
+    static let shared = CastDownloadStore()
+
+    private struct DownloadedCast: Codable {
+        let cast: CastRecord
+        let fileName: String
+    }
+
+    private(set) var downloadingCastIDs: Set<String> = []
+    private(set) var lastErrorCastID: String?
+    private var downloads: [String: DownloadedCast] = [:]
+
+    private let fileManager = FileManager.default
+
+    private init() {
+        loadIndex()
+    }
+
+    var downloadedCasts: [CastRecord] {
+        downloads.values.map(\.cast)
+    }
+
+    func isDownloaded(_ cast: CastRecord) -> Bool {
+        audioURL(for: cast) != nil
+    }
+
+    func isDownloading(_ cast: CastRecord) -> Bool {
+        downloadingCastIDs.contains(cast.id)
+    }
+
+    func audioURL(for cast: CastRecord) -> URL? {
+        guard let download = downloads[cast.id] else { return nil }
+        let url = downloadsDirectory.appending(path: download.fileName)
+        guard fileManager.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
+    func merged(with remoteCasts: [CastRecord]) -> [CastRecord] {
+        var merged = remoteCasts
+        let remoteIDs = Set(remoteCasts.map(\.id))
+        merged.append(contentsOf: downloadedCasts.filter { !remoteIDs.contains($0.id) })
+        return merged
+    }
+
+    func download(_ cast: CastRecord) async -> Bool {
+        guard !isDownloaded(cast),
+              !isDownloading(cast),
+              let remoteURL = cast.audioURL else { return isDownloaded(cast) }
+
+        downloadingCastIDs.insert(cast.id)
+        lastErrorCastID = nil
+        defer { downloadingCastIDs.remove(cast.id) }
+
+        do {
+            let (temporaryURL, response) = try await URLSession.shared.download(from: remoteURL)
+            if let response = response as? HTTPURLResponse,
+               !(200..<300).contains(response.statusCode) {
+                throw URLError(.badServerResponse)
+            }
+
+            try createDownloadsDirectoryIfNeeded()
+            let fileName = localFileName(for: cast, remoteURL: remoteURL)
+            let destinationURL = downloadsDirectory.appending(path: fileName)
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+            try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+            try? fileManager.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: destinationURL.path
+            )
+
+            downloads[cast.id] = DownloadedCast(cast: cast, fileName: fileName)
+            try persistIndex()
+            return true
+        } catch {
+            lastErrorCastID = cast.id
+            return false
+        }
+    }
+
+    func removeDownload(for cast: CastRecord) {
+        guard let download = downloads.removeValue(forKey: cast.id) else { return }
+        let url = downloadsDirectory.appending(path: download.fileName)
+        try? fileManager.removeItem(at: url)
+        try? persistIndex()
+    }
+
+    private var downloadsDirectory: URL {
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appending(path: "DownloadedCasts", directoryHint: .isDirectory)
+    }
+
+    private var indexURL: URL {
+        downloadsDirectory.appending(path: "index.json")
+    }
+
+    private func createDownloadsDirectoryIfNeeded() throws {
+        try fileManager.createDirectory(
+            at: downloadsDirectory,
+            withIntermediateDirectories: true
+        )
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var directory = downloadsDirectory
+        try? directory.setResourceValues(values)
+    }
+
+    private func localFileName(for cast: CastRecord, remoteURL: URL) -> String {
+        let safeID = cast.id.replacingOccurrences(
+            of: "[^A-Za-z0-9_-]",
+            with: "_",
+            options: .regularExpression
+        )
+        let remoteExtension = remoteURL.pathExtension.lowercased()
+        let fileExtension = remoteExtension.isEmpty ? "audio" : remoteExtension
+        return "\(safeID).\(fileExtension)"
+    }
+
+    private func loadIndex() {
+        guard let data = try? Data(contentsOf: indexURL),
+              let stored = try? JSONDecoder().decode([DownloadedCast].self, from: data) else {
+            return
+        }
+
+        downloads = Dictionary(uniqueKeysWithValues: stored.compactMap { download in
+            let url = downloadsDirectory.appending(path: download.fileName)
+            return fileManager.fileExists(atPath: url.path)
+                ? (download.cast.id, download)
+                : nil
+        })
+    }
+
+    private func persistIndex() throws {
+        try createDownloadsDirectoryIfNeeded()
+        let data = try JSONEncoder().encode(Array(downloads.values))
+        try data.write(to: indexURL, options: .atomic)
+    }
+}
+
 private struct CastSourceRequest: Encodable {
     let url: URL
     let title: String
@@ -365,6 +507,10 @@ final class CastStore {
     private(set) var errorCode: String?
     private(set) var pendingOpenCastID: String?
 
+    init() {
+        casts = CastDownloadStore.shared.downloadedCasts
+    }
+
     func clear() {
         casts = []
         errorMessage = nil
@@ -392,10 +538,11 @@ final class CastStore {
                !loadedCasts.contains(where: { $0.id == pendingSharedCast.id }) {
                 loadedCasts.insert(pendingSharedCast, at: 0)
             }
-            casts = loadedCasts
+            casts = CastDownloadStore.shared.merged(with: loadedCasts)
             errorMessage = nil
             errorCode = nil
         } catch {
+            casts = CastDownloadStore.shared.merged(with: casts)
             errorMessage = "Castの読み込みに失敗しました。"
         }
     }

@@ -11,7 +11,7 @@ TURSO_DATABASE_URL=
 TURSO_AUTH_TOKEN=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-ADMIN_BASE_URL=http://localhost:3000
+ADMIN_BASE_URL=http://localhost:3001
 ADMIN_ALLOWED_EMAILS=admin@example.com
 ADMIN_PASSWORD=
 ADMIN_SESSION_SECRET=
@@ -19,7 +19,7 @@ ADMIN_SESSION_SECRET=
 
 - `TURSO_*`は`backend/.env.local`と同じDBを指定します。
 - `GOOGLE_CLIENT_ID`と`GOOGLE_CLIENT_SECRET`にはGoogle Cloud Consoleで作成したWebアプリケーション用OAuthクライアントの値を設定します。
-- Google Cloud Consoleの承認済みリダイレクトURIには、ローカルで`http://localhost:3000/api/auth/google/callback`、本番で`https://<管理画面ドメイン>/api/auth/google/callback`を登録します。
+- Google Cloud Consoleの承認済みリダイレクトURIには、ローカルで`http://localhost:3001/api/auth/google/callback`、本番で`https://<管理画面ドメイン>/api/auth/google/callback`を登録します。
 - `ADMIN_BASE_URL`はリダイレクトURIのオリジンになる管理画面URLです。
 - `ADMIN_ALLOWED_EMAILS`は管理画面を許可するGoogleアカウントをカンマ区切りで指定します。
 - `ADMIN_PASSWORD`はGoogle認証後に入力する共通管理者パスワードです。

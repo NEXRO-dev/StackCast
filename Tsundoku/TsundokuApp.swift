@@ -12,6 +12,11 @@ import SwiftUI
 @main
 struct TsundokuApp: App {
     init() {
+        // Live Activity intents can launch the app process without constructing
+        // ContentView. Initialize the one playback controller up front so the
+        // intent always reaches the AVPlayer that owns the active Cast.
+        _ = CastPlaybackStore.shared
+
         if Config.isProduction == false {
             Purchases.logLevel = .debug
         }

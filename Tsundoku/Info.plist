@@ -51,12 +51,12 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict>
-	<key>UIColorName</key>
+		<key>UIColorName</key>
 		<string>LaunchBackgroundLight</string>
-		<key>UIImageName</key>
-		<string>LaunchLogo</string>
 	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

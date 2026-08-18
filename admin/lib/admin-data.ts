@@ -8,7 +8,13 @@ const effectiveBillingCTE = `
     SELECT b.*,
            ROW_NUMBER() OVER (
              PARTITION BY b.user_id
-             ORDER BY b.is_active DESC, b.updated_at DESC
+             ORDER BY
+               CASE
+                 WHEN b.is_active = 1
+                  AND (b.expires_at IS NULL OR b.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                 THEN 0 ELSE 1
+               END,
+               b.updated_at DESC
            ) AS row_number
     FROM billing_subscriptions b
   ),
@@ -36,12 +42,19 @@ const effectiveBillingCTE = `
       vo.expires_at AS overrideExpiresAt,
       vo.reason AS overrideReason,
       CASE
-        WHEN vo.user_id IS NOT NULL THEN vo.plan_tier
-        ELSE COALESCE(rb.plan_tier, 'free')
+        WHEN vo.user_id IS NOT NULL
+          THEN CASE WHEN vo.is_active = 1 THEN vo.plan_tier ELSE 'free' END
+        WHEN rb.is_active = 1
+         AND (rb.expires_at IS NULL OR rb.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+          THEN COALESCE(rb.plan_tier, 'free')
+        ELSE 'free'
       END AS planTier,
       CASE
         WHEN vo.user_id IS NOT NULL THEN vo.is_active
-        ELSE COALESCE(rb.is_active, 0)
+        WHEN rb.is_active = 1
+         AND (rb.expires_at IS NULL OR rb.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+          THEN 1
+        ELSE 0
       END AS isActive,
       CASE
         WHEN vo.user_id IS NOT NULL THEN 'admin_override'

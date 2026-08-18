@@ -22,6 +22,32 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 }
 
+enum AppAppearance: String, CaseIterable, Identifiable {
+    static let storageKey = "appAppearance"
+
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+
+    func displayName(isEnglish: Bool) -> String {
+        switch self {
+        case .system: isEnglish ? "System" : "システム"
+        case .light: isEnglish ? "Light" : "ライト"
+        case .dark: isEnglish ? "Dark" : "ダーク"
+        }
+    }
+}
+
 enum AppDesign {
     static let pagePadding: CGFloat = 20
     static let cardRadius: CGFloat = 22
@@ -434,11 +460,7 @@ struct DigestTabAccessory: View {
     private var inlineAccessory: some View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: "waveform")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.indigo)
-                    .frame(width: 28, height: 28)
-                    .background(.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                CastArtwork(cast: cast, size: 28)
 
                 Text(cast.title)
                     .font(.caption.weight(.semibold))
@@ -564,20 +586,33 @@ struct DigestTabAccessory: View {
     }
 
     private var digestArtwork: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.indigo.gradient)
-
-            Image(systemName: "waveform")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 42, height: 42)
-        .accessibilityHidden(true)
+        CastArtwork(cast: cast, size: 42)
     }
 
     private func togglePlayback() {
         playbackStore.toggle(cast, subscriptionTier: subscriptionTier)
+    }
+}
+
+struct CastArtwork: View {
+    let cast: CastRecord
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [.indigo, .purple.opacity(0.8)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+
+            Image(systemName: "waveform")
+                .font(.system(size: size * 0.34, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 

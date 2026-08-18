@@ -7,6 +7,18 @@ import SwiftUI
 import AVFoundation
 import UIKit
 
+private enum FavoriteCastStorage {
+    private static let key = "favoriteCastIDs"
+
+    static func load() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    static func save(_ castIDs: Set<String>) {
+        UserDefaults.standard.set(castIDs.sorted(), forKey: key)
+    }
+}
+
 struct PlayerView: View {
     let authStore: AuthStore
     let castStore: CastStore
@@ -57,6 +69,8 @@ struct CastListView: View {
     @State private var searchText = ""
     @State private var sortOrder: CastSortOrder = .newest
     @State private var selectedCategory: CastCategory = .all
+    @State private var favoriteCastIDs = FavoriteCastStorage.load()
+    @State private var downloadStore = CastDownloadStore.shared
     @State private var sharePayload: CastSharePayload?
     @State private var isErrorPresented = false
     @FocusState private var isSearchFocused: Bool
@@ -69,7 +83,19 @@ struct CastListView: View {
                 && (query.isEmpty || cast.title.localizedCaseInsensitiveContains(query))
         }
 
-        return filtered.sorted { lhs, rhs in
+        let categoryFiltered: [CastRecord]
+        switch selectedCategory {
+        case .favorites:
+            categoryFiltered = filtered.filter { favoriteCastIDs.contains($0.id) }
+        case .downloaded:
+            categoryFiltered = filtered.filter { downloadStore.isDownloaded($0) }
+        case .unplayed:
+            categoryFiltered = filtered.filter { playbackStore.isUnplayed($0) }
+        case .all:
+            categoryFiltered = filtered
+        }
+
+        return categoryFiltered.sorted { lhs, rhs in
             switch sortOrder {
             case .newest:
                 lhs.createdAt > rhs.createdAt
@@ -77,6 +103,54 @@ struct CastListView: View {
                 lhs.createdAt < rhs.createdAt
             }
         }
+    }
+
+    private var emptyStateTitle: String {
+        guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return language == .english ? "No Results" : "検索結果はありません"
+        }
+
+        switch selectedCategory {
+        case .all:
+            return language == .english ? "No Casts" : "Castはありません"
+        case .unplayed:
+            return language == .english ? "No Unplayed Casts" : "未再生のCastはありません"
+        case .favorites:
+            return language == .english ? "No Favorite Casts" : "お気に入りのCastはありません"
+        case .downloaded:
+            return language == .english ? "No Downloaded Casts" : "ダウンロード済みのCastはありません"
+        }
+    }
+
+    private var emptyStateDescription: String {
+        guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return language == .english ? "Try another keyword." : "別のキーワードで検索してください。"
+        }
+
+        switch selectedCategory {
+        case .all:
+            return language == .english
+                ? "Generated audio Casts will appear here."
+                : "生成された音声Castがここに表示されます。"
+        case .unplayed:
+            return language == .english
+                ? "Casts you have not started will appear here."
+                : "まだ再生していないCastがここに表示されます。"
+        case .favorites:
+            return language == .english
+                ? "Casts you favorite will appear here."
+                : "お気に入りに追加したCastがここに表示されます。"
+        case .downloaded:
+            return language == .english
+                ? "Casts saved for offline playback will appear here."
+                : "オフライン再生用に保存したCastがここに表示されます。"
+        }
+    }
+
+    private var emptyStateSystemImage: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (selectedCategory == .unplayed ? "checkmark.circle" : "waveform.circle")
+            : "magnifyingglass"
     }
 
     var body: some View {
@@ -92,37 +166,35 @@ struct CastListView: View {
 
                 categorySelector
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        if completedCasts.isEmpty {
-                            ContentUnavailableView {
-                                Label(
-                                    searchText.isEmpty
-                                        ? (language == .english ? "No Casts" : "Castはありません")
-                                        : (language == .english ? "No Results" : "検索結果はありません"),
-                                    systemImage: searchText.isEmpty ? "waveform.circle" : "magnifyingglass"
-                                )
-                            } description: {
-                                Text(searchText.isEmpty
-                                     ? (language == .english
-                                        ? "Generated audio Casts will appear here."
-                                        : "生成された音声Castがここに表示されます。")
-                                     : (language == .english
-                                        ? "Try another keyword."
-                                        : "別のキーワードで検索してください。"))
-                            }
-                            .frame(maxWidth: .infinity)
-                        } else {
-                            ForEach(completedCasts) { cast in
-                                castRow(cast)
+                GeometryReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            if completedCasts.isEmpty {
+                                ContentUnavailableView {
+                                    Label(
+                                        emptyStateTitle,
+                                        systemImage: emptyStateSystemImage
+                                    )
+                                } description: {
+                                    Text(emptyStateDescription)
+                                }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                ForEach(completedCasts) { cast in
+                                    castRow(cast)
 
-                                Divider()
-                                    .padding(.leading, 78)
+                                    Divider()
+                                        .padding(.leading, 78)
+                                }
                             }
                         }
+                        .frame(
+                            minHeight: proxy.size.height,
+                            alignment: completedCasts.isEmpty ? .center : .top
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, completedCasts.isEmpty ? 0 : 110)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 110)
                 }
             }
             .background(Color(.systemBackground).ignoresSafeArea())
@@ -363,6 +435,14 @@ struct CastListView: View {
                 showDetails(for: cast)
             } label: {
                 HStack(spacing: 14) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                        .frame(width: 18)
+                        .opacity(isFavorite(cast) ? 1 : 0)
+                        .scaleEffect(isFavorite(cast) ? 1 : 0.65)
+                        .accessibilityHidden(true)
+
                     CastArtwork(cast: cast, size: 64)
 
                     VStack(alignment: .leading, spacing: 5) {
@@ -370,11 +450,19 @@ struct CastListView: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
                             .lineLimit(2)
-                        Text(language == .english
-                             ? "\(cast.durationMinutes) min Cast"
-                             : "\(cast.durationMinutes)分Cast")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 5) {
+                            Text(language == .english
+                                 ? "\(cast.durationMinutes) min Cast"
+                                 : "\(cast.durationMinutes)分Cast")
+
+                            if downloadStore.isDownloaded(cast) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .foregroundStyle(.indigo)
+                                    .accessibilityLabel(language == .english ? "Downloaded" : "ダウンロード済み")
+                            }
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     }
 
                     Spacer(minLength: 0)
@@ -386,21 +474,40 @@ struct CastListView: View {
 
             Menu {
                 Button {
-                    // Favorite persistence will be connected to the Cast API.
+                    toggleFavorite(cast)
                 } label: {
                     Label(
-                        language == .english ? "Favorite" : "お気に入り",
-                        systemImage: "star"
+                        favoriteMenuTitle(for: cast),
+                        systemImage: isFavorite(cast) ? "star.slash" : "star"
                     )
                 }
 
-                Button {
-                    // Offline download will be connected to local audio storage.
-                } label: {
-                    Label(
-                        language == .english ? "Download" : "ダウンロード",
-                        systemImage: "arrow.down.circle"
-                    )
+                if downloadStore.isDownloading(cast) {
+                    Button {} label: {
+                        Label(
+                            language == .english ? "Downloading…" : "ダウンロード中…",
+                            systemImage: "arrow.down.circle"
+                        )
+                    }
+                    .disabled(true)
+                } else if downloadStore.isDownloaded(cast) {
+                    Button(role: .destructive) {
+                        downloadStore.removeDownload(for: cast)
+                    } label: {
+                        Label(
+                            language == .english ? "Remove Download" : "ダウンロードを削除",
+                            systemImage: "trash"
+                        )
+                    }
+                } else {
+                    Button {
+                        download(cast)
+                    } label: {
+                        Label(
+                            language == .english ? "Download" : "ダウンロード",
+                            systemImage: "arrow.down.circle"
+                        )
+                    }
                 }
 
                 Button {
@@ -433,6 +540,37 @@ struct CastListView: View {
             .accessibilityLabel(language == .english ? "Options for \(cast.title)" : "\(cast.title)のオプション")
         }
         .padding(.vertical, 14)
+        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: isFavorite(cast))
+    }
+
+    private func isFavorite(_ cast: CastRecord) -> Bool {
+        favoriteCastIDs.contains(cast.id)
+    }
+
+    private func favoriteMenuTitle(for cast: CastRecord) -> String {
+        if language == .english {
+            return isFavorite(cast) ? "Remove from Favorites" : "Favorite"
+        }
+        return isFavorite(cast) ? "お気に入りを解除" : "お気に入り"
+    }
+
+    private func toggleFavorite(_ cast: CastRecord) {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+            if favoriteCastIDs.contains(cast.id) {
+                favoriteCastIDs.remove(cast.id)
+            } else {
+                favoriteCastIDs.insert(cast.id)
+            }
+        }
+        FavoriteCastStorage.save(favoriteCastIDs)
+    }
+
+    private func download(_ cast: CastRecord) {
+        Task {
+            if await downloadStore.download(cast) == false {
+                isErrorPresented = true
+            }
+        }
     }
 
     private func createShareLink(for cast: CastRecord) {
@@ -934,28 +1072,6 @@ private struct CastSeekBar: View {
         .accessibilityElement()
         .accessibilityLabel("再生位置")
         .accessibilityValue("\(Int(progress * 100))%")
-    }
-}
-
-private struct CastArtwork: View {
-    let cast: CastRecord
-    let size: CGFloat
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [.indigo, .purple.opacity(0.8)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-
-            Image(systemName: "waveform")
-                .font(.system(size: size * 0.34, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
     }
 }
 

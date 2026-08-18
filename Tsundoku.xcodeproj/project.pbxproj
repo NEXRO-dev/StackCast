@@ -32,6 +32,10 @@
 		AC000013302316AF001EA23E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000004302316AF001EA23E /* ShareViewController.swift */; };
 		AE000012302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
 		AC000014302316AF001EA23E /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AC000003302316AF001EA23E /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B7000001302316AF001EA23E /* CastPlaybackActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7000011302316AF001EA23E /* CastPlaybackActivityAttributes.swift */; };
+		B7000002302316AF001EA23E /* StackCastLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7000012302316AF001EA23E /* StackCastLiveActivity.swift */; };
+		B7000003302316AF001EA23E /* StackCastLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B7000014302316AF001EA23E /* StackCastLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B7000004302316AF001EA23E /* PlaybackCommandIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7000015302316AF001EA23E /* PlaybackCommandIntent.swift */; };
 		AD000011302316AF001EA23E /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD000001302316AF001EA23E /* AuthService.swift */; };
 		AE000011302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
 		AF000011302316AF001EA23E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = AF000021302316AF001EA23E /* GoogleSignIn */; };
@@ -68,6 +72,13 @@
 			remoteGlobalIDString = AC000050302316AF001EA23E;
 			remoteInfo = ShareExtension;
 		};
+		B7000060302316AF001EA23E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A0A7B6A302316AF001EA23E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B7000030302316AF001EA23E;
+			remoteInfo = TsundokuLiveActivity;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -78,6 +89,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				AC000014302316AF001EA23E /* ShareExtension.appex in Embed App Extensions */,
+				B7000003302316AF001EA23E /* StackCastLiveActivity.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -112,6 +124,12 @@
 		AC000004302316AF001EA23E /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		AC000005302316AF001EA23E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AC000006302316AF001EA23E /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		B7000011302316AF001EA23E /* CastPlaybackActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastPlaybackActivityAttributes.swift; sourceTree = "<group>"; };
+		B7000012302316AF001EA23E /* StackCastLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCastLiveActivity.swift; sourceTree = "<group>"; };
+		B7000013302316AF001EA23E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B7000014302316AF001EA23E /* StackCastLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StackCastLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B7000015302316AF001EA23E /* PlaybackCommandIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCommandIntent.swift; sourceTree = "<group>"; };
+		B7000016302316AF001EA23E /* TsundokuLiveActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TsundokuLiveActivity.entitlements; sourceTree = "<group>"; };
 		AD000001302316AF001EA23E /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		AE000001302316AF001EA23E /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		AF000001302316AF001EA23E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -171,6 +189,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B7000021302316AF001EA23E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -179,6 +204,7 @@
 			children = (
 				2A0A7B74302316AF001EA23E /* Tsundoku */,
 				AC000030302316AF001EA23E /* ShareExtension */,
+				B7000010302316AF001EA23E /* TsundokuLiveActivity */,
 				2A0A7B82302316B1001EA23E /* TsundokuTests */,
 				2A0A7B8C302316B1001EA23E /* TsundokuUITests */,
 				2A0A7B73302316AF001EA23E /* Products */,
@@ -192,6 +218,7 @@
 				2A0A7B7F302316B1001EA23E /* TsundokuTests.xctest */,
 				2A0A7B89302316B1001EA23E /* TsundokuUITests.xctest */,
 				AC000003302316AF001EA23E /* ShareExtension.appex */,
+				B7000014302316AF001EA23E /* StackCastLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -225,6 +252,8 @@
 				AA000003302316AF001EA23E /* StockView.swift */,
 				AA000007302316AF001EA23E /* TsundokuApp.swift */,
 				AC000002302316AF001EA23E /* Tsundoku.entitlements */,
+				B7000011302316AF001EA23E /* CastPlaybackActivityAttributes.swift */,
+				B7000015302316AF001EA23E /* PlaybackCommandIntent.swift */,
 			);
 			path = Tsundoku;
 			sourceTree = "<group>";
@@ -253,6 +282,16 @@
 			path = ShareExtension;
 			sourceTree = "<group>";
 		};
+		B7000010302316AF001EA23E /* TsundokuLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				B7000013302316AF001EA23E /* Info.plist */,
+				B7000016302316AF001EA23E /* TsundokuLiveActivity.entitlements */,
+				B7000012302316AF001EA23E /* StackCastLiveActivity.swift */,
+			);
+			path = TsundokuLiveActivity;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -269,6 +308,7 @@
 			);
 			dependencies = (
 				AC000051302316AF001EA23E /* PBXTargetDependency */,
+				B7000061302316AF001EA23E /* PBXTargetDependency */,
 			);
 			name = Tsundoku;
 			packageProductDependencies = (
@@ -345,6 +385,25 @@
 			productReference = AC000003302316AF001EA23E /* ShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		B7000030302316AF001EA23E /* TsundokuLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B7000050302316AF001EA23E /* Build configuration list for PBXNativeTarget "TsundokuLiveActivity" */;
+			buildPhases = (
+				B7000020302316AF001EA23E /* Sources */,
+				B7000021302316AF001EA23E /* Frameworks */,
+				B7000022302316AF001EA23E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TsundokuLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = TsundokuLiveActivity;
+			productReference = B7000014302316AF001EA23E /* StackCastLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -367,6 +426,9 @@
 						TestTargetID = 2A0A7B71302316AF001EA23E;
 					};
 					AC000050302316AF001EA23E = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					B7000030302316AF001EA23E = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -393,6 +455,7 @@
 				2A0A7B7E302316B1001EA23E /* TsundokuTests */,
 				2A0A7B88302316B1001EA23E /* TsundokuUITests */,
 				AC000050302316AF001EA23E /* ShareExtension */,
+				B7000030302316AF001EA23E /* TsundokuLiveActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -427,6 +490,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B7000022302316AF001EA23E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -435,6 +505,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				AC000011302316AF001EA23E /* ArticleLibrary.swift in Sources */,
+				B7000001302316AF001EA23E /* CastPlaybackActivityAttributes.swift in Sources */,
+				B7000004302316AF001EA23E /* PlaybackCommandIntent.swift in Sources */,
 				AD000011302316AF001EA23E /* AuthService.swift in Sources */,
 				AE000011302316AF001EA23E /* Config.swift in Sources */,
 				AA000017302316AF001EA23E /* TsundokuApp.swift in Sources */,
@@ -490,6 +562,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B7000020302316AF001EA23E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B7000001302316AF001EA23E /* CastPlaybackActivityAttributes.swift in Sources */,
+				B7000002302316AF001EA23E /* StackCastLiveActivity.swift in Sources */,
+				B7000004302316AF001EA23E /* PlaybackCommandIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -507,6 +589,11 @@
 			isa = PBXTargetDependency;
 			target = AC000050302316AF001EA23E /* ShareExtension */;
 			targetProxy = AC000020302316AF001EA23E /* PBXContainerItemProxy */;
+		};
+		B7000061302316AF001EA23E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B7000030302316AF001EA23E /* TsundokuLiveActivity */;
+			targetProxy = B7000060302316AF001EA23E /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -853,6 +940,47 @@
 			};
 			name = Release;
 		};
+		B7000040302316AF001EA23E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = TsundokuLiveActivity/TsundokuLiveActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5TXL5P4663;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TsundokuLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.Tsundoku.LiveActivity;
+				PRODUCT_NAME = StackCastLiveActivity;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B7000041302316AF001EA23E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = TsundokuLiveActivity/TsundokuLiveActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5TXL5P4663;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TsundokuLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nexro.Tsundoku.LiveActivity;
+				PRODUCT_NAME = StackCastLiveActivity;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -897,6 +1025,15 @@
 			buildConfigurations = (
 				AC000060302316AF001EA23E /* Debug */,
 				AC000061302316AF001EA23E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B7000050302316AF001EA23E /* Build configuration list for PBXNativeTarget "TsundokuLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B7000040302316AF001EA23E /* Debug */,
+				B7000041302316AF001EA23E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
