@@ -222,12 +222,11 @@ struct CastGenerationLiveActivity: Widget {
         ActivityConfiguration(for: CastGenerationActivityAttributes.self) { context in
             HStack(spacing: 14) {
                 ThinkingOrb(state: .working, size: .px64, displaySize: 56)
-                    .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(context.attributes.castTitle)
                         .font(.headline)
                         .lineLimit(2)
-                    Text("Castを生成中")
+                    Text(context.state.status)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -239,24 +238,21 @@ struct CastGenerationLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     ThinkingOrb(state: .working, size: .px20, displaySize: 28)
-                        .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(context.attributes.castTitle).font(.headline).lineLimit(1)
-                        Text("Castを生成中").font(.caption).foregroundStyle(.secondary)
+                        Text(context.state.status).font(.caption).foregroundStyle(.secondary)
                     }
                 }
             } compactLeading: {
                 ThinkingOrb(state: .working, size: .px20, displaySize: 20)
-                    .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
             } compactTrailing: {
-                Text("Working...")
+                Text(context.state.status)
                     .font(.caption2.weight(.semibold))
                     .lineLimit(1)
             } minimal: {
                 ThinkingOrb(state: .working, size: .px20, displaySize: 18)
-                    .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
             }
             .keylineTint(.purple)
         }
