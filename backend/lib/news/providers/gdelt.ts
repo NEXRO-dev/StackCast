@@ -2,7 +2,8 @@ import type { NewsCandidate, NewsProvider, NewsSearchInput } from "../types";
 
 const endpoint = "https://api.gdeltproject.org/api/v2/doc/doc";
 const MIN_REQUEST_INTERVAL_MS = 5_500;
-const REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 3_000;
+const DEFAULT_FAILURE_COOLDOWN_MS = 15 * 60 * 1_000;
 const MAX_ATTEMPTS = 2;
 const MAX_RETRY_DELAY_MS = 15_000;
 
@@ -10,6 +11,7 @@ const MAX_RETRY_DELAY_MS = 15_000;
 // so concurrent searches cannot burst against GDELT's public endpoint.
 let lastRequestStartedAt = 0;
 let requestGate: Promise<void> = Promise.resolve();
+let unavailableUntil = 0;
 
 type GDELTArticle = {
   url?: string;
@@ -25,14 +27,17 @@ export class GDELTProvider implements NewsProvider {
   readonly name = "gdelt";
 
   async search(input: NewsSearchInput): Promise<NewsCandidate[]> {
+    if (Date.now() < unavailableUntil) {
+      throw new Error("GDELT_PROVIDER_TEMPORARILY_UNAVAILABLE");
+    }
     const url = new URL(endpoint);
     const language = input.language === "english" ? "english" : "japanese";
     const country = input.sourceCountry ? ` sourcecountry:${input.sourceCountry}` : "";
-    url.searchParams.set("query", `${input.query} sourcelang:${language}${country}`);
+    url.searchParams.set("query", `${compactQuery(input.query)} sourcelang:${language}${country}`);
     url.searchParams.set("mode", "artlist");
     url.searchParams.set("format", "json");
     url.searchParams.set("maxrecords", String(Math.min(Math.max(input.limit ?? 30, 1), 250)));
-    url.searchParams.set("timespan", "2d");
+    url.searchParams.set("timespan", process.env.GDELT_TIMESPAN?.trim() || "1d");
     url.searchParams.set("sort", "datedesc");
 
     let response: Response | undefined;
@@ -43,7 +48,7 @@ export class GDELTProvider implements NewsProvider {
       try {
         response = await fetch(url, {
           headers: { "User-Agent": "StackCast/1.0 personal-news" },
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          signal: AbortSignal.timeout(requestTimeoutMilliseconds()),
           cache: "no-store",
         });
       } catch (error) {
@@ -52,6 +57,7 @@ export class GDELTProvider implements NewsProvider {
         // Retrying the same request only makes the refresh block longer; the
         // caller will open its fallback/cache path instead.
         if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+          markUnavailable();
           break;
         }
         if (attempt < MAX_ATTEMPTS) {
@@ -65,7 +71,11 @@ export class GDELTProvider implements NewsProvider {
       lastError = requestError(response);
       // A 429 needs a later refresh rather than an immediate retry. Other 4xx
       // responses are non-transient and must not be swallowed by this loop.
-      if (response.status === 429 || response.status < 500) break;
+      if (response.status === 429) {
+        markUnavailable(response);
+        break;
+      }
+      if (response.status < 500) break;
       if (attempt < MAX_ATTEMPTS) {
         const delay = retryDelay(attempt, response);
         // Retry-After is a minimum. If it exceeds this request's bounded retry
@@ -95,6 +105,33 @@ export class GDELTProvider implements NewsProvider {
       }
     });
   }
+}
+
+function compactQuery(query: string): string {
+  const normalized = query.trim();
+  const parenthesized = normalized.match(/^\((.*)\)$/u)?.[1] ?? normalized;
+  const firstTerm = parenthesized.split(/\s+OR\s+/iu)[0]?.trim();
+  return firstTerm || normalized;
+}
+
+function requestTimeoutMilliseconds(): number {
+  const value = Number(process.env.GDELT_REQUEST_TIMEOUT_MS);
+  if (!Number.isFinite(value)) return DEFAULT_REQUEST_TIMEOUT_MS;
+  return Math.min(Math.max(Math.round(value), 1_000), 10_000);
+}
+
+function failureCooldownMilliseconds(response?: Response): number {
+  const retryAfterMs = response ? retryAfterMilliseconds(response) : undefined;
+  if (retryAfterMs !== undefined) return Math.min(Math.max(retryAfterMs, 60_000), 60 * 60 * 1_000);
+  const value = Number(process.env.GDELT_FAILURE_COOLDOWN_MS);
+  if (!Number.isFinite(value)) return DEFAULT_FAILURE_COOLDOWN_MS;
+  return Math.min(Math.max(Math.round(value), 0), 60 * 60 * 1_000);
+}
+
+function markUnavailable(response?: Response): void {
+  const cooldown = failureCooldownMilliseconds(response);
+  if (cooldown <= 0) return;
+  unavailableUntil = Math.max(unavailableUntil, Date.now() + cooldown);
 }
 
 async function waitForRequestSlot(): Promise<void> {

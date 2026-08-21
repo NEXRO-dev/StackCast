@@ -14,6 +14,7 @@ const input = {
 test("GDELT bounds the search window and does not retry non-429 4xx responses", async () => {
   let calls = 0;
   let requestedURL: URL | undefined;
+  const originalTimespan = process.env.GDELT_TIMESPAN;
   const originalFetch = globalThis.fetch;
   const mockFetch: typeof fetch = async (request) => {
     calls += 1;
@@ -27,10 +28,11 @@ test("GDELT bounds the search window and does not retry non-429 4xx responses", 
     });
   };
   globalThis.fetch = mockFetch;
+  delete process.env.GDELT_TIMESPAN;
 
   try {
     await assert.rejects(
-      new GDELTProvider().search(input),
+      new GDELTProvider().search({ ...input, query: "(technology OR AI OR software)" }),
       (error: unknown) => {
         assert.ok(error instanceof Error);
         assert.equal(error.name, "GDELTRequestError");
@@ -44,10 +46,47 @@ test("GDELT bounds the search window and does not retry non-429 4xx responses", 
     );
   } finally {
     globalThis.fetch = originalFetch;
+    if (originalTimespan === undefined) delete process.env.GDELT_TIMESPAN;
+    else process.env.GDELT_TIMESPAN = originalTimespan;
   }
 
   assert.equal(calls, 1);
-  assert.equal(requestedURL?.searchParams.get("timespan"), "2d");
+  assert.equal(requestedURL?.searchParams.get("timespan"), "1d");
+  assert.equal(requestedURL?.searchParams.get("query"), "technology sourcelang:english sourcecountry:UnitedStates");
+});
+
+test("GDELT timeout opens a local cooldown before the next request", async () => {
+  let calls = 0;
+  const originalTimeout = process.env.GDELT_REQUEST_TIMEOUT_MS;
+  const originalCooldown = process.env.GDELT_FAILURE_COOLDOWN_MS;
+  const originalFetch = globalThis.fetch;
+  process.env.GDELT_REQUEST_TIMEOUT_MS = "1000";
+  process.env.GDELT_FAILURE_COOLDOWN_MS = "60000";
+  globalThis.fetch = async () => {
+    calls += 1;
+    const error = new Error("timeout");
+    error.name = "TimeoutError";
+    throw error;
+  };
+
+  try {
+    await assert.rejects(
+      new GDELTProvider().search(input),
+      (error: unknown) => error instanceof Error && error.name === "TimeoutError",
+    );
+    await assert.rejects(
+      new GDELTProvider().search(input),
+      /GDELT_PROVIDER_TEMPORARILY_UNAVAILABLE/u,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalTimeout === undefined) delete process.env.GDELT_REQUEST_TIMEOUT_MS;
+    else process.env.GDELT_REQUEST_TIMEOUT_MS = originalTimeout;
+    if (originalCooldown === undefined) delete process.env.GDELT_FAILURE_COOLDOWN_MS;
+    else process.env.GDELT_FAILURE_COOLDOWN_MS = originalCooldown;
+  }
+
+  assert.equal(calls, 1);
 });
 
 test("OpenAI quota 429 preserves safe diagnostics and is not retried", async () => {

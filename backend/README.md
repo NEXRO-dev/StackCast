@@ -87,6 +87,9 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 - `PERSONAL_NEWS_ENABLED`: `false` でPersonal News APIと日次処理を停止（既定 `true`）
 - `DAILY_NEWS_EDITION_ENABLED`: `false` で日次候補取得・版生成を停止（既定 `true`）
 - `GDELT_PROVIDER_ENABLED`: `false` でGDELT取得を停止（既定 `true`）
+- `GDELT_REQUEST_TIMEOUT_MS`: GDELT 1リクエストの待ち時間（既定 `3000`、上限 `10000`）
+- `GDELT_FAILURE_COOLDOWN_MS`: GDELT timeout/429 後に同一プロセスでGDELTをスキップする時間（既定15分）
+- `GDELT_TIMESPAN`: GDELT検索窓（既定 `1d`）
 - `OPENAI_NEWS_FALLBACK_ENABLED`: `false` でGDELT不足時のOpenAI Web Searchを停止（既定 `true`）
 - `DEBUG_DAILY_NEWS_ENABLED`: 本番でデバッグ更新APIを明示的に有効化する場合のみ `true`（既定は本番無効）
 - `RECOMMENDATION_MEMORY_ENABLED`: `false` で行動イベントからのメモリ学習を停止（既定 `true`）

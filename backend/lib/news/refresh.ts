@@ -123,7 +123,11 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
         const details = errorDetails(error);
         failures.push(`${topic.id}:gdelt:${details.message}`);
         console.warn("[daily-news] gdelt topic refresh failed", { topicID: topic.id, ...details });
-        if (details.name === "TimeoutError" || details.name === "AbortError" || details.message === "fetch failed" || details.message.includes("_429")) {
+        if (details.name === "TimeoutError"
+          || details.name === "AbortError"
+          || details.message === "fetch failed"
+          || details.message.includes("_429")
+          || details.message === "GDELT_PROVIDER_TEMPORARILY_UNAVAILABLE") {
           gdeltCircuitOpen = true;
           console.warn("[daily-news] gdelt circuit opened", {
             reason: details.name === "TimeoutError" || details.name === "AbortError" ? "timeout" : details.message,
