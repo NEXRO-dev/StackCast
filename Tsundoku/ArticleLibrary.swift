@@ -654,8 +654,6 @@ final class CastGenerationActivityStore {
     static let previewEnabledKey = "castGenerationLiveActivityPreviewEnabled"
     private var activity: Activity<CastGenerationActivityAttributes>?
     private var isPreviewing = false
-    private var previewTask: Task<Void, Never>?
-    private var previewPhase = 0
 
     func start(for cast: CastRecord) {
         guard cast.status == "queued" || cast.status == "processing",
@@ -665,7 +663,7 @@ final class CastGenerationActivityStore {
         do {
             activity = try Activity.request(
                 attributes: attributes,
-                content: ActivityContent(state: .init(status: "生成中"), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
+                content: ActivityContent(state: .init(status: "Cast準備中..."), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
                 pushType: nil
             )
         } catch {
@@ -681,21 +679,14 @@ final class CastGenerationActivityStore {
             castTitle: language == .english ? "Sample Cast generation" : "サンプルCastを生成中",
             subtitle: "StackCast"
         )
+        let status = language == .english ? "Cast preparing..." : "Cast準備中..."
         do {
             activity = try Activity.request(
                 attributes: attributes,
-                content: ActivityContent(state: .init(status: "生成中"), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
+                content: ActivityContent(state: .init(status: status), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
                 pushType: nil
             )
             isPreviewing = true
-            previewPhase = 0
-            previewTask = Task { @MainActor [weak self] in
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(650))
-                    guard !Task.isCancelled else { return }
-                    self?.advancePreview()
-                }
-            }
         } catch {
             print("[cast] preview Live Activity failed: \(error)")
         }
@@ -703,26 +694,11 @@ final class CastGenerationActivityStore {
 
     func stopPreview() {
         guard isPreviewing, let activity else { return }
-        previewTask?.cancel()
-        previewTask = nil
         Task {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
         self.activity = nil
         isPreviewing = false
-    }
-
-    private func advancePreview() {
-        guard let activity, isPreviewing else { return }
-        previewPhase = (previewPhase + 1) % 8
-        Task {
-            await activity.update(
-                ActivityContent(
-                    state: .init(status: "生成中", animationPhase: previewPhase),
-                    staleDate: Date(timeIntervalSinceNow: 30 * 60)
-                )
-            )
-        }
     }
 
     func sync(with casts: [CastRecord]) {
