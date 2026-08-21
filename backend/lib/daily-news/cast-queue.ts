@@ -13,7 +13,9 @@ type EligibleRow = {
   lastActiveAt: string | null;
 };
 
-export async function enqueueEligibleDailyCasts(editionDate = tokyoEditionDate()): Promise<{ queued: number; skipped: number }> {
+export async function enqueueEligibleDailyCasts(editionDate = tokyoEditionDate(), userIDs?: string[]): Promise<{ queued: number; skipped: number }> {
+  const userFilter = userIDs?.length ? ` AND e.user_id IN (${userIDs.map(() => "?").join(", ")})` : "";
+  const args: Array<string> = [editionDate, ...(userIDs ?? [])];
   const rows = (await getTurso().all(
     `SELECT e.id AS editionID, e.user_id AS userID,
             p.daily_cast_duration_minutes AS durationMinutes,
@@ -22,8 +24,8 @@ export async function enqueueEligibleDailyCasts(editionDate = tokyoEditionDate()
             (SELECT MAX(last_used_at) FROM auth_sessions s WHERE s.user_id = e.user_id) AS lastActiveAt
      FROM daily_news_editions e
      LEFT JOIN user_recommendation_profiles p ON p.user_id = e.user_id
-     WHERE e.edition_date = ? AND e.status IN ('ready', 'fallback')`,
-    editionDate,
+     WHERE e.edition_date = ? AND e.status IN ('ready', 'fallback')${userFilter}`,
+    ...args,
   )) as EligibleRow[];
   let queued = 0;
   let skipped = 0;

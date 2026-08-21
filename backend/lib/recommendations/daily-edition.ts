@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getTurso } from "../turso";
+import { newsLocaleForUser } from "../news/user-locale";
 
 export type RecommendedArticle = {
   id: string;
@@ -25,16 +26,54 @@ type CandidateRow = {
   publishedAt: string;
   qualityScore: number;
   topicID: string;
+  language: string;
+  country: string | null;
 };
 
 export function tokyoEditionDate(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(now);
+  return editionDateForTimeZone(now, "Asia/Tokyo");
 }
 
-export async function buildDailyEdition(userID: string, editionDate = tokyoEditionDate()): Promise<string> {
+export type DailyEditionTarget = {
+  userID: string;
+  timeZone: string;
+  editionDate: string;
+  language: "japanese" | "english";
+  sourceCountry: string;
+  topicIDs: string[];
+};
+
+export function editionDateForTimeZone(now: Date, timeZone: string): string {
+  const parts = localDateParts(now, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEditionTarget[]> {
+  const rows = (await getTurso().all(
+    `SELECT u.id AS userID, COALESCE(p.time_zone, 'Asia/Tokyo') AS timeZone
+     FROM users u LEFT JOIN user_recommendation_profiles p ON p.user_id = u.id
+     ORDER BY u.created_at`,
+  )) as Array<{ userID: string; timeZone?: string | null }>;
+  const targets = await Promise.all(rows.map(async (row) => {
+    const timeZone = validTimeZone(row.timeZone);
+    const parts = localDateParts(now, timeZone);
+    if (parts.hour !== "01") return null;
+    const locale = await newsLocaleForUser(row.userID);
+    return {
+      userID: row.userID,
+      timeZone,
+      editionDate: `${parts.year}-${parts.month}-${parts.day}`,
+      language: locale.language,
+      sourceCountry: locale.sourceCountry,
+      topicIDs: locale.topicIDs,
+    } satisfies DailyEditionTarget;
+  }));
+  return targets.filter((target): target is DailyEditionTarget => target !== null);
+}
+
+export async function buildDailyEdition(userID: string, editionDate = tokyoEditionDate(), forceRebuild = false): Promise<string> {
   const database = getTurso();
+  const userLocale = await newsLocaleForUser(userID);
   const existing = (await database.get(
     "SELECT id, status FROM daily_news_editions WHERE user_id = ? AND edition_date = ? LIMIT 1",
     userID, editionDate,
@@ -57,10 +96,19 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
     activeEditionID = resolved?.id ?? editionID;
   }
   const itemCount = (await database.get(
-    "SELECT COUNT(*) AS count FROM daily_news_edition_items WHERE edition_id = ?",
-    activeEditionID,
+    `SELECT COUNT(*) AS count
+     FROM daily_news_edition_items i
+     WHERE i.edition_id = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM recommendation_events e
+         WHERE e.user_id = ? AND e.article_id = i.article_id AND e.event_type = 'dislike'
+       )`,
+    activeEditionID, userID,
   )) as { count?: number } | null;
-  if ((itemCount?.count ?? 0) >= 5) return activeEditionID;
+  if ((itemCount?.count ?? 0) >= 5 && !forceRebuild) return activeEditionID;
+  if (forceRebuild || (itemCount?.count ?? 0) < 5) {
+    await database.run("DELETE FROM daily_news_edition_items WHERE edition_id = ?", activeEditionID);
+  }
 
   await database.run(
     "UPDATE daily_news_editions SET status = 'building', updated_at = ? WHERE id = ?",
@@ -99,7 +147,7 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
     `SELECT a.id, a.original_url AS url, a.title, a.description,
             a.image_url AS imageURL, a.source_domain AS source,
             a.published_at AS publishedAt, a.quality_score AS qualityScore,
-            t.topic_id AS topicID
+            a.language, a.country, t.topic_id AS topicID
      FROM news_articles a
      JOIN news_article_topics t ON t.article_id = a.id
      WHERE a.expires_at > ?
@@ -121,13 +169,18 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
     const hoursOld = Math.max(0, (Date.now() - Date.parse(article.publishedAt)) / 3_600_000);
     const freshness = Math.max(0, 1 - hoursOld / 96);
     const discovery = stableRandom(`${userID}:${editionDate}:${article.id}`);
+    const languageMatch = article.language.toLocaleLowerCase().startsWith(userLocale.language === "english" ? "english" : "japanese") ? 1 : 0;
+    const regionMatch = normalizeCountry(article.country) === normalizeCountry(userLocale.sourceCountry) ? 1 : 0;
     const searchableText = `${article.title} ${article.description ?? ""}`;
     const customMatch = Math.max(0, ...customInterests.map((interest) => customInterestMatch(searchableText, interest.label)));
     return {
       ...article,
       likedWeight,
       customMatch,
+      languageMatch,
+      regionMatch,
       score: likedWeight * 4 + customMatch * 5 + learnedWeight * 2.5 + freshness * 1.5
+        + languageMatch * 1.5 + regionMatch * 0.5
         + article.qualityScore + discovery * 0.8 - (hasAvoided ? 10 : 0),
     };
   });
@@ -140,9 +193,11 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
       selected.push(item);
     }
   };
-  add(scored.filter((item) => item.customMatch > 0), 3);
-  add(scored.filter((item) => item.likedWeight > 0), 3);
-  add(scored.filter((item) => item.likedWeight > 0 && !selected.some((picked) => picked.id === item.id)), 4);
+  // Fill from explicit interests first. Discovery is only used after the
+  // user's selected topics have been exhausted or do not have enough items.
+  add(scored.filter((item) => item.customMatch > 0), 5);
+  add(scored.filter((item) => item.likedWeight > 0), 5);
+  add(scored.filter((item) => item.likedWeight > 0 && !selected.some((picked) => picked.id === item.id)), 5);
   add(scored.filter((item) => item.likedWeight === 0), 5);
   add(scored, 5);
 
@@ -196,42 +251,90 @@ function expandedInterestTerms(label: string): string[] {
   return [];
 }
 
-export async function buildDailyEditionsForAllUsers(editionDate = tokyoEditionDate()): Promise<{ users: number; ready: number; failed: number }> {
-  const users = (await getTurso().all("SELECT id FROM users ORDER BY created_at")) as Array<{ id: string }>;
+export async function buildDailyEditionsForUsers(targets: DailyEditionTarget[]): Promise<{ users: number; ready: number; failed: number }> {
+  console.info("[daily-news] edition build started", { users: targets.length });
   let ready = 0;
   let failed = 0;
-  for (const user of users) {
-    const editionID = await buildDailyEdition(user.id, editionDate);
+  for (const target of targets) {
+    const editionID = await buildDailyEdition(target.userID, target.editionDate);
     const row = (await getTurso().get("SELECT status FROM daily_news_editions WHERE id = ?", editionID)) as { status?: string } | null;
     if (row?.status === "ready" || row?.status === "fallback") ready += 1;
     else failed += 1;
+    console.info("[daily-news] user edition built", {
+      editionDate: target.editionDate,
+      timeZone: target.timeZone,
+      userID: target.userID,
+      editionID,
+      status: row?.status ?? "missing",
+    });
   }
-  return { users: users.length, ready, failed };
+  const result = { users: targets.length, ready, failed };
+  console.info("[daily-news] edition build completed", result);
+  return result;
 }
 
-export async function dailyEditionForUser(userID: string, editionDate = tokyoEditionDate()): Promise<{ id: string; status: string; castID: string | null; autoCastStatus: string; items: RecommendedArticle[] }> {
+export async function buildDailyEditionsForAllUsers(now = new Date()): Promise<{ users: number; ready: number; failed: number }> {
+  const targets = (await getTurso().all(
+    `SELECT u.id AS userID, COALESCE(p.time_zone, 'Asia/Tokyo') AS timeZone
+     FROM users u LEFT JOIN user_recommendation_profiles p ON p.user_id = u.id
+     ORDER BY u.created_at`,
+  )) as Array<{ userID: string; timeZone?: string | null }>;
+  const mappedTargets = await Promise.all(targets.map(async (row) => {
+    const timeZone = validTimeZone(row.timeZone);
+    const locale = await newsLocaleForUser(row.userID);
+    return {
+      userID: row.userID,
+      timeZone,
+      editionDate: editionDateForTimeZone(now, timeZone),
+      language: locale.language,
+      sourceCountry: locale.sourceCountry,
+      topicIDs: locale.topicIDs,
+    } satisfies DailyEditionTarget;
+  }));
+  return buildDailyEditionsForUsers(mappedTargets);
+}
+
+export async function dailyEditionDateForUser(userID: string, now = new Date()): Promise<string> {
+  const row = (await getTurso().get(
+    `SELECT COALESCE(time_zone, 'Asia/Tokyo') AS timeZone
+     FROM user_recommendation_profiles WHERE user_id = ? LIMIT 1`,
+    userID,
+  )) as { timeZone?: string | null } | null;
+  return editionDateForTimeZone(now, validTimeZone(row?.timeZone));
+}
+
+export async function dailyEditionForUser(userID: string, editionDate = tokyoEditionDate()): Promise<{ id: string; status: string; castID: string | null; autoCastStatus: string; generatedAt: string | null; items: RecommendedArticle[] }> {
   const editionID = await buildDailyEdition(userID, editionDate);
   const edition = (await getTurso().get(
-    `SELECT status, cast_id AS castID, auto_cast_status AS autoCastStatus FROM daily_news_editions WHERE id = ?`,
+    `SELECT status, cast_id AS castID, auto_cast_status AS autoCastStatus,
+            COALESCE(generated_at, updated_at) AS generatedAt
+     FROM daily_news_editions WHERE id = ?`,
     editionID,
-  )) as { status?: string; castID?: string | null; autoCastStatus?: string } | null;
-  let items = await loadEditionItems(editionID);
+  )) as { status?: string; castID?: string | null; autoCastStatus?: string; generatedAt?: string | null } | null;
+  let items = await loadEditionItems(editionID, userID);
   if (items.length < 5) {
     const fallback = (await getTurso().get(
-      `SELECT e.id, e.cast_id AS castID, e.auto_cast_status AS autoCastStatus
+      `SELECT e.id, e.cast_id AS castID, e.auto_cast_status AS autoCastStatus,
+              COALESCE(e.generated_at, e.updated_at) AS generatedAt
        FROM daily_news_editions e
        WHERE e.user_id = ? AND e.edition_date < ?
-         AND (SELECT COUNT(*) FROM daily_news_edition_items i WHERE i.edition_id = e.id) = 5
+         AND (SELECT COUNT(*) FROM daily_news_edition_items i
+              WHERE i.edition_id = e.id
+                AND NOT EXISTS (
+                  SELECT 1 FROM recommendation_events re
+                  WHERE re.user_id = ? AND re.article_id = i.article_id AND re.event_type = 'dislike'
+                )) = 5
        ORDER BY e.edition_date DESC LIMIT 1`,
-      userID, editionDate,
-    )) as { id?: string; castID?: string | null; autoCastStatus?: string } | null;
+      userID, editionDate, userID,
+    )) as { id?: string; castID?: string | null; autoCastStatus?: string; generatedAt?: string | null } | null;
     if (fallback?.id) {
-      items = await loadEditionItems(fallback.id);
+      items = await loadEditionItems(fallback.id, userID);
       return {
         id: fallback.id,
         status: "fallback",
         castID: fallback.castID ?? null,
         autoCastStatus: fallback.autoCastStatus ?? "disabled",
+        generatedAt: fallback.generatedAt ?? null,
         items,
       };
     }
@@ -241,11 +344,12 @@ export async function dailyEditionForUser(userID: string, editionDate = tokyoEdi
     status: edition?.status ?? "failed",
     castID: edition?.castID ?? null,
     autoCastStatus: edition?.autoCastStatus ?? "disabled",
+    generatedAt: edition?.generatedAt ?? null,
     items,
   };
 }
 
-async function loadEditionItems(editionID: string): Promise<RecommendedArticle[]> {
+async function loadEditionItems(editionID: string, userID: string): Promise<RecommendedArticle[]> {
   const rows = (await getTurso().all(
     `SELECT a.id, a.original_url AS url, a.title, a.description, a.image_url AS imageURL,
             a.source_domain AS source, a.published_at AS publishedAt, i.rank,
@@ -255,23 +359,86 @@ async function loadEditionItems(editionID: string): Promise<RecommendedArticle[]
      JOIN news_articles a ON a.id = i.article_id
      LEFT JOIN news_article_topics t ON t.article_id = a.id
      WHERE i.edition_id = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM recommendation_events e
+         WHERE e.user_id = ? AND e.article_id = a.id AND e.event_type = 'dislike'
+       )
      GROUP BY a.id, i.rank
      ORDER BY i.rank`,
-    editionID,
+    editionID, userID,
   )) as Array<Omit<RecommendedArticle, "topicIDs"> & { topicIDs: string | null }>;
   return rows.map((row) => ({ ...row, topicIDs: row.topicIDs?.split(",") ?? [] }));
+}
+
+function validTimeZone(value?: string | null): string {
+  const candidate = value?.trim() || "Asia/Tokyo";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    return "Asia/Tokyo";
+  }
+}
+
+function localDateParts(now: Date, timeZone: string): { year: string; month: string; day: string; hour: string } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: validTimeZone(timeZone),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: values.year,
+    month: values.month,
+    day: values.day,
+    hour: values.hour,
+  };
 }
 
 function groupCandidates(rows: CandidateRow[]): Map<string, Omit<CandidateRow, "topicID"> & { topicIDs: string[] }> {
   const result = new Map<string, Omit<CandidateRow, "topicID"> & { topicIDs: string[] }>();
   for (const row of rows) {
-    const current = result.get(row.id);
+    const current = result.get(row.id)
+      ?? [...result.values()].find((candidate) => sameStory(candidate.title, row.title));
     if (current) current.topicIDs.push(row.topicID);
     else result.set(row.id, { ...row, topicIDs: [row.topicID] });
   }
   return result;
 }
 
+function sameStory(left: string, right: string): boolean {
+  const a = normalizeTitle(left);
+  const b = normalizeTitle(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  if (shorter.length >= 16 && longer.includes(shorter)) return true;
+  const leftTokens = titleTokens(a);
+  const rightTokens = titleTokens(b);
+  if (leftTokens.size < 4 || rightTokens.size < 4) return false;
+  const intersection = [...leftTokens].filter((token) => rightTokens.has(token)).length;
+  return intersection / Math.min(leftTokens.size, rightTokens.size) >= 0.78;
+}
+
+function normalizeTitle(value: string): string {
+  return value.normalize("NFKC").toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+function titleTokens(value: string): Set<string> {
+  if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(value)) {
+    return new Set(Array.from({ length: Math.max(0, value.length - 1) }, (_, index) => value.slice(index, index + 2)));
+  }
+  return new Set(value.split(/[^a-z0-9]+/i).filter((token) => token.length > 1));
+}
+
 function stableRandom(seed: string): number {
   return Number.parseInt(createHash("sha256").update(seed).digest("hex").slice(0, 8), 16) / 0xffffffff;
+}
+
+function normalizeCountry(value?: string | null): string {
+  return value?.toLocaleLowerCase().replace(/[^a-z]/g, "") ?? "";
 }

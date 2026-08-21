@@ -408,100 +408,141 @@ export async function createCast(userID: string, input: CreateCastInput): Promis
     throw error;
   }
 
+  return processCastGeneration(userID, castID, jobID, language, title, durationMinutes, creditCost, sourceContents);
+}
+
+/** Enqueues a user Cast without holding the HTTP request open for AI/audio generation. */
+export async function enqueueCast(userID: string, input: CreateCastInput): Promise<CastRecord> {
+  validateInput(input);
+  const database = getTurso();
+  const castID = randomUUID();
+  const jobID = randomUUID();
+  const now = new Date().toISOString();
+  const durationMinutes = input.durationMinutes ?? 10;
+  const creditCost = Math.max(1, Math.ceil(durationMinutes / 5));
+  const title = normalizeTitle(input.title, input.sources);
+  const languageRow = (await database.get(
+    "SELECT preferred_language AS preferredLanguage FROM users WHERE id = ? LIMIT 1",
+    userID,
+  )) as { preferredLanguage?: CastLanguage } | null;
+  const language: CastLanguage = languageRow?.preferredLanguage === "english" ? "english" : "japanese";
+
+  await database.batch([
+    {
+      sql: `INSERT INTO casts
+        (id, user_id, title, duration_minutes, language, status, credit_cost, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+      args: [castID, userID, title, durationMinutes, language, creditCost, now, now],
+    },
+    ...input.sources.map((source, index) => ({
+      sql: `INSERT INTO cast_sources
+        (id, cast_id, source_order, source_url, source_title, source_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [randomUUID(), castID, index, source.url, source.title ?? null, source.text ?? null, now],
+    })),
+    {
+      sql: `INSERT INTO cast_generation_jobs
+        (id, cast_id, idempotency_key, status, attempt_count, queued_at)
+        VALUES (?, ?, ?, 'queued', 0, ?)`,
+      args: [jobID, castID, `cast:${userID}:${castID}`, now],
+    },
+  ], "immediate");
+
   try {
-    const openAIStartedAt = Date.now();
-    logCastEvent("openai request started", { userID, castID, model: openAIModel, language, durationMinutes });
-    const generated = await createCastContent(userID, language, title, durationMinutes, sourceContents);
-    const script = generated.script;
-    logCastEvent("openai request completed", {
-      userID,
-      castID,
-      titleCharacters: Array.from(generated.title).length,
-      scriptCharacters: script.length,
-      elapsedMs: Date.now() - openAIStartedAt,
-    });
-    const fishStartedAt = Date.now();
-    logCastEvent("fish audio request started", { userID, castID, model: fishAudioModel, scriptCharacters: script.length });
-    const audio = await createAudio(script);
-    logCastEvent("fish audio request completed", {
-      userID,
-      castID,
-      audioBytes: audio.byteLength,
-      elapsedMs: Date.now() - fishStartedAt,
-    });
-    const objectKey = `casts/${userID}/${castID}/audio.mp3`;
-
-    logCastEvent("r2 upload started", { userID, castID, objectKey, audioBytes: audio.byteLength });
-    await getR2Client().send(
-      new PutObjectCommand({
-        Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"),
-        Key: objectKey,
-        Body: audio,
-        ContentType: "audio/mpeg",
-        CacheControl: "private, max-age=3600",
-      }),
-    );
-    logCastEvent("r2 upload completed", { userID, castID, objectKey, audioBytes: audio.byteLength });
-
-    const completedAt = new Date().toISOString();
-    await database.batch(
-      [
-        {
-          sql: `UPDATE casts
-            SET title = ?, summary = ?, transcript = ?, status = 'completed', audio_object_key = ?,
-                updated_at = ?, completed_at = ?, error_message = NULL
-            WHERE id = ? AND user_id = ?`,
-          args: [generated.title, buildSummary(script), script, objectKey, completedAt, completedAt, castID, userID],
-        },
-        {
-          sql: `UPDATE cast_generation_jobs
-            SET status = 'completed', finished_at = ?, last_error = NULL
-            WHERE id = ? AND cast_id = ?`,
-          args: [completedAt, jobID, castID],
-        },
-      ],
-      "immediate",
-    );
-    await consumeCredits(userID, castID, creditCost, completedAt);
-
-    logCastEvent("pipeline completed", {
-      userID,
-      castID,
-      jobID,
-      status: "completed",
-      elapsedMs: Date.now() - pipelineStartedAt,
-    });
-
-    return await getCast(userID, castID);
+    await reserveCredits(userID, castID, creditCost, now);
   } catch (error) {
     const message = safeErrorMessage(error);
-    console.error("[cast] pipeline failed", {
-      userID,
-      castID,
-      jobID,
-      code: message,
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+    await database.batch([
+      { sql: "UPDATE casts SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?", args: [message, new Date().toISOString(), castID] },
+      { sql: "UPDATE cast_generation_jobs SET status = 'failed', finished_at = ?, last_error = ? WHERE id = ?", args: [new Date().toISOString(), message, jobID] },
+    ], "immediate");
+    throw error;
+  }
+
+  logCastEvent("cast queued", { userID, castID, jobID, durationMinutes, creditCost });
+  return getCast(userID, castID);
+}
+
+export async function processNextCastGenerationJob(): Promise<{ processed: boolean; castID?: string; jobID?: string; error?: string }> {
+  const database = getTurso();
+  const row = (await database.get(
+    `SELECT j.id AS jobID, j.cast_id AS castID, c.user_id AS userID,
+            c.title, c.duration_minutes AS durationMinutes, c.credit_cost AS creditCost,
+            c.language
+     FROM cast_generation_jobs j JOIN casts c ON c.id = j.cast_id
+     WHERE j.status = 'queued'
+     ORDER BY j.queued_at LIMIT 1`,
+  )) as { jobID?: string; castID?: string; userID?: string; title?: string; durationMinutes?: number; creditCost?: number; language?: CastLanguage } | null;
+  if (!row?.jobID || !row.castID || !row.userID || !row.title || !row.durationMinutes || !row.creditCost) return { processed: false };
+  const now = new Date().toISOString();
+  const claimed = await database.run(
+    `UPDATE cast_generation_jobs SET status = 'processing', attempt_count = attempt_count + 1, started_at = ?
+     WHERE id = ? AND status = 'queued'`, now, row.jobID,
+  );
+  if (claimed.changes !== 1) return { processed: false };
+
+  await database.run("UPDATE casts SET status = 'processing', updated_at = ? WHERE id = ?", now, row.castID);
+  try {
+    const rawSources = (await database.all(
+      `SELECT source_url AS url, source_title AS title, source_text AS text
+       FROM cast_sources WHERE cast_id = ? ORDER BY source_order`, row.castID,
+    )) as CastSourceInput[];
+    const sources = await Promise.all(rawSources.map(async source => ({
+      ...source,
+      text: source.text ?? await resolveSourceText(source),
+    })));
+    await moderateSourceContents(sources, row.language ?? "japanese");
+    await processCastGeneration(row.userID, row.castID, row.jobID, row.language ?? "japanese", row.title, row.durationMinutes, row.creditCost, sources);
+    return { processed: true, castID: row.castID, jobID: row.jobID };
+  } catch (error) {
+    const message = safeErrorMessage(error);
     const failedAt = new Date().toISOString();
-    await database.batch(
-      [
-        {
-          sql: `UPDATE casts
-            SET status = 'failed', error_message = ?, updated_at = ?
-            WHERE id = ? AND user_id = ?`,
-          args: [message, failedAt, castID, userID],
-        },
-        {
-          sql: `UPDATE cast_generation_jobs
-            SET status = 'failed', finished_at = ?, last_error = ?
-            WHERE id = ? AND cast_id = ?`,
-          args: [failedAt, message, jobID, castID],
-        },
-      ],
-      "immediate",
-    );
+    await database.batch([
+      { sql: "UPDATE casts SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?", args: [message, failedAt, row.castID] },
+      { sql: "UPDATE cast_generation_jobs SET status = 'failed', finished_at = ?, last_error = ? WHERE id = ?", args: [failedAt, message, row.jobID] },
+    ], "immediate");
+    await releaseCredits(row.userID, row.castID, row.creditCost, failedAt);
+    logCastEvent("queued cast failed", { userID: row.userID, castID: row.castID, jobID: row.jobID, code: message });
+    return { processed: true, castID: row.castID, jobID: row.jobID, error: message };
+  }
+}
+
+async function processCastGeneration(
+  userID: string,
+  castID: string,
+  jobID: string,
+  language: CastLanguage,
+  title: string,
+  durationMinutes: number,
+  creditCost: number,
+  sourceContents: Array<CastSourceInput & { text: string }>,
+): Promise<CastRecord> {
+  const database = getTurso();
+  try {
+    const generated = await createCastContent(userID, language, title, durationMinutes, sourceContents);
+    const script = generated.script;
+    const audio = await createAudio(script);
+    const objectKey = `casts/${userID}/${castID}/audio.mp3`;
+    await getR2Client().send(new PutObjectCommand({
+      Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"), Key: objectKey, Body: audio,
+      ContentType: "audio/mpeg", CacheControl: "private, max-age=3600",
+    }));
+    const completedAt = new Date().toISOString();
+    await database.batch([
+      { sql: `UPDATE casts SET title = ?, summary = ?, transcript = ?, status = 'completed', audio_object_key = ?, updated_at = ?, completed_at = ?, error_message = NULL WHERE id = ? AND user_id = ?`, args: [generated.title, buildSummary(script), script, objectKey, completedAt, completedAt, castID, userID] },
+      { sql: `UPDATE cast_generation_jobs SET status = 'completed', finished_at = ?, last_error = NULL WHERE id = ? AND cast_id = ?`, args: [completedAt, jobID, castID] },
+    ], "immediate");
+    await consumeCredits(userID, castID, creditCost, completedAt);
+    logCastEvent("pipeline completed", { userID, castID, jobID });
+    return getCast(userID, castID);
+  } catch (error) {
+    const message = safeErrorMessage(error);
+    const failedAt = new Date().toISOString();
+    await database.batch([
+      { sql: "UPDATE casts SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ? AND user_id = ?", args: [message, failedAt, castID, userID] },
+      { sql: "UPDATE cast_generation_jobs SET status = 'failed', finished_at = ?, last_error = ? WHERE id = ? AND cast_id = ?", args: [failedAt, message, jobID, castID] },
+    ], "immediate");
     await releaseCredits(userID, castID, creditCost, failedAt);
-    logCastEvent("pipeline marked failed", { userID, castID, jobID, code: message });
     throw error;
   }
 }

@@ -31,18 +31,19 @@ export async function PUT(request: Request) {
   await database.batch([
     {
       sql: `INSERT INTO user_recommendation_profiles
-        (user_id, age_band, gender, personalization_enabled, daily_auto_cast_enabled,
+        (user_id, age_band, gender, time_zone, personalization_enabled, daily_auto_cast_enabled,
          daily_cast_duration_minutes, ai_processing_consent_at, onboarding_completed_at,
          memory_version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
          age_band = excluded.age_band, gender = excluded.gender,
+         time_zone = excluded.time_zone,
          personalization_enabled = excluded.personalization_enabled,
          daily_auto_cast_enabled = excluded.daily_auto_cast_enabled,
          daily_cast_duration_minutes = excluded.daily_cast_duration_minutes,
          ai_processing_consent_at = COALESCE(excluded.ai_processing_consent_at, user_recommendation_profiles.ai_processing_consent_at),
          onboarding_completed_at = excluded.onboarding_completed_at, updated_at = excluded.updated_at`,
-      args: [userID, input.ageBand, input.gender, input.personalizationEnabled ? 1 : 0,
+      args: [userID, input.ageBand, input.gender, input.timeZone, input.personalizationEnabled ? 1 : 0,
         input.dailyAutoCastEnabled ? 1 : 0, input.dailyCastDurationMinutes,
         input.aiProcessingConsent ? now : null, now, now, now],
     },
@@ -64,9 +65,38 @@ export async function PUT(request: Request) {
   return Response.json({ profile: await readProfile(userID) });
 }
 
+export async function PATCH(request: Request) {
+  const userID = await authenticatedUserID(request);
+  if (!userID) return errorResponse("unauthorized", "Session is invalid or expired.", 401);
+  let body: { timeZone?: unknown };
+  try {
+    body = await request.json() as { timeZone?: unknown };
+  } catch {
+    return errorResponse("invalid_input", "Time zone is invalid.", 400);
+  }
+  const timeZone = normalizeTimeZone(body.timeZone);
+  if (!timeZone) return errorResponse("invalid_input", "Time zone is invalid.", 400);
+  const now = new Date().toISOString();
+  const database = getTurso();
+  await database.batch([
+    {
+      sql: `INSERT OR IGNORE INTO user_recommendation_profiles
+        (user_id, time_zone, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      args: [userID, timeZone, now, now],
+    },
+    {
+      sql: "UPDATE user_recommendation_profiles SET time_zone = ?, updated_at = ? WHERE user_id = ?",
+      args: [timeZone, now, userID],
+    },
+  ], "immediate");
+  return Response.json({ timeZone });
+}
+
 type ProfileInput = {
   ageBand: string;
   gender: string | null;
+  timeZone: string;
   personalizationEnabled: boolean;
   dailyAutoCastEnabled: boolean;
   dailyCastDurationMinutes: number;
@@ -81,11 +111,13 @@ async function readInput(request: Request): Promise<ProfileInput | null> {
     const topicIDs = [...new Set((body.topicIDs ?? []).filter((value): value is string => typeof value === "string"))];
     const customInterests = sanitizeCustomInterests(body.customInterests);
     const ageBand = typeof body.ageBand === "string" ? body.ageBand : "unspecified";
+    const timeZone = normalizeTimeZone(body.timeZone) ?? "Asia/Tokyo";
     const duration = body.dailyCastDurationMinutes ?? 5;
     if (!allowedAgeBands.has(ageBand) || topicIDs.length + customInterests.length < 3 || ![5, 10, 15, 20].includes(duration)) return null;
     return {
       ageBand,
       gender: typeof body.gender === "string" ? body.gender.slice(0, 40) : null,
+      timeZone,
       personalizationEnabled: body.personalizationEnabled !== false,
       dailyAutoCastEnabled: body.dailyAutoCastEnabled === true,
       dailyCastDurationMinutes: duration,
@@ -100,7 +132,7 @@ async function readInput(request: Request): Promise<ProfileInput | null> {
 
 async function readProfile(userID: string) {
   const profile = await getTurso().get(
-    `SELECT age_band AS ageBand, gender,
+    `SELECT age_band AS ageBand, gender, time_zone AS timeZone,
             personalization_enabled AS personalizationEnabled,
             daily_auto_cast_enabled AS dailyAutoCastEnabled,
             daily_cast_duration_minutes AS dailyCastDurationMinutes,
@@ -120,7 +152,19 @@ async function readProfile(userID: string) {
      FROM user_custom_interests WHERE user_id = ? ORDER BY created_at`,
     userID,
   );
-  return { ...(profile ?? { ageBand: "unspecified", personalizationEnabled: 1, dailyAutoCastEnabled: 0, dailyCastDurationMinutes: 5 }), topics, customInterests };
+  return { ...(profile ?? { ageBand: "unspecified", timeZone: "Asia/Tokyo", personalizationEnabled: 1, dailyAutoCastEnabled: 0, dailyCastDurationMinutes: 5 }), topics, customInterests };
+}
+
+function normalizeTimeZone(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (!candidate || candidate.length > 80) return null;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    return null;
+  }
 }
 
 function sanitizeCustomInterests(value: unknown): Array<{ label: string; topicID: string }> {

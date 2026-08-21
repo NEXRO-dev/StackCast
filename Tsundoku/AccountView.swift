@@ -28,6 +28,9 @@ struct AccountView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     profileCard
+#if DEBUG
+                    liveActivityPreviewCard
+#endif
                     planCard
                     personalizationCard
                     logCard
@@ -148,6 +151,46 @@ struct AccountView: View {
         }
         .buttonStyle(.plain)
     }
+
+#if DEBUG
+    private var liveActivityPreviewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.indigo)
+                    .frame(width: 38, height: 38)
+                    .background(.indigo.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isEnglish ? "Live Activity preview" : "Live Activityプレビュー")
+                        .font(.headline)
+                    Text(isEnglish ? "Display only. No Cast is generated." : "表示だけの確認用です。Castは生成しません。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                Toggle("", isOn: Binding(
+                    get: { UserDefaults.standard.bool(forKey: CastGenerationActivityStore.previewEnabledKey) },
+                    set: { enabled in
+                        UserDefaults.standard.set(enabled, forKey: CastGenerationActivityStore.previewEnabledKey)
+                        if enabled {
+                            CastGenerationActivityStore.shared.startPreview(language: language)
+                        } else {
+                            CastGenerationActivityStore.shared.stopPreview()
+                        }
+                    }
+                ))
+                .labelsHidden()
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accountCard()
+    }
+#endif
 
     private var logCard: some View {
         VStack(alignment: .leading, spacing: 16) {

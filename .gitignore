@@ -1,2 +1,6 @@
 # AppleDouble metadata files
-._*
+._* 
+
+# Swift Package Manager build products
+.build/
+DerivedData/

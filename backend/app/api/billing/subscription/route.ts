@@ -38,6 +38,9 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Billing subscription lookup failed", error);
+    if (error instanceof TypeError || (error instanceof Error && /fetch failed|timeout|timed out/i.test(error.message))) {
+      return errorResponse("database_unavailable", "Database is temporarily unavailable. Please try again.", 503);
+    }
     return errorResponse("server_error", "Unable to load billing status.", 500);
   }
 }

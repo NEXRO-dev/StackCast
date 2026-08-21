@@ -62,6 +62,7 @@ struct RecommendationProfile: Codable {
 
     let ageBand: String?
     let gender: String?
+    let timeZone: String?
     let personalizationEnabled: Int?
     let dailyAutoCastEnabled: Int?
     let dailyCastDurationMinutes: Int?
@@ -126,8 +127,16 @@ private struct FeedResponse: Decodable {
     let editionDate: String
     let status: String
     let isFallback: Bool
+    let generatedAt: String?
+    let refreshing: Bool?
+    let refreshRequestID: String?
     let items: [RecommendedNewsItem]
     let dailyCast: DailyCast
+}
+
+private struct DebugRefreshStatusResponse: Decodable {
+    let status: String
+    let error: String?
 }
 
 private struct RecommendationAPIErrorEnvelope: Decodable {
@@ -158,21 +167,113 @@ final class RecommendationStore {
     private(set) var items: [RecommendedNewsItem] = []
     private(set) var memoryItems: [RecommendationMemoryItem] = []
     private(set) var editionDate = ""
+    private(set) var generatedAt: String?
     private(set) var feedID = ""
     private(set) var dailyCastStatus = "disabled"
     private(set) var dailyCastID: String?
     private(set) var isLoading = false
+    private(set) var isDebugRefreshing = false
     private(set) var errorMessage: String?
 
     private let client = RecommendationClient()
     private var recordedImpressionFeedIDs: Set<String> = []
+    private var activeLoadTask: Task<Void, Never>?
+    private var hasAttemptedInitialLoad = false
 
     var requiresSetup: Bool { profile != nil && (profile?.topics.count ?? 0) < 3 }
 
     func load(token: String?) async {
-        guard let token else { return }
+        guard !hasAttemptedInitialLoad else { return }
+        await runLoad(token: token)
+    }
+
+    func refresh(token: String?) async {
+        await runLoad(token: token)
+    }
+
+    #if DEBUG
+    func debugRefresh(token: String?) async {
+        guard !Config.isProduction, let token else { return }
+        if let activeLoadTask {
+            await activeLoadTask.value
+            return
+        }
+        isLoading = true
+        isDebugRefreshing = true
+        errorMessage = nil
+        defer {
+            isLoading = false
+            isDebugRefreshing = false
+            hasAttemptedInitialLoad = true
+        }
+        do {
+            let feed = try await client.debugRefresh(token: token)
+            items = feed.items
+            feedID = feed.feedId
+            editionDate = feed.editionDate
+            generatedAt = feed.generatedAt
+            dailyCastStatus = feed.dailyCast.status
+            dailyCastID = feed.dailyCast.castId
+            await recordImpressionsIfNeeded(token: token)
+            if feed.refreshing == true, let requestID = feed.refreshRequestID {
+                for _ in 0..<24 {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    let status = try? await client.debugRefreshStatus(token: token, requestID: requestID)
+                    if status?.status == "completed" {
+                        if let latest = try? await client.feed(token: token) {
+                            items = latest.items
+                            feedID = latest.feedId
+                            editionDate = latest.editionDate
+                            generatedAt = latest.generatedAt
+                            dailyCastStatus = latest.dailyCast.status
+                            dailyCastID = latest.dailyCast.castId
+                            await recordImpressionsIfNeeded(token: token)
+                        }
+                        break
+                    }
+                    if status?.status == "failed" {
+                        errorMessage = "ニュースの更新に失敗しました。保存済みのニュースを表示しています。"
+                        break
+                    }
+                }
+            }
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    #endif
+
+    private func runLoad(token: String?) async {
+        guard let token else {
+            errorMessage = "ログイン情報を確認できませんでした。もう一度ログインしてください。"
+            hasAttemptedInitialLoad = true
+            return
+        }
+        if let activeLoadTask {
+            await activeLoadTask.value
+            return
+        }
+
+        let task = Task<Void, Never> { [weak self] in
+            guard let self else { return }
+            await self.performLoad(token: token)
+        }
+        activeLoadTask = task
+        await task.value
+        activeLoadTask = nil
+    }
+
+    private func performLoad(token: String) async {
         isLoading = true
         errorMessage = nil
+        defer {
+            isLoading = false
+            hasAttemptedInitialLoad = true
+        }
         do {
             async let loadedTopics = client.topics()
             async let loadedProfile = client.profile(token: token)
@@ -183,18 +284,23 @@ final class RecommendationStore {
                 topics = fetchedTopics
             }
             profile = try await loadedProfile
+            try? await client.syncTimeZone(token: token)
             let feed = try await loadedFeed
             memoryItems = try await loadedMemory
             items = feed.items
             feedID = feed.feedId
             editionDate = feed.editionDate
+            generatedAt = feed.generatedAt
             dailyCastStatus = feed.dailyCast.status
             dailyCastID = feed.dailyCast.castId
             await recordImpressionsIfNeeded(token: token)
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
         } catch {
             errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     func saveProfile(
@@ -225,6 +331,7 @@ final class RecommendationStore {
             items = feed.items
             feedID = feed.feedId
             editionDate = feed.editionDate
+            generatedAt = feed.generatedAt
             dailyCastStatus = feed.dailyCast.status
             dailyCastID = feed.dailyCast.castId
             await recordImpressionsIfNeeded(token: token)
@@ -285,9 +392,28 @@ private struct RecommendationClient {
         return response.profile
     }
 
+    func syncTimeZone(token: String) async throws {
+        let _: TimeZoneResponse = try await send(
+            path: "recommendations/profile",
+            method: "PATCH",
+            json: ["timeZone": TimeZone.current.identifier],
+            token: token
+        )
+    }
+
     func feed(token: String) async throws -> FeedResponse {
         try await send(path: "recommendations/feed", token: token)
     }
+
+    #if DEBUG
+    func debugRefresh(token: String) async throws -> FeedResponse {
+        try await send(path: "recommendations/debug/refresh", method: "POST", token: token, timeoutInterval: 120)
+    }
+
+    func debugRefreshStatus(token: String, requestID: String) async throws -> DebugRefreshStatusResponse {
+        try await send(path: "recommendations/debug/refresh?requestID=\(requestID)", token: token)
+    }
+    #endif
 
     func memory(token: String) async throws -> [RecommendationMemoryItem] {
         let response: MemoryResponse = try await send(path: "recommendations/memory", token: token)
@@ -311,6 +437,7 @@ private struct RecommendationClient {
             json: [
                 "ageBand": ageBand,
                 "gender": gender == "unspecified" ? NSNull() : gender,
+                "timeZone": TimeZone.current.identifier,
                 "topicIDs": topicIDs,
                 "customInterests": customInterests.map { ["label": $0.label, "topicID": $0.topicID] },
                 "personalizationEnabled": personalizationEnabled,
@@ -358,11 +485,12 @@ private struct RecommendationClient {
         path: String,
         method: String = "GET",
         json: [String: Any]? = nil,
-        token: String? = nil
+        token: String? = nil,
+        timeoutInterval: TimeInterval = 25
     ) async throws -> Response {
-        var request = URLRequest(url: baseURL.appending(path: path))
+        var request = URLRequest(url: makeURL(path: path))
         request.httpMethod = method
-        request.timeoutInterval = 25
+        request.timeoutInterval = timeoutInterval
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let json {
@@ -382,10 +510,27 @@ private struct RecommendationClient {
         }
         return try JSONDecoder().decode(Response.self, from: data)
     }
+
+    private func makeURL(path: String) -> URL {
+        let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let url = baseURL.appending(path: String(parts[0]))
+        guard parts.count == 2,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        // URL.appending(path:) percent-encodes `?` as `%3F`. Add the query
+        // separately so the debug refresh status route receives requestID.
+        components.percentEncodedQuery = String(parts[1])
+        return components.url ?? url
+    }
 }
 
 private struct EmptyAPIResponse: Decodable {
     init(from decoder: Decoder) throws {}
+}
+
+private struct TimeZoneResponse: Decodable {
+    let timeZone: String
 }
 
 struct PersonalNewsHomeView: View {
@@ -406,6 +551,9 @@ struct PersonalNewsHomeView: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 18) {
             header
+            #if DEBUG
+            debugRefreshButton
+            #endif
             dailyCastBanner
             feedContent
         }
@@ -429,18 +577,96 @@ struct PersonalNewsHomeView: View {
             }
             .interactiveDismissDisabled(store.requiresSetup)
         }
+        .overlay {
+            if store.isDebugRefreshing {
+                ZStack {
+                    Color.black.opacity(0.12)
+                        .ignoresSafeArea()
+                    ProgressView(isEnglish ? "Refreshing news…" : "ニュースを更新中…")
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 16)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .transition(.opacity)
+            }
+        }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(isEnglish ? "TODAY'S FIVE" : "今日の5件")
-                .font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(.indigo)
-            Text(isEnglish ? "News picked for you" : "あなたに合わせたニュース")
-                .font(.largeTitle.bold())
-            Text(isEnglish ? "Updated daily around 1:00 AM JST" : "毎日午前1時ごろ更新")
-                .font(.subheadline).foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isEnglish ? "TODAY'S FIVE" : "今日の5件")
+                    .font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(.indigo)
+                Text(isEnglish ? "News picked for you" : "あなたに合わせたニュース")
+                    .font(.largeTitle.bold())
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                if let generatedAt = store.generatedAt, let date = Self.serverDateFormatter.date(from: generatedAt) {
+                    Text("\(Self.timeFormatter.string(from: date)) 更新")
+                } else {
+                    Text(isEnglish ? "Not updated yet" : "未更新")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
+
+    private static let serverDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = .current
+        formatter.dateFormat = "H:mm"
+        return formatter
+    }()
+
+    #if DEBUG
+    private var debugRefreshButton: some View {
+        Button {
+            Task {
+                await store.debugRefresh(token: authStore.sessionToken())
+            }
+        } label: {
+            HStack(spacing: 10) {
+                if store.isLoading {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "bolt.fill")
+                }
+                Text(isEnglish ? "Fetch five now" : "今すぐ5件取得")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(isEnglish ? "Debug" : "デバッグ")
+                    .font(.caption.weight(.medium))
+                    .opacity(0.75)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .background(.indigo, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        // Keep this control's hit area independent from the article buttons below.
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zIndex(10)
+        .disabled(store.isLoading)
+        .accessibilityIdentifier("debug-news-refresh-button")
+        .accessibilityLabel(isEnglish ? "Fetch five recommended news articles now" : "おすすめニュースを今すぐ5件取得")
+    }
+    #endif
 
     @ViewBuilder
     private var dailyCastBanner: some View {
@@ -463,6 +689,24 @@ struct PersonalNewsHomeView: View {
     private var feedContent: some View {
         if store.isLoading && store.items.isEmpty {
             ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
+        } else if let errorMessage = store.errorMessage, store.items.isEmpty {
+            ContentUnavailableView {
+                Label(
+                    isEnglish ? "Could Not Load News" : "ニュースを読み込めませんでした",
+                    systemImage: "arrow.clockwise.circle"
+                )
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button(isEnglish ? "Try Again" : "再試行") {
+                    Task {
+                        await store.refresh(token: authStore.sessionToken())
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 50)
         } else if store.items.isEmpty {
             ContentUnavailableView(
                 isEnglish ? "No news yet" : "ニュースを準備中です",
@@ -495,8 +739,10 @@ struct PersonalNewsHomeView: View {
                     Text("\(item.article.source) · \(isEnglish ? item.reasonEN : item.reason)")
                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
 
             HStack {
                 Button {
@@ -506,9 +752,15 @@ struct PersonalNewsHomeView: View {
                 Spacer()
                 Button(role: .destructive) {
                     Task { await store.record(token: authStore.sessionToken(), articleID: item.id, event: "dislike", position: item.rank) }
-                } label: { Label(isEnglish ? "Less like this" : "興味なし", systemImage: "hand.thumbsdown") }
+                } label: {
+                    Label(isEnglish ? "Less like this" : "興味なし", systemImage: "hand.thumbsdown")
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(.red.opacity(0.10), in: Capsule())
+                }
             }
-            .font(.caption.weight(.semibold)).buttonStyle(.plain)
+            .font(.subheadline.weight(.semibold)).buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
         .padding(16)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -567,17 +819,16 @@ struct PersonalNewsFeedScreen: View {
         .navigationTitle(isEnglish ? "For You" : "あなた向けニュース")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            await store.load(token: authStore.sessionToken())
+            await store.refresh(token: authStore.sessionToken())
         }
     }
 }
 
 struct PersonalNewsHomePreview: View {
     let authStore: AuthStore
+    let articleLibrary: ArticleLibrary
     let language: AppLanguage
     let store: RecommendationStore
-
-    @State private var browserDestination: InAppBrowserDestination?
 
     private var isEnglish: Bool { language == .english }
 
@@ -590,6 +841,29 @@ struct PersonalNewsHomePreview: View {
                     Spacer()
                 }
                 .padding(.vertical, 24)
+            } else if store.errorMessage != nil && store.items.isEmpty {
+                Button {
+                    Task {
+                        await store.refresh(token: authStore.sessionToken())
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.clockwise.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.indigo)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(isEnglish ? "Could not load today's news" : "今日のニュースを読み込めませんでした")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text(isEnglish ? "Tap to try again" : "タップして再試行")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(16)
+                }
+                .buttonStyle(.plain)
             } else if store.items.isEmpty {
                 HStack(spacing: 12) {
                     Image(systemName: "newspaper")
@@ -602,73 +876,94 @@ struct PersonalNewsHomePreview: View {
                 }
                 .padding(16)
             } else {
-                VStack(spacing: 0) {
+                List {
                     ForEach(Array(store.items.prefix(5).enumerated()), id: \.element.id) { index, item in
-                        Button {
-                            browserDestination = InAppBrowserDestination(url: item.article.url)
-                            Task {
-                                await store.record(
-                                    token: authStore.sessionToken(),
-                                    articleID: item.id,
-                                    event: "open",
-                                    position: item.rank
-                                )
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                AsyncImage(url: item.article.imageURL) { phase in
-                                    if let image = phase.image {
-                                        image.resizable().scaledToFill()
-                                    } else {
-                                        Color.indigo.opacity(0.1)
-                                            .overlay {
-                                                Text("\(index + 1)")
-                                                    .font(.headline.bold())
-                                                    .foregroundStyle(.indigo)
-                                            }
-                                    }
+                        HStack(spacing: 12) {
+                            AsyncImage(url: item.article.imageURL) { phase in
+                                if let image = phase.image {
+                                    image.resizable().scaledToFill()
+                                } else {
+                                    Color.indigo.opacity(0.1)
+                                        .overlay {
+                                            Text("\(index + 1)")
+                                                .font(.headline.bold())
+                                                .foregroundStyle(.indigo)
+                                        }
                                 }
-                                .frame(width: 54, height: 54)
-                                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(item.article.title)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                    Text(item.article.source)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer(minLength: 0)
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.tertiary)
                             }
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 11)
+                            .frame(width: 58, height: 58)
+                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.article.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Text(item.article.source)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer(minLength: 0)
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold())
+                                .foregroundStyle(.tertiary)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(
+                            Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
+                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                _ = articleLibrary.addWithResult(url: item.article.url, title: item.article.title)
+                                Task {
+                                    await store.record(
+                                        token: authStore.sessionToken(),
+                                        articleID: item.id,
+                                        event: "save",
+                                        position: item.rank
+                                    )
+                                }
+                            } label: {
+                                Label(isEnglish ? "Save" : "保存", systemImage: "tray.and.arrow.down")
+                            }
+                            .tint(.indigo)
 
-                        if index < min(store.items.count, 5) - 1 {
-                            Divider().padding(.leading, 81)
+                            Button(role: .destructive) {
+                                Task {
+                                    await store.record(
+                                        token: authStore.sessionToken(),
+                                        articleID: item.id,
+                                        event: "dislike",
+                                        position: item.rank
+                                    )
+                                }
+                            } label: {
+                                Label(isEnglish ? "Less Like This" : "興味なし", systemImage: "hand.thumbsdown")
+                            }
                         }
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .scrollDisabled(true)
+                // Row content is 58pt plus vertical padding and List insets.
+                // Keep enough room after an item is removed so the last row is not clipped.
+                .frame(height: CGFloat(min(store.items.count, 5) * 94 + 8))
             }
         }
         .task {
             if store.items.isEmpty {
                 await store.load(token: authStore.sessionToken())
             }
-        }
-        .sheet(item: $browserDestination) { destination in
-            InAppBrowserView(url: destination.url)
-                .ignoresSafeArea()
         }
     }
 }

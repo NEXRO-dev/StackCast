@@ -4,6 +4,9 @@
 //
 
 import Foundation
+#if CAST_LIVE_ACTIVITY_APP
+import ActivityKit
+#endif
 import LinkPresentation
 import Observation
 
@@ -539,6 +542,9 @@ final class CastStore {
                 loadedCasts.insert(pendingSharedCast, at: 0)
             }
             casts = CastDownloadStore.shared.merged(with: loadedCasts)
+#if CAST_LIVE_ACTIVITY_APP
+            CastGenerationActivityStore.shared.sync(with: loadedCasts)
+#endif
             errorMessage = nil
             errorCode = nil
         } catch {
@@ -567,6 +573,9 @@ final class CastStore {
                 sources: sources
             )
             casts.insert(cast, at: 0)
+#if CAST_LIVE_ACTIVITY_APP
+            CastGenerationActivityStore.shared.start(for: cast)
+#endif
             errorMessage = nil
             return cast
         } catch {
@@ -637,6 +646,105 @@ final class CastStore {
         pendingOpenCastID = nil
     }
 }
+
+#if CAST_LIVE_ACTIVITY_APP
+@MainActor
+final class CastGenerationActivityStore {
+    static let shared = CastGenerationActivityStore()
+    static let previewEnabledKey = "castGenerationLiveActivityPreviewEnabled"
+    private var activity: Activity<CastGenerationActivityAttributes>?
+    private var isPreviewing = false
+    private var previewTask: Task<Void, Never>?
+    private var previewPhase = 0
+
+    func start(for cast: CastRecord) {
+        guard cast.status == "queued" || cast.status == "processing",
+              ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        if activity != nil { return }
+        let attributes = CastGenerationActivityAttributes(castTitle: cast.title, subtitle: "StackCast")
+        do {
+            activity = try Activity.request(
+                attributes: attributes,
+                content: ActivityContent(state: .init(status: "生成中"), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
+                pushType: nil
+            )
+        } catch {
+            print("[cast] generation Live Activity failed: \(error)")
+        }
+    }
+
+    func startPreview(language: AppLanguage) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard activity == nil else { return }
+        stopPreview()
+        let attributes = CastGenerationActivityAttributes(
+            castTitle: language == .english ? "Sample Cast generation" : "サンプルCastを生成中",
+            subtitle: "StackCast"
+        )
+        do {
+            activity = try Activity.request(
+                attributes: attributes,
+                content: ActivityContent(state: .init(status: "生成中"), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
+                pushType: nil
+            )
+            isPreviewing = true
+            previewPhase = 0
+            previewTask = Task { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(650))
+                    guard !Task.isCancelled else { return }
+                    self?.advancePreview()
+                }
+            }
+        } catch {
+            print("[cast] preview Live Activity failed: \(error)")
+        }
+    }
+
+    func stopPreview() {
+        guard isPreviewing, let activity else { return }
+        previewTask?.cancel()
+        previewTask = nil
+        Task {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        self.activity = nil
+        isPreviewing = false
+    }
+
+    private func advancePreview() {
+        guard let activity, isPreviewing else { return }
+        previewPhase = (previewPhase + 1) % 8
+        Task {
+            await activity.update(
+                ActivityContent(
+                    state: .init(status: "生成中", animationPhase: previewPhase),
+                    staleDate: Date(timeIntervalSinceNow: 30 * 60)
+                )
+            )
+        }
+    }
+
+    func sync(with casts: [CastRecord]) {
+        guard !isPreviewing else { return }
+        guard let activity else {
+            if let pending = casts.first(where: { $0.status == "queued" || $0.status == "processing" }) {
+                start(for: pending)
+            }
+            return
+        }
+        let pending = casts.first(where: { $0.title == activity.attributes.castTitle && ($0.status == "queued" || $0.status == "processing") })
+        guard pending == nil else { return }
+        Task {
+            await activity.end(
+                ActivityContent(state: .init(status: "完了"), staleDate: nil),
+                dismissalPolicy: .after(.now + 2)
+            )
+        }
+        self.activity = nil
+    }
+}
+#endif
 
 private enum CastAPI {
     private static let baseURL = Config.backendBaseURL

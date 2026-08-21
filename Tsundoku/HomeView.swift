@@ -103,6 +103,7 @@ struct HomeView: View {
 
             PersonalNewsHomePreview(
                 authStore: authStore,
+                articleLibrary: articleLibrary,
                 language: .japanese,
                 store: recommendationStore
             )

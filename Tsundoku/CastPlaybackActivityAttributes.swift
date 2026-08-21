@@ -31,3 +31,13 @@ struct CastPlaybackActivityAttributes: ActivityAttributes {
     var castTitle: String
     var subtitle: String
 }
+
+struct CastGenerationActivityAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
+        var status: String
+        var animationPhase: Int = 0
+    }
+
+    var castTitle: String
+    var subtitle: String
+}

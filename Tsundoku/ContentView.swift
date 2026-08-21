@@ -34,6 +34,7 @@ struct ContentView: View {
                 LaunchSplashView()
             } else if case .signedIn = authStore.status {
                 mainTabView
+                    .offlineWarning(language: currentLanguage, isOffline: !networkStatus.isConnected)
             } else if case .checking = authStore.status {
                 ProgressView()
             } else {
@@ -91,16 +92,9 @@ struct ContentView: View {
             guard phase == .active, signedInUserID != nil else { return }
             Task {
                 await subscriptionStore.refresh()
+                await castStore.load(token: authStore.sessionToken())
             }
         }
-        .overlay(alignment: .top) {
-            if !networkStatus.isConnected {
-                OfflineBanner(language: currentLanguage)
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(.snappy, value: networkStatus.isConnected)
     }
 
     private var currentLanguage: AppLanguage {

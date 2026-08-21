@@ -1,5 +1,6 @@
 import ActivityKit
 import Foundation
+import ThinkingOrbsKit
 import SwiftUI
 import WidgetKit
 
@@ -216,6 +217,52 @@ struct StackCastLiveActivity: Widget {
 
 }
 
+struct CastGenerationLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: CastGenerationActivityAttributes.self) { context in
+            HStack(spacing: 14) {
+                ThinkingOrb(state: .working, size: .px64, displaySize: 56)
+                    .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(context.attributes.castTitle)
+                        .font(.headline)
+                        .lineLimit(2)
+                    Text("Castを生成中")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .lockScreenGlassSurface()
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    ThinkingOrb(state: .working, size: .px20, displaySize: 28)
+                        .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(context.attributes.castTitle).font(.headline).lineLimit(1)
+                        Text("Castを生成中").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } compactLeading: {
+                ThinkingOrb(state: .working, size: .px20, displaySize: 20)
+                    .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
+            } compactTrailing: {
+                Text("Working...")
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+            } minimal: {
+                ThinkingOrb(state: .working, size: .px20, displaySize: 18)
+                    .rotationEffect(.degrees(Double(context.state.animationPhase) * 45))
+            }
+            .keylineTint(.purple)
+        }
+    }
+}
+
 private extension View {
     @ViewBuilder
     func lockScreenGlassSurface() -> some View {
@@ -238,5 +285,6 @@ private extension View {
 struct StackCastLiveActivityBundle: WidgetBundle {
     var body: some Widget {
         StackCastLiveActivity()
+        CastGenerationLiveActivity()
     }
 }

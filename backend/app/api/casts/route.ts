@@ -1,13 +1,19 @@
 import { bearerToken, hashSessionToken } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/response";
-import { createCast, listCasts, type CreateCastInput } from "@/lib/cast/pipeline";
+import { enqueueCast, listCasts, processNextCastGenerationJob, type CreateCastInput } from "@/lib/cast/pipeline";
 import { getTurso } from "@/lib/turso";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const userID = await authenticatedUserID(request);
+  let userID: string | null;
+  try {
+    userID = await authenticatedUserID(request);
+  } catch (error) {
+    console.error("Cast authentication database lookup failed", error);
+    return errorResponse("database_unavailable", "Database is temporarily unavailable. Please try again.", 503);
+  }
   if (!userID) return errorResponse("unauthorized", "Session is invalid or expired.", 401);
 
   try {
@@ -20,7 +26,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const requestID = randomUUID();
-  const userID = await authenticatedUserID(request);
+  let userID: string | null;
+  try {
+    userID = await authenticatedUserID(request);
+  } catch (error) {
+    console.error("Cast authentication database lookup failed", { requestID, error });
+    return errorResponse("database_unavailable", "Database is temporarily unavailable. Please try again.", 503);
+  }
   if (!userID) {
     console.warn("[cast] request rejected", { requestID, reason: "unauthorized" });
     return errorResponse("unauthorized", "Session is invalid or expired.", 401);
@@ -42,9 +54,13 @@ export async function POST(request: Request) {
   });
 
   try {
-    const cast = await createCast(userID, { ...input, internalKind: undefined });
+    const cast = await enqueueCast(userID, { ...input, internalKind: undefined });
     console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
-    return Response.json({ cast }, { status: 201 });
+    // Local development gets an immediate worker kick; production also has the cron worker.
+    void processNextCastGenerationJob().catch((error) => {
+      console.error("[cast-worker] local kick failed", error);
+    });
+    return Response.json({ cast }, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "CAST_GENERATION_FAILED";
     console.error("[cast] request failed", {
