@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { authenticatedUserID } from "@/lib/auth/authenticated-user";
 import { errorResponse } from "@/lib/auth/response";
 import { featureEnabled } from "@/lib/feature-flags";
-import { newsRefreshProviderUnavailable, refreshSharedNewsPool } from "@/lib/news/refresh";
+import { newsRefreshProviderUnavailable, newsRefreshProviderUnderfilled, refreshSharedNewsPool } from "@/lib/news/refresh";
 import { newsLocaleForUser } from "@/lib/news/user-locale";
 import { buildDailyEdition, dailyEditionDateForUser, dailyEditionForUser } from "@/lib/recommendations/daily-edition";
 
@@ -33,9 +33,10 @@ export async function POST(request: Request) {
       force: true,
     });
     const providerUnavailable = newsRefreshProviderUnavailable(provider);
+    const providerUnderfilled = newsRefreshProviderUnderfilled(provider);
     await buildDailyEdition(userID, editionDate, {
       forceRebuild: true,
-      markFallback: providerUnavailable,
+      markFallback: providerUnavailable || providerUnderfilled,
     });
     const edition = await dailyEditionForUser(userID, editionDate);
     console.info("[daily-news] debug refresh completed", {
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
       editionDate,
       itemCount: edition.items.length,
       providerUnavailable,
+      providerUnderfilled,
       provider: { topics: provider.topics, fetched: provider.fetched, stored: provider.stored },
       elapsedMs: Date.now() - startedAt,
     });
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
       refreshing: false,
       refreshRequestID: requestID,
       ...(providerUnavailable ? { refreshError: "provider_unavailable" } : {}),
+      ...(!providerUnavailable && providerUnderfilled ? { refreshError: "provider_underfilled" } : {}),
     });
   } catch (error) {
     console.error("[daily-news] debug refresh failed", {

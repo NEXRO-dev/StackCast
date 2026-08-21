@@ -632,6 +632,11 @@ private func personalNewsRefreshMessage(store: RecommendationStore, language: Ap
     if let refreshError = store.refreshError?.trimmingCharacters(in: .whitespacesAndNewlines),
        !refreshError.isEmpty {
         let normalized = refreshError.lowercased()
+        if normalized.contains("underfilled") {
+            return isEnglish
+                ? "Only part of today's news refresh succeeded. Saved news fills the rest."
+                : "今日のニュース更新は一部のみ成功しました。残りは保存済みのニュースを表示しています。"
+        }
         if normalized.contains("provider") ||
             normalized.contains("gdelt") ||
             normalized.contains("openai") ||

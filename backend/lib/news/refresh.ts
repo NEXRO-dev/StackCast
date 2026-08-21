@@ -45,8 +45,12 @@ export function newsRefreshProviderUnavailable(result: NewsRefreshResult): boole
   return !result.cooldown && result.stored === 0 && result.failures.length > 0;
 }
 
+export function newsRefreshProviderUnderfilled(result: NewsRefreshResult): boolean {
+  return !result.cooldown && result.stored > 0 && result.stored < 5;
+}
+
 export function newsRefreshBuildDecision(result: NewsRefreshResult): NewsRefreshBuildDecision {
-  const markFallback = newsRefreshProviderUnavailable(result);
+  const markFallback = newsRefreshProviderUnavailable(result) || newsRefreshProviderUnderfilled(result);
   return {
     forceRebuild: result.stored > 0 || markFallback,
     markFallback,

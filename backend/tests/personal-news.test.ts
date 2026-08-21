@@ -5,6 +5,7 @@ import {
   newsRefreshBuildDecision,
   newsRefreshIsWithinCooldown,
   newsRefreshProviderUnavailable,
+  newsRefreshProviderUnderfilled,
   type NewsRefreshResult,
 } from "../lib/news/refresh";
 import {
@@ -54,11 +55,26 @@ test("provider failure forces a fallback rebuild while cooldown does not rebuild
     cooldown: false,
   };
   assert.equal(newsRefreshProviderUnavailable(unavailable), true);
+  assert.equal(newsRefreshProviderUnderfilled(unavailable), false);
   assert.deepEqual(newsRefreshBuildDecision(unavailable), { forceRebuild: true, markFallback: true });
 
   const cooldown: NewsRefreshResult = { ...unavailable, failures: [], cooldown: true };
   assert.equal(newsRefreshProviderUnavailable(cooldown), false);
+  assert.equal(newsRefreshProviderUnderfilled(cooldown), false);
   assert.deepEqual(newsRefreshBuildDecision(cooldown), { forceRebuild: false, markFallback: false });
+});
+
+test("partial provider refresh rebuilds as fallback", () => {
+  const underfilled: NewsRefreshResult = {
+    topics: 3,
+    fetched: 1,
+    stored: 1,
+    failures: ["technology:gdelt:timeout"],
+    cooldown: false,
+  };
+  assert.equal(newsRefreshProviderUnavailable(underfilled), false);
+  assert.equal(newsRefreshProviderUnderfilled(underfilled), true);
+  assert.deepEqual(newsRefreshBuildDecision(underfilled), { forceRebuild: true, markFallback: true });
 });
 
 test("stored provider articles force a ready rebuild", () => {

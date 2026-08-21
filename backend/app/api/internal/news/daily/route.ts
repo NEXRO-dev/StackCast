@@ -3,6 +3,7 @@ import { featureEnabled } from "@/lib/feature-flags";
 import {
   newsRefreshBuildDecision,
   newsRefreshProviderUnavailable,
+  newsRefreshProviderUnderfilled,
   refreshSharedNewsPool,
   type NewsRefreshResult,
 } from "@/lib/news/refresh";
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
 
     const providerResults: NewsRefreshResult[] = [];
     let providerUnavailable = false;
+    let providerUnderfilled = false;
     let editions = { users: 0, ready: 0, failed: 0 };
     for (const [localeKey, group] of localeGroups) {
       const providerResult = await refreshSharedNewsPool({
@@ -67,12 +69,22 @@ export async function GET(request: Request) {
       });
       providerResults.push(providerResult);
       const unavailableForGroup = newsRefreshProviderUnavailable(providerResult);
+      const underfilledForGroup = newsRefreshProviderUnderfilled(providerResult);
       providerUnavailable ||= unavailableForGroup;
+      providerUnderfilled ||= underfilledForGroup;
       if (unavailableForGroup) {
         console.warn("[daily-news] providers unavailable; rebuilding editions from cache", {
           requestID,
           localeKey,
           failureCount: providerResult.failures.length,
+          targetCount: group.targets.length,
+        });
+      }
+      if (underfilledForGroup) {
+        console.warn("[daily-news] providers underfilled; rebuilding editions with cached articles", {
+          requestID,
+          localeKey,
+          stored: providerResult.stored,
           targetCount: group.targets.length,
         });
       }
@@ -98,6 +110,7 @@ export async function GET(request: Request) {
       targetCount: targets.length,
       timeZones: [...new Set(targets.map((target) => target.timeZone))],
       providerUnavailable,
+      providerUnderfilled,
       ...editions,
     });
     const dailyCastEnabled = featureEnabled("DAILY_CAST_ENABLED");
@@ -115,11 +128,12 @@ export async function GET(request: Request) {
       if (!result.processed) break;
       processed.push(result);
     }
-    const result = { success: true, providerUnavailable, provider, editions, queue: queueSummary, processed };
+    const result = { success: true, providerUnavailable, providerUnderfilled, provider, editions, queue: queueSummary, processed };
     console.info("[daily-news] cron request completed", {
       requestID,
       provider: { topics: provider.topics, fetched: provider.fetched, stored: provider.stored, failures: provider.failures.length, localeGroups: localeGroups.size },
       providerUnavailable,
+      providerUnderfilled,
       editions,
       queue: queueSummary,
       processed: processed.length,
