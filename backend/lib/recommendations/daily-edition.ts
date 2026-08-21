@@ -43,6 +43,24 @@ export type DailyEditionTarget = {
   topicIDs: string[];
 };
 
+export type DailyEditionBuildOptions = {
+  forceRebuild?: boolean;
+  markFallback?: boolean;
+};
+
+export function isDailyEditionCatchUpTime(now: Date, timeZone: string): boolean {
+  const hour = Number(localDateParts(now, timeZone).hour);
+  return hour >= 1 && hour <= 3;
+}
+
+export function dailyEditionStatusForSelection(
+  selectedCount: number,
+  markFallback = false,
+): "ready" | "fallback" | "failed" {
+  if (selectedCount === 0) return "failed";
+  return markFallback || selectedCount < 5 ? "fallback" : "ready";
+}
+
 export function editionDateForTimeZone(now: Date, timeZone: string): string {
   const parts = localDateParts(now, timeZone);
   return `${parts.year}-${parts.month}-${parts.day}`;
@@ -57,7 +75,7 @@ export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEdi
   const targets = await Promise.all(rows.map(async (row) => {
     const timeZone = validTimeZone(row.timeZone);
     const parts = localDateParts(now, timeZone);
-    if (parts.hour !== "01") return null;
+    if (!isDailyEditionCatchUpTime(now, timeZone)) return null;
     const locale = await newsLocaleForUser(row.userID);
     return {
       userID: row.userID,
@@ -71,7 +89,12 @@ export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEdi
   return targets.filter((target): target is DailyEditionTarget => target !== null);
 }
 
-export async function buildDailyEdition(userID: string, editionDate = tokyoEditionDate(), forceRebuild = false): Promise<string> {
+export async function buildDailyEdition(
+  userID: string,
+  editionDate = tokyoEditionDate(),
+  options: DailyEditionBuildOptions | boolean = {},
+): Promise<string> {
+  const { forceRebuild, markFallback } = normalizeBuildOptions(options);
   const database = getTurso();
   const userLocale = await newsLocaleForUser(userID);
   const existing = (await database.get(
@@ -105,7 +128,15 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
        )`,
     activeEditionID, userID,
   )) as { count?: number } | null;
-  if ((itemCount?.count ?? 0) >= 5 && !forceRebuild) return activeEditionID;
+  if ((itemCount?.count ?? 0) >= 5 && !forceRebuild) {
+    if (markFallback && existing?.status !== "fallback") {
+      await database.run(
+        "UPDATE daily_news_editions SET status = 'fallback', updated_at = ? WHERE id = ?",
+        now, activeEditionID,
+      );
+    }
+    return activeEditionID;
+  }
   if (forceRebuild || (itemCount?.count ?? 0) < 5) {
     await database.run("DELETE FROM daily_news_edition_items WHERE edition_id = ?", activeEditionID);
   }
@@ -203,8 +234,8 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
 
   if (selected.length === 0) {
     await database.run(
-      "UPDATE daily_news_editions SET status = 'failed', updated_at = ? WHERE id = ?",
-      new Date().toISOString(), activeEditionID,
+      "UPDATE daily_news_editions SET status = ?, updated_at = ? WHERE id = ?",
+      dailyEditionStatusForSelection(selected.length, markFallback), new Date().toISOString(), activeEditionID,
     );
     return activeEditionID;
   }
@@ -224,7 +255,7 @@ export async function buildDailyEdition(userID: string, editionDate = tokyoEditi
   });
   statements.push({
     sql: `UPDATE daily_news_editions SET status = ?, generated_at = ?, updated_at = ? WHERE id = ?`,
-    args: [selected.length >= 5 ? "ready" : "fallback", now, now, activeEditionID],
+    args: [dailyEditionStatusForSelection(selected.length, markFallback), now, now, activeEditionID],
   });
   await database.batch(statements, "immediate");
   return activeEditionID;
@@ -251,12 +282,15 @@ function expandedInterestTerms(label: string): string[] {
   return [];
 }
 
-export async function buildDailyEditionsForUsers(targets: DailyEditionTarget[]): Promise<{ users: number; ready: number; failed: number }> {
+export async function buildDailyEditionsForUsers(
+  targets: DailyEditionTarget[],
+  options: DailyEditionBuildOptions = {},
+): Promise<{ users: number; ready: number; failed: number }> {
   console.info("[daily-news] edition build started", { users: targets.length });
   let ready = 0;
   let failed = 0;
   for (const target of targets) {
-    const editionID = await buildDailyEdition(target.userID, target.editionDate);
+    const editionID = await buildDailyEdition(target.userID, target.editionDate, options);
     const row = (await getTurso().get("SELECT status FROM daily_news_editions WHERE id = ?", editionID)) as { status?: string } | null;
     if (row?.status === "ready" || row?.status === "fallback") ready += 1;
     else failed += 1;
@@ -368,6 +402,16 @@ async function loadEditionItems(editionID: string, userID: string): Promise<Reco
     editionID, userID,
   )) as Array<Omit<RecommendedArticle, "topicIDs"> & { topicIDs: string | null }>;
   return rows.map((row) => ({ ...row, topicIDs: row.topicIDs?.split(",") ?? [] }));
+}
+
+function normalizeBuildOptions(options: DailyEditionBuildOptions | boolean): Required<DailyEditionBuildOptions> {
+  if (typeof options === "boolean") {
+    return { forceRebuild: options, markFallback: false };
+  }
+  return {
+    forceRebuild: options.forceRebuild === true,
+    markFallback: options.markFallback === true,
+  };
 }
 
 function validTimeZone(value?: string | null): string {

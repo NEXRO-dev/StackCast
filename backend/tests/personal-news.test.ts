@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canonicalizeURL } from "../lib/news/canonical-url";
-import { tokyoEditionDate } from "../lib/recommendations/daily-edition";
+import {
+  newsRefreshBuildDecision,
+  newsRefreshIsWithinCooldown,
+  newsRefreshProviderUnavailable,
+  type NewsRefreshResult,
+} from "../lib/news/refresh";
+import {
+  dailyEditionStatusForSelection,
+  isDailyEditionCatchUpTime,
+  tokyoEditionDate,
+} from "../lib/recommendations/daily-edition";
 
 test("canonical URL removes tracking and fragments", () => {
   assert.equal(
@@ -17,4 +27,55 @@ test("canonical URL rejects non-web protocols", () => {
 test("Tokyo edition date changes at JST midnight", () => {
   assert.equal(tokyoEditionDate(new Date("2026-08-18T14:59:59Z")), "2026-08-18");
   assert.equal(tokyoEditionDate(new Date("2026-08-18T15:00:00Z")), "2026-08-19");
+});
+
+test("daily edition catch-up window covers local hours 1 through 3", () => {
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T15:59:59Z"), "Asia/Tokyo"), false);
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T16:00:00Z"), "Asia/Tokyo"), true);
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T18:59:59Z"), "Asia/Tokyo"), true);
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T19:00:00Z"), "Asia/Tokyo"), false);
+});
+
+test("news refresh cooldown lasts six hours and force bypasses it", () => {
+  const lastSuccess = "2026-08-18T00:00:00.000Z";
+  assert.equal(newsRefreshIsWithinCooldown(lastSuccess, new Date("2026-08-18T05:59:59.999Z")), true);
+  assert.equal(newsRefreshIsWithinCooldown(lastSuccess, new Date("2026-08-18T06:00:00.000Z")), false);
+  assert.equal(newsRefreshIsWithinCooldown(lastSuccess, new Date("2026-08-18T01:00:00.000Z"), true), false);
+  assert.equal(newsRefreshIsWithinCooldown(lastSuccess, new Date("2026-08-18T01:00:00.000Z"), false, 4), false);
+  assert.equal(newsRefreshIsWithinCooldown("invalid", new Date("2026-08-18T01:00:00.000Z")), false);
+});
+
+test("provider failure forces a fallback rebuild while cooldown does not rebuild", () => {
+  const unavailable: NewsRefreshResult = {
+    topics: 3,
+    fetched: 0,
+    stored: 0,
+    failures: ["gdelt:timeout", "openai:429"],
+    cooldown: false,
+  };
+  assert.equal(newsRefreshProviderUnavailable(unavailable), true);
+  assert.deepEqual(newsRefreshBuildDecision(unavailable), { forceRebuild: true, markFallback: true });
+
+  const cooldown: NewsRefreshResult = { ...unavailable, failures: [], cooldown: true };
+  assert.equal(newsRefreshProviderUnavailable(cooldown), false);
+  assert.deepEqual(newsRefreshBuildDecision(cooldown), { forceRebuild: false, markFallback: false });
+});
+
+test("stored provider articles force a ready rebuild", () => {
+  const refreshed: NewsRefreshResult = {
+    topics: 3,
+    fetched: 5,
+    stored: 5,
+    failures: [],
+    cooldown: false,
+  };
+  assert.equal(newsRefreshProviderUnavailable(refreshed), false);
+  assert.deepEqual(newsRefreshBuildDecision(refreshed), { forceRebuild: true, markFallback: false });
+  assert.equal(dailyEditionStatusForSelection(5, false), "ready");
+});
+
+test("cache-backed selections can be explicitly marked as fallback", () => {
+  assert.equal(dailyEditionStatusForSelection(5, true), "fallback");
+  assert.equal(dailyEditionStatusForSelection(4, false), "fallback");
+  assert.equal(dailyEditionStatusForSelection(0, true), "failed");
 });

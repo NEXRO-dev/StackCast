@@ -3,6 +3,10 @@ import { buildMultiTopicNewsWebSearchPrompt, buildNewsWebSearchPrompt } from "..
 
 const model = "gpt-5.6-luna";
 const endpoint = "https://api.openai.com/v1/responses";
+const MAX_ATTEMPTS = 2;
+const MAX_TOTAL_RETRY_DELAY_MS = 10_000;
+const DEFAULT_RETRY_DELAY_MS = 1_000;
+const MAX_RETRY_JITTER_MS = 250;
 
 type SearchArticle = {
   topicID?: string;
@@ -34,11 +38,7 @@ export class OpenAIWebSearchProvider implements NewsProvider {
       limit,
     );
 
-    const response = await fetchWithRetry(apiKey, requestBody(prompt, countryCode, false));
-
-    if (!response.ok) {
-      throw new Error(`OPENAI_NEWS_REQUEST_FAILED_${response.status}`);
-    }
+    const response = await fetchWithRetry(apiKey, requestBody(prompt, countryCode, false, 1));
 
     const payload = await response.json() as OpenAIResponse;
     const outputText = payload.output
@@ -92,15 +92,24 @@ export class OpenAIWebSearchProvider implements NewsProvider {
     );
     const response = await fetchWithRetry(
       apiKey,
-      requestBody(prompt, countryCodeFor(first.sourceCountry), true),
+      requestBody(
+        prompt,
+        countryCodeFor(first.sourceCountry),
+        true,
+        Math.min(Math.max(inputs.length, 1), 3),
+      ),
     );
-    if (!response.ok) throw new Error(`OPENAI_NEWS_REQUEST_FAILED_${response.status}`);
     const payload = await response.json() as OpenAIResponse;
     return parseArticles(payload, first, limit, new Set(inputs.map((input) => input.topicID)));
   }
 }
 
-function requestBody(prompt: string, countryCode: string | undefined, includeTopicID: boolean): string {
+function requestBody(
+  prompt: string,
+  countryCode: string | undefined,
+  includeTopicID: boolean,
+  maxToolCalls: number,
+): string {
   const properties: Record<string, unknown> = {
     url: { type: "string" }, title: { type: "string" }, description: { type: "string" }, publishedAt: { type: "string" },
   };
@@ -118,6 +127,7 @@ function requestBody(prompt: string, countryCode: string | undefined, includeTop
       required: ["articles"], additionalProperties: false,
     } } },
     max_output_tokens: 2_000,
+    max_tool_calls: maxToolCalls,
     store: false,
   });
 }
@@ -174,33 +184,142 @@ function requiredEnvironmentVariable(name: string): string {
 }
 
 async function fetchWithRetry(apiKey: string, body: string): Promise<Response> {
-  let response: Response | undefined;
-  // A second attempt is enough for transient 429/5xx responses. More retries
-  // multiply Web Search charges when a provider is already rate-limited.
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    response = await fetch(endpoint, {
-      method: "POST",
-      signal: AbortSignal.timeout(45_000),
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body,
-    });
-    // 429 means the account/provider rate limit was reached. Retrying here
-    // only creates another billable request and can prolong the lockout.
-    if (response.ok || response.status === 429 || response.status < 500) return response;
-    if (attempt < 2) await wait(retryDelay(attempt, response));
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        signal: AbortSignal.timeout(45_000),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+    } catch (error) {
+      if (attempt >= MAX_ATTEMPTS) throw networkRequestError(error);
+      await wait(retryDelay(attempt) ?? DEFAULT_RETRY_DELAY_MS);
+      continue;
+    }
+
+    if (response.ok) return response;
+
+    const metadata = await readOpenAIErrorMetadata(response);
+    const error = new OpenAINewsRequestError(response.status, metadata);
+    if (attempt >= MAX_ATTEMPTS || !shouldRetry(response.status, metadata)) {
+      throw error;
+    }
+
+    const delay = retryDelay(attempt, metadata.retryAfterMs);
+    // Retry-After is a minimum. If it does not fit this request's bounded
+    // retry budget, fail now and let a later scheduled refresh try again.
+    if (delay === undefined) throw error;
+    await wait(delay);
   }
-  return response!;
+  throw new Error("OPENAI_NEWS_REQUEST_FAILED");
 }
 
-function retryDelay(attempt: number, response: Response): number {
-  const retryAfter = Number(response.headers.get("retry-after"));
-  if (Number.isFinite(retryAfter) && retryAfter > 0) {
-    return Math.min(retryAfter * 1_000, 30_000);
+type OpenAIErrorMetadata = {
+  errorCode?: string;
+  errorType?: string;
+  retryAfterMs?: number;
+  requestID?: string;
+};
+
+class OpenAINewsRequestError extends Error {
+  readonly status: number;
+  readonly errorCode?: string;
+  readonly errorType?: string;
+  readonly retryAfterMs?: number;
+  readonly requestID?: string;
+
+  constructor(status: number, metadata: OpenAIErrorMetadata) {
+    const details = [
+      `OPENAI_NEWS_REQUEST_FAILED_${status}`,
+      ...(metadata.errorCode ? [`CODE_${metadata.errorCode}`] : []),
+      ...(metadata.errorType ? [`TYPE_${metadata.errorType}`] : []),
+      ...(metadata.retryAfterMs === undefined ? [] : [`RETRY_AFTER_MS_${metadata.retryAfterMs}`]),
+      ...(metadata.requestID ? [`REQUEST_ID_${metadata.requestID}`] : []),
+    ];
+    super(details.join("_"));
+    this.name = "OpenAINewsRequestError";
+    this.status = status;
+    this.errorCode = metadata.errorCode;
+    this.errorType = metadata.errorType;
+    this.retryAfterMs = metadata.retryAfterMs;
+    this.requestID = metadata.requestID;
   }
-  return 3_000 * (2 ** (attempt - 1));
+}
+
+async function readOpenAIErrorMetadata(response: Response): Promise<OpenAIErrorMetadata> {
+  let errorCode: string | undefined;
+  let errorType: string | undefined;
+  try {
+    const payload = await response.json() as { error?: { code?: unknown; type?: unknown } };
+    errorCode = safeErrorValue(payload.error?.code);
+    errorType = safeErrorValue(payload.error?.type);
+  } catch {
+    // Status and safe response headers still provide useful diagnostics.
+  }
+  return {
+    errorCode,
+    errorType,
+    retryAfterMs: retryAfterMilliseconds(response),
+    requestID: safeErrorValue(response.headers.get("x-request-id")),
+  };
+}
+
+function shouldRetry(status: number, metadata: OpenAIErrorMetadata): boolean {
+  if (status >= 500 || status === 408) return true;
+  if (status !== 429 || isQuotaOrBillingError(metadata)) return false;
+  const values = [metadata.errorCode, metadata.errorType].filter((value): value is string => Boolean(value));
+  return metadata.retryAfterMs !== undefined || values.some((value) => value.toLowerCase().includes("rate_limit"));
+}
+
+function isQuotaOrBillingError(metadata: OpenAIErrorMetadata): boolean {
+  const values = [metadata.errorCode, metadata.errorType]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+  return values.some((value) =>
+    value.includes("quota")
+    || value.includes("credit")
+    || value.includes("spend_limit")
+    || value.includes("usage_limit")
+    || value.includes("billing"),
+  );
+}
+
+function retryDelay(attempt: number, retryAfterMs?: number): number | undefined {
+  const minimumDelay = retryAfterMs ?? DEFAULT_RETRY_DELAY_MS * (2 ** (attempt - 1));
+  if (minimumDelay > MAX_TOTAL_RETRY_DELAY_MS) return undefined;
+  const jitterBudget = Math.min(MAX_RETRY_JITTER_MS, MAX_TOTAL_RETRY_DELAY_MS - minimumDelay);
+  const jitter = Math.floor(Math.random() * (jitterBudget + 1));
+  return minimumDelay + jitter;
+}
+
+function retryAfterMilliseconds(response: Response): number | undefined {
+  const value = response.headers.get("retry-after")?.trim();
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(Math.round(seconds * 1_000), 24 * 60 * 60 * 1_000);
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return undefined;
+  return Math.min(Math.max(0, timestamp - Date.now()), 24 * 60 * 60 * 1_000);
+}
+
+function safeErrorValue(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const sanitized = value.trim().replace(/[^A-Za-z0-9_-]/gu, "_").replace(/_+/gu, "_").slice(0, 80);
+  return sanitized || undefined;
+}
+
+function networkRequestError(error: unknown): Error {
+  const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+  const result = new Error(timeout ? "OPENAI_NEWS_REQUEST_TIMEOUT" : "OPENAI_NEWS_REQUEST_NETWORK_ERROR");
+  result.name = timeout && error instanceof Error ? error.name : "OpenAINewsNetworkError";
+  return result;
 }
 
 function wait(milliseconds: number): Promise<void> {

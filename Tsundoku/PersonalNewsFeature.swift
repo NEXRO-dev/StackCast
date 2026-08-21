@@ -130,6 +130,7 @@ private struct FeedResponse: Decodable {
     let generatedAt: String?
     let refreshing: Bool?
     let refreshRequestID: String?
+    let refreshError: String?
     let items: [RecommendedNewsItem]
     let dailyCast: DailyCast
 }
@@ -168,6 +169,9 @@ final class RecommendationStore {
     private(set) var memoryItems: [RecommendationMemoryItem] = []
     private(set) var editionDate = ""
     private(set) var generatedAt: String?
+    private(set) var feedStatus = ""
+    private(set) var isFallback = false
+    private(set) var refreshError: String?
     private(set) var feedID = ""
     private(set) var dailyCastStatus = "disabled"
     private(set) var dailyCastID: String?
@@ -179,6 +183,7 @@ final class RecommendationStore {
     private var recordedImpressionFeedIDs: Set<String> = []
     private var activeLoadTask: Task<Void, Never>?
     private var hasAttemptedInitialLoad = false
+    private var lastFeedRefreshAt: Date?
 
     var requiresSetup: Bool { profile != nil && (profile?.topics.count ?? 0) < 3 }
 
@@ -191,6 +196,37 @@ final class RecommendationStore {
         await runLoad(token: token)
     }
 
+    func refreshOnForeground(token: String?) async {
+        guard !isDebugRefreshing else { return }
+        if !hasAttemptedInitialLoad {
+            await load(token: token)
+            return
+        }
+        let now = Date.now
+        if let lastFeedRefreshAt,
+           now.timeIntervalSince(lastFeedRefreshAt) < 10 {
+            return
+        }
+        lastFeedRefreshAt = now
+
+        guard let token else {
+            errorMessage = "ログイン情報を確認できませんでした。もう一度ログインしてください。"
+            return
+        }
+        if let activeLoadTask {
+            await activeLoadTask.value
+            return
+        }
+
+        let task = Task<Void, Never> { [weak self] in
+            guard let self else { return }
+            await self.performFeedRefresh(token: token)
+        }
+        activeLoadTask = task
+        await task.value
+        activeLoadTask = nil
+    }
+
     #if DEBUG
     func debugRefresh(token: String?) async {
         guard !Config.isProduction, let token else { return }
@@ -201,6 +237,7 @@ final class RecommendationStore {
         isLoading = true
         isDebugRefreshing = true
         errorMessage = nil
+        refreshError = nil
         defer {
             isLoading = false
             isDebugRefreshing = false
@@ -208,33 +245,35 @@ final class RecommendationStore {
         }
         do {
             let feed = try await client.debugRefresh(token: token)
-            items = feed.items
-            feedID = feed.feedId
-            editionDate = feed.editionDate
-            generatedAt = feed.generatedAt
-            dailyCastStatus = feed.dailyCast.status
-            dailyCastID = feed.dailyCast.castId
+            apply(feed)
             await recordImpressionsIfNeeded(token: token)
             if feed.refreshing == true, let requestID = feed.refreshRequestID {
+                var reachedTerminalStatus = false
                 for _ in 0..<24 {
                     try? await Task.sleep(nanoseconds: 5_000_000_000)
                     let status = try? await client.debugRefreshStatus(token: token, requestID: requestID)
                     if status?.status == "completed" {
-                        if let latest = try? await client.feed(token: token) {
-                            items = latest.items
-                            feedID = latest.feedId
-                            editionDate = latest.editionDate
-                            generatedAt = latest.generatedAt
-                            dailyCastStatus = latest.dailyCast.status
-                            dailyCastID = latest.dailyCast.castId
+                        do {
+                            let latest = try await client.feed(token: token)
+                            apply(latest)
                             await recordImpressionsIfNeeded(token: token)
+                        } catch {
+                            refreshError = "feed_reload_failed"
+                            errorMessage = error.localizedDescription
                         }
+                        reachedTerminalStatus = true
                         break
                     }
                     if status?.status == "failed" {
+                        refreshError = status?.error ?? "provider_unavailable"
                         errorMessage = "ニュースの更新に失敗しました。保存済みのニュースを表示しています。"
+                        reachedTerminalStatus = true
                         break
                     }
+                }
+                if !reachedTerminalStatus {
+                    refreshError = "refresh_timeout"
+                    errorMessage = "ニュースの更新状況を確認できませんでした。保存済みのニュースを表示しています。"
                 }
             }
         } catch is CancellationError {
@@ -270,6 +309,7 @@ final class RecommendationStore {
     private func performLoad(token: String) async {
         isLoading = true
         errorMessage = nil
+        refreshError = nil
         defer {
             isLoading = false
             hasAttemptedInitialLoad = true
@@ -287,12 +327,7 @@ final class RecommendationStore {
             try? await client.syncTimeZone(token: token)
             let feed = try await loadedFeed
             memoryItems = try await loadedMemory
-            items = feed.items
-            feedID = feed.feedId
-            editionDate = feed.editionDate
-            generatedAt = feed.generatedAt
-            dailyCastStatus = feed.dailyCast.status
-            dailyCastID = feed.dailyCast.castId
+            apply(feed)
             await recordImpressionsIfNeeded(token: token)
         } catch is CancellationError {
             return
@@ -301,6 +336,38 @@ final class RecommendationStore {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func performFeedRefresh(token: String) async {
+        isLoading = true
+        errorMessage = nil
+        refreshError = nil
+        defer { isLoading = false }
+        do {
+            let feed = try await client.feed(token: token)
+            apply(feed)
+            await recordImpressionsIfNeeded(token: token)
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func apply(_ feed: FeedResponse) {
+        errorMessage = nil
+        lastFeedRefreshAt = .now
+        items = feed.items
+        feedID = feed.feedId
+        editionDate = feed.editionDate
+        generatedAt = feed.generatedAt
+        feedStatus = feed.status
+        isFallback = feed.isFallback || feed.status == "fallback"
+        refreshError = feed.refreshError
+        dailyCastStatus = feed.dailyCast.status
+        dailyCastID = feed.dailyCast.castId
     }
 
     func saveProfile(
@@ -328,12 +395,7 @@ final class RecommendationStore {
         )
         do {
             let feed = try await client.feed(token: token)
-            items = feed.items
-            feedID = feed.feedId
-            editionDate = feed.editionDate
-            generatedAt = feed.generatedAt
-            dailyCastStatus = feed.dailyCast.status
-            dailyCastID = feed.dailyCast.castId
+            apply(feed)
             await recordImpressionsIfNeeded(token: token)
         } catch {
             // Profile persistence already succeeded. Refreshing today's feed can retry later.
@@ -407,7 +469,7 @@ private struct RecommendationClient {
 
     #if DEBUG
     func debugRefresh(token: String) async throws -> FeedResponse {
-        try await send(path: "recommendations/debug/refresh", method: "POST", token: token, timeoutInterval: 120)
+        try await send(path: "recommendations/debug/refresh", method: "POST", token: token, timeoutInterval: 180)
     }
 
     func debugRefreshStatus(token: String, requestID: String) async throws -> DebugRefreshStatusResponse {
@@ -533,6 +595,63 @@ private struct TimeZoneResponse: Decodable {
     let timeZone: String
 }
 
+private struct PersonalNewsRefreshBanner: View {
+    let language: AppLanguage
+    let message: String
+
+    private var isEnglish: Bool { language == .english }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                .font(.headline)
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(isEnglish ? "Showing saved news" : "保存済みのニュースを表示中")
+                    .font(.subheadline.weight(.semibold))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(.orange.opacity(0.22), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+@MainActor
+private func personalNewsRefreshMessage(store: RecommendationStore, language: AppLanguage) -> String? {
+    let isEnglish = language == .english
+    if let refreshError = store.refreshError?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !refreshError.isEmpty {
+        let normalized = refreshError.lowercased()
+        if normalized.contains("provider") ||
+            normalized.contains("gdelt") ||
+            normalized.contains("openai") ||
+            normalized.contains("429") {
+            return isEnglish
+                ? "News providers are temporarily unavailable. Please try again later."
+                : "ニュース提供元が一時的に利用できません。時間をおいて再度お試しください。"
+        }
+        if normalized.contains("timeout") || normalized.contains("unknown") {
+            return isEnglish
+                ? "The refresh status could not be confirmed. Please try again later."
+                : "更新状況を確認できませんでした。時間をおいて再度お試しください。"
+        }
+        return isEnglish
+            ? "The latest refresh failed. Please try again later."
+            : "最新ニュースの更新に失敗しました。時間をおいて再度お試しください。"
+    }
+    return store.errorMessage
+}
+
 struct PersonalNewsHomeView: View {
     let authStore: AuthStore
     let articleLibrary: ArticleLibrary
@@ -540,6 +659,7 @@ struct PersonalNewsHomeView: View {
     let language: AppLanguage
     let store: RecommendationStore
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var browserDestination: InAppBrowserDestination?
     @State private var showsSetup = false
     @State private var openedArticleID: String?
@@ -547,6 +667,20 @@ struct PersonalNewsHomeView: View {
     @State private var openedAt: Date?
 
     private var isEnglish: Bool { language == .english }
+    private var isPreviousEdition: Bool {
+        store.isFallback
+            || (!store.editionDate.isEmpty && store.editionDate != Self.editionDateFormatter.string(from: .now))
+    }
+    private var editionEyebrow: String {
+        if store.isFallback { return isEnglish ? "FALLBACK EDITION" : "代替版" }
+        if isPreviousEdition { return isEnglish ? "PREVIOUS EDITION" : "前回の5件" }
+        return isEnglish ? "TODAY'S FIVE" : "今日の5件"
+    }
+    private var editionTitle: String {
+        if store.isFallback { return isEnglish ? "Saved news available" : "保存済みのニュース" }
+        if isPreviousEdition { return isEnglish ? "Previously saved news" : "前回取得したニュース" }
+        return isEnglish ? "News picked for you" : "あなたに合わせたニュース"
+    }
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 18) {
@@ -554,6 +688,10 @@ struct PersonalNewsHomeView: View {
             #if DEBUG
             debugRefreshButton
             #endif
+            if !store.items.isEmpty,
+               let message = personalNewsRefreshMessage(store: store, language: language) {
+                PersonalNewsRefreshBanner(language: language, message: message)
+            }
             dailyCastBanner
             feedContent
         }
@@ -562,6 +700,12 @@ struct PersonalNewsHomeView: View {
             showsSetup = store.requiresSetup
         }
         .onChange(of: store.requiresSetup) { _, required in showsSetup = required }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await store.refreshOnForeground(token: authStore.sessionToken())
+            }
+        }
         .sheet(item: $browserDestination, onDismiss: recordDwell) { destination in
             InAppBrowserView(url: destination.url).ignoresSafeArea()
         }
@@ -595,17 +739,31 @@ struct PersonalNewsHomeView: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(isEnglish ? "TODAY'S FIVE" : "今日の5件")
+                Text(editionEyebrow)
                     .font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(.indigo)
-                Text(isEnglish ? "News picked for you" : "あなたに合わせたニュース")
+                Text(editionTitle)
                     .font(.largeTitle.bold())
             }
 
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 3) {
+                if isPreviousEdition {
+                    Label(
+                        store.isFallback
+                            ? (isEnglish ? "Fallback feed" : "代替版を表示")
+                            : (isEnglish ? "Previous edition" : "前回分を表示"),
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
                 if let generatedAt = store.generatedAt, let date = Self.serverDateFormatter.date(from: generatedAt) {
-                    Text("\(Self.timeFormatter.string(from: date)) 更新")
+                    Text(
+                        isEnglish
+                            ? "Updated \(Self.dateTimeFormatter.string(from: date))"
+                            : "\(Self.dateTimeFormatter.string(from: date)) 更新"
+                    )
                 } else {
                     Text(isEnglish ? "Not updated yet" : "未更新")
                 }
@@ -623,11 +781,20 @@ struct PersonalNewsHomeView: View {
         return formatter
     }()
 
-    private static let timeFormatter: DateFormatter = {
+    private static let dateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
-        formatter.dateFormat = "H:mm"
+        formatter.dateFormat = "M/d H:mm"
+        return formatter
+    }()
+
+    private static let editionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
 
@@ -689,7 +856,8 @@ struct PersonalNewsHomeView: View {
     private var feedContent: some View {
         if store.isLoading && store.items.isEmpty {
             ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
-        } else if let errorMessage = store.errorMessage, store.items.isEmpty {
+        } else if store.items.isEmpty,
+                  let errorMessage = personalNewsRefreshMessage(store: store, language: language) {
             ContentUnavailableView {
                 Label(
                     isEnglish ? "Could Not Load News" : "ニュースを読み込めませんでした",
@@ -830,10 +998,17 @@ struct PersonalNewsHomePreview: View {
     let language: AppLanguage
     let store: RecommendationStore
 
+    @Environment(\.scenePhase) private var scenePhase
+
     private var isEnglish: Bool { language == .english }
 
     var body: some View {
-        Group {
+        VStack(spacing: 10) {
+            if !store.items.isEmpty,
+               let message = personalNewsRefreshMessage(store: store, language: language) {
+                PersonalNewsRefreshBanner(language: language, message: message)
+                    .padding(.horizontal, 12)
+            }
             if store.isLoading && store.items.isEmpty {
                 HStack {
                     Spacer()
@@ -841,7 +1016,8 @@ struct PersonalNewsHomePreview: View {
                     Spacer()
                 }
                 .padding(.vertical, 24)
-            } else if store.errorMessage != nil && store.items.isEmpty {
+            } else if store.items.isEmpty,
+                      personalNewsRefreshMessage(store: store, language: language) != nil {
                 Button {
                     Task {
                         await store.refresh(token: authStore.sessionToken())
@@ -963,6 +1139,12 @@ struct PersonalNewsHomePreview: View {
         .task {
             if store.items.isEmpty {
                 await store.load(token: authStore.sessionToken())
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await store.refreshOnForeground(token: authStore.sessionToken())
             }
         }
     }

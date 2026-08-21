@@ -79,7 +79,7 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 
 ## Personal News / Daily Cast
 
-毎日1:00（日本時間）の処理は `vercel.json` から `GET /api/internal/news/daily` を呼び出します。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
+`vercel.json` は毎時 `GET /api/internal/news/daily` を呼び出し、各ユーザーの保存タイムゾーンで1:00〜3:59を日次処理の再試行枠として扱います。取得に成功した記事が直近6時間に5件以上あれば重複取得を抑止し、Providerが利用できない場合も30日間の共通キャッシュからfallback版を作ります。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
 
 主な環境変数:
 
@@ -87,6 +87,8 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 - `PERSONAL_NEWS_ENABLED`: `false` でPersonal News APIと日次処理を停止（既定 `true`）
 - `DAILY_NEWS_EDITION_ENABLED`: `false` で日次候補取得・版生成を停止（既定 `true`）
 - `GDELT_PROVIDER_ENABLED`: `false` でGDELT取得を停止（既定 `true`）
+- `OPENAI_NEWS_FALLBACK_ENABLED`: `false` でGDELT不足時のOpenAI Web Searchを停止（既定 `true`）
+- `DEBUG_DAILY_NEWS_ENABLED`: 本番でデバッグ更新APIを明示的に有効化する場合のみ `true`（既定は本番無効）
 - `RECOMMENDATION_MEMORY_ENABLED`: `false` で行動イベントからのメモリ学習を停止（既定 `true`）
 - `DAILY_CAST_ENABLED`: `false` で自動Castのキュー投入・実行を停止（既定 `true`）
 - `DAILY_CAST_INLINE_LIMIT`: 1回のcron内で処理する自動Cast数。`0...3`（既定 `3`）

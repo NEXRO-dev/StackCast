@@ -1,7 +1,16 @@
 import { enqueueEligibleDailyCasts, processNextDailyCast } from "@/lib/daily-news/cast-queue";
 import { featureEnabled } from "@/lib/feature-flags";
-import { refreshSharedNewsPool } from "@/lib/news/refresh";
-import { buildDailyEditionsForUsers, dueDailyEditionTargets } from "@/lib/recommendations/daily-edition";
+import {
+  newsRefreshBuildDecision,
+  newsRefreshProviderUnavailable,
+  refreshSharedNewsPool,
+  type NewsRefreshResult,
+} from "@/lib/news/refresh";
+import {
+  buildDailyEditionsForUsers,
+  dueDailyEditionTargets,
+  type DailyEditionTarget,
+} from "@/lib/recommendations/daily-edition";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -28,44 +37,67 @@ export async function GET(request: Request) {
       console.info("[daily-news] cron request skipped", { requestID, reason: "no_users_due" });
       return Response.json({ success: true, skipped: "no_users_due" });
     }
-    const localeGroups = new Map<string, { language: "japanese" | "english"; sourceCountry: string; topicIDs: Set<string> }>();
+    const localeGroups = new Map<string, {
+      language: "japanese" | "english";
+      sourceCountry: string;
+      topicIDs: Set<string>;
+      targets: DailyEditionTarget[];
+    }>();
     for (const target of targets) {
       const key = `${target.language}:${target.sourceCountry}`;
       const group = localeGroups.get(key) ?? {
         language: target.language,
         sourceCountry: target.sourceCountry,
         topicIDs: new Set<string>(),
+        targets: [],
       };
       for (const topicID of target.topicIDs) group.topicIDs.add(topicID);
+      group.targets.push(target);
       localeGroups.set(key, group);
     }
-    const providerResults = [];
-    for (const group of localeGroups.values()) {
-      providerResults.push(await refreshSharedNewsPool({
+
+    const providerResults: NewsRefreshResult[] = [];
+    let providerUnavailable = false;
+    let editions = { users: 0, ready: 0, failed: 0 };
+    for (const [localeKey, group] of localeGroups) {
+      const providerResult = await refreshSharedNewsPool({
         language: group.language,
         sourceCountry: group.sourceCountry,
         topicIDs: [...group.topicIDs],
-      }));
+      });
+      providerResults.push(providerResult);
+      const unavailableForGroup = newsRefreshProviderUnavailable(providerResult);
+      providerUnavailable ||= unavailableForGroup;
+      if (unavailableForGroup) {
+        console.warn("[daily-news] providers unavailable; rebuilding editions from cache", {
+          requestID,
+          localeKey,
+          failureCount: providerResult.failures.length,
+          targetCount: group.targets.length,
+        });
+      }
+      const groupEditions = await buildDailyEditionsForUsers(
+        group.targets,
+        newsRefreshBuildDecision(providerResult),
+      );
+      editions = {
+        users: editions.users + groupEditions.users,
+        ready: editions.ready + groupEditions.ready,
+        failed: editions.failed + groupEditions.failed,
+      };
     }
     const provider = providerResults.reduce((summary, result) => ({
       topics: summary.topics + result.topics,
       fetched: summary.fetched + result.fetched,
       stored: summary.stored + result.stored,
       failures: [...summary.failures, ...result.failures],
-    }), { topics: 0, fetched: 0, stored: 0, failures: [] as string[] });
-    if (provider.fetched === 0 && provider.stored === 0 && provider.failures.length > 0) {
-      console.warn("[daily-news] cron request skipped", {
-        requestID,
-        reason: "provider_unavailable",
-        failureCount: provider.failures.length,
-      });
-      return Response.json({ success: false, error: "provider_unavailable", provider }, { status: 503 });
-    }
-    const editions = await buildDailyEditionsForUsers(targets);
+      cooldown: summary.cooldown && result.cooldown,
+    }), { topics: 0, fetched: 0, stored: 0, failures: [] as string[], cooldown: providerResults.length > 0 });
     console.info("[daily-news] editions built", {
       requestID,
       targetCount: targets.length,
       timeZones: [...new Set(targets.map((target) => target.timeZone))],
+      providerUnavailable,
       ...editions,
     });
     const dailyCastEnabled = featureEnabled("DAILY_CAST_ENABLED");
@@ -83,10 +115,11 @@ export async function GET(request: Request) {
       if (!result.processed) break;
       processed.push(result);
     }
-    const result = { success: true, provider, editions, queue: queueSummary, processed };
+    const result = { success: true, providerUnavailable, provider, editions, queue: queueSummary, processed };
     console.info("[daily-news] cron request completed", {
       requestID,
       provider: { topics: provider.topics, fetched: provider.fetched, stored: provider.stored, failures: provider.failures.length, localeGroups: localeGroups.size },
+      providerUnavailable,
       editions,
       queue: queueSummary,
       processed: processed.length,
