@@ -111,7 +111,13 @@ test("OpenAI transient 429 retries once and caps multi-topic web searches", asyn
           headers: { "content-type": "application/json", "retry-after": "0" },
         });
       }
-      return successfulOpenAIResponse();
+      return successfulOpenAIResponse([
+        { topicID: "topic-1", url: "https://example.com/a", title: "A", description: "A", publishedAt: "2026-08-21T00:00:00Z" },
+        { topicID: "topic-2", url: "https://example.com/b", title: "B", description: "B", publishedAt: "2026-08-21T00:00:00Z" },
+        { topicID: "topic-3", url: "https://example.com/c", title: "C", description: "C", publishedAt: "2026-08-21T00:00:00Z" },
+        { topicID: "topic-4", url: "https://example.com/d", title: "D", description: "D", publishedAt: "2026-08-21T00:00:00Z" },
+        { topicID: "topic-1", url: "https://example.com/e", title: "E", description: "E", publishedAt: "2026-08-21T00:00:00Z" },
+      ]);
     }, async () => {
       const articles = await new OpenAIWebSearchProvider().searchTopics([
         input,
@@ -119,12 +125,50 @@ test("OpenAI transient 429 retries once and caps multi-topic web searches", asyn
         { ...input, topicID: "topic-3" },
         { ...input, topicID: "topic-4" },
       ]);
-      assert.deepEqual(articles, []);
+      assert.equal(articles.length, 5);
     });
   });
 
   assert.equal(calls, 2);
   assert.deepEqual(requestBodies.map((body) => body.max_tool_calls), [3, 3]);
+});
+
+test("OpenAI multi-topic fallback fills underfilled results with topic searches", async () => {
+  let calls = 0;
+  const requestBodies: Record<string, unknown>[] = [];
+
+  await withOpenAIKey(async () => {
+    await withFetchMock(async (_request, init) => {
+      calls += 1;
+      requestBodies.push(parseRequestBody(init));
+      if (calls === 1) {
+        return successfulOpenAIResponse([
+          { topicID: "topic-1", url: "https://example.com/a?utm_source=test", title: "A", description: "A", publishedAt: "2026-08-21T00:00:00Z" },
+        ]);
+      }
+      return successfulOpenAIResponse([
+        { url: `https://example.com/${calls}`, title: `Article ${calls}`, description: "More news", publishedAt: "2026-08-21T00:00:00Z" },
+        { url: "https://example.com/a", title: "Duplicate", description: "Duplicate", publishedAt: "2026-08-21T00:00:00Z" },
+      ]);
+    }, async () => {
+      const articles = await new OpenAIWebSearchProvider().searchTopics([
+        { ...input, topicID: "topic-1", limit: 5 },
+        { ...input, topicID: "topic-2", limit: 5 },
+        { ...input, topicID: "topic-3", limit: 5 },
+      ]);
+      assert.equal(articles.length, 4);
+      assert.deepEqual(articles.map((article) => article.topicID), ["topic-1", "topic-1", "topic-2", "topic-3"]);
+      assert.deepEqual(articles.map((article) => article.url), [
+        "https://example.com/a?utm_source=test",
+        "https://example.com/2",
+        "https://example.com/3",
+        "https://example.com/4",
+      ]);
+    });
+  });
+
+  assert.equal(calls, 4);
+  assert.deepEqual(requestBodies.map((body) => body.max_tool_calls), [3, 1, 1, 1]);
 });
 
 test("OpenAI 5xx responses are retried at most once", async () => {
@@ -207,12 +251,12 @@ function parseRequestBody(init?: RequestInit): Record<string, unknown> {
   return JSON.parse(body) as Record<string, unknown>;
 }
 
-function successfulOpenAIResponse(): Response {
+function successfulOpenAIResponse(articles: Array<Record<string, string>> = []): Response {
   return new Response(JSON.stringify({
     id: "resp_test",
     output: [{
       type: "message",
-      content: [{ type: "output_text", text: JSON.stringify({ articles: [] }) }],
+      content: [{ type: "output_text", text: JSON.stringify({ articles }) }],
     }],
   }), {
     status: 200,

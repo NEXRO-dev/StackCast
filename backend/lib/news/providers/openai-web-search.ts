@@ -84,23 +84,59 @@ export class OpenAIWebSearchProvider implements NewsProvider {
     if (!first) return [];
     const apiKey = requiredEnvironmentVariable("OPENAI_API_KEY");
     const limit = Math.min(Math.max(inputs.reduce((total, input) => total + (input.limit ?? 5), 0), 1), 5);
+    const validTopicIDs = new Set(inputs.map((input) => input.topicID));
+    const articles: NewsCandidate[] = [];
     const prompt = buildMultiTopicNewsWebSearchPrompt(
       first.language ?? "japanese",
       inputs.map((input) => ({ id: input.topicID, query: input.query })),
       first.sourceCountry,
       limit,
     );
-    const response = await fetchWithRetry(
-      apiKey,
-      requestBody(
-        prompt,
-        countryCodeFor(first.sourceCountry),
-        true,
-        Math.min(Math.max(inputs.length, 1), 3),
-      ),
-    );
-    const payload = await response.json() as OpenAIResponse;
-    return parseArticles(payload, first, limit, new Set(inputs.map((input) => input.topicID)));
+    let firstError: unknown;
+    try {
+      const response = await fetchWithRetry(
+        apiKey,
+        requestBody(
+          prompt,
+          countryCodeFor(first.sourceCountry),
+          true,
+          Math.min(Math.max(inputs.length, 1), 3),
+        ),
+      );
+      const payload = await response.json() as OpenAIResponse;
+      addUniqueArticles(articles, parseArticles(payload, first, limit, validTopicIDs), limit);
+    } catch (error) {
+      firstError = error;
+    }
+
+    for (const input of inputs) {
+      if (articles.length >= limit) break;
+      const topicHasArticle = articles.some((article) => article.topicID === input.topicID);
+      const topicLimit = Math.min(Math.max(limit - articles.length, topicHasArticle ? 1 : 2), 5);
+      try {
+        const response = await fetchWithRetry(
+          apiKey,
+          requestBody(
+            buildNewsWebSearchPrompt(input.language ?? first.language ?? "japanese", input.query, input.sourceCountry ?? first.sourceCountry, topicLimit),
+            countryCodeFor(input.sourceCountry ?? first.sourceCountry),
+            false,
+            1,
+          ),
+        );
+        const payload = await response.json() as OpenAIResponse;
+        addUniqueArticles(articles, parseArticles(payload, input, topicLimit), limit);
+      } catch (error) {
+        if (articles.length === 0 && !firstError) firstError = error;
+        console.warn("[daily-news] openai topic fallback failed", {
+          topicID: input.topicID,
+          ...errorDetails(error),
+        });
+      }
+    }
+
+    if (articles.length > 0) return articles;
+    if (firstError) throw firstError;
+    return [];
   }
 }
 
@@ -155,6 +191,37 @@ function parseArticles(
         topicID: validTopicIDs?.has(article.topicID ?? "") ? article.topicID : input.topicID } satisfies NewsCandidate];
     } catch { return []; }
   });
+}
+
+function addUniqueArticles(target: NewsCandidate[], candidates: NewsCandidate[], limit: number): void {
+  const seen = new Set(target.map((article) => canonicalArticleKey(article)));
+  for (const candidate of candidates) {
+    if (target.length >= limit) break;
+    const key = canonicalArticleKey(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    target.push(candidate);
+  }
+}
+
+function canonicalArticleKey(article: NewsCandidate): string {
+  try {
+    const url = new URL(article.url);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(utm_|fbclid$|gclid$|yclid$|igshid$)/iu.test(key)) {
+        url.searchParams.delete(key);
+      }
+    }
+    return url.toString().toLowerCase();
+  } catch {
+    return article.url.trim().toLowerCase();
+  }
+}
+
+function errorDetails(error: unknown): { name: string; message: string } {
+  if (!(error instanceof Error)) return { name: "UnknownError", message: String(error) };
+  return { name: error.name, message: error.message };
 }
 
 function parsePublishedAt(value?: string): string {
