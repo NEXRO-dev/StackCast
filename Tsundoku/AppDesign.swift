@@ -6,6 +6,8 @@
 import SwiftUI
 import SafariServices
 
+let castDefaultDurationKey = "castDefaultDuration"
+
 enum AppLanguage: String, CaseIterable, Identifiable {
     static let storageKey = "appLanguage"
 

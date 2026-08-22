@@ -127,6 +127,6 @@ export async function processNextDailyCast(): Promise<{ processed: boolean; jobI
   }
 }
 
-function normalizeDuration(value?: number): 5 | 10 | 15 | 20 {
-  return value === 10 || value === 15 || value === 20 ? value : 5;
+function normalizeDuration(value?: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 5 && value <= 20 ? value : 5;
 }

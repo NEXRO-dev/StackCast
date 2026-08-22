@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS user_recommendation_profiles (
   gender TEXT,
   personalization_enabled INTEGER NOT NULL DEFAULT 1 CHECK (personalization_enabled IN (0, 1)),
   daily_auto_cast_enabled INTEGER NOT NULL DEFAULT 0 CHECK (daily_auto_cast_enabled IN (0, 1)),
-  daily_cast_duration_minutes INTEGER NOT NULL DEFAULT 5 CHECK (daily_cast_duration_minutes IN (5, 10, 15, 20)),
+  daily_cast_duration_minutes INTEGER NOT NULL DEFAULT 5 CHECK (daily_cast_duration_minutes BETWEEN 5 AND 20),
   ai_processing_consent_at TEXT,
   onboarding_completed_at TEXT,
   memory_version INTEGER NOT NULL DEFAULT 1,

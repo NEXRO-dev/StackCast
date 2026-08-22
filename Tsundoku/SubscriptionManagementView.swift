@@ -617,7 +617,7 @@ private struct SubscriptionCopy {
             let castLimit = period == .monthly ? "Cast creation: up to 200/month" : "Cast creation: up to 2,400/year"
             let stockLimit = period == .monthly ? "URL stock: up to 70/month" : "URL stock: up to 700/year"
             return [
-                "Cast duration: 5, 10, 15, or 20 minutes",
+                "Cast duration: 5 to 20 minutes",
                 castLimit,
                 stockLimit,
                 "Offline playback",
@@ -628,7 +628,7 @@ private struct SubscriptionCopy {
         let castLimit = period == .monthly ? "Cast作成：月200本まで" : "Cast作成：年2,400本まで"
         let stockLimit = period == .monthly ? "URLストック：月70件まで" : "URLストック：年700件まで"
         return [
-            "Cast時間：5・10・15・20分から設定",
+            "Cast時間：5〜20分から設定",
             castLimit,
             stockLimit,
             "オフライン再生",

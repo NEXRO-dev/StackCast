@@ -12,7 +12,7 @@ struct SettingsViewEN: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.english.rawValue
     @AppStorage(AppAppearance.storageKey) private var appAppearance = AppAppearance.system.rawValue
     @State private var notificationsEnabled = true
-    @State private var defaultDuration = 10
+    @AppStorage(castDefaultDurationKey) private var defaultDuration = 10
     @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
     @State private var isShowingSubscription = false
     @State private var isShowingAIDataUse = false
@@ -135,7 +135,7 @@ struct SettingsViewEN: View {
     private var playbackSection: some View {
         Section("Cast") {
             Picker("Default Duration", selection: $defaultDuration) {
-                ForEach([5, 10, 15, 20], id: \.self) { duration in
+                ForEach(Array(5...20), id: \.self) { duration in
                     Text("\(duration) min").tag(duration)
                 }
             }

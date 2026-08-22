@@ -9,6 +9,7 @@ struct HomeViewEN: View {
     let authStore: AuthStore
     let articleLibrary: ArticleLibrary
     let subscriptionStore: SubscriptionStore
+    @AppStorage(castDefaultDurationKey) private var defaultDuration = 10
     @AppStorage("customDigestDuration") private var customDuration = 20
     @State private var selectedDuration = 10
     @State private var durationSelection = 10
@@ -63,8 +64,10 @@ struct HomeViewEN: View {
                     .ignoresSafeArea()
             }
             .task {
+                applyDefaultDuration()
                 await peerTrendsStore.load(token: authStore.sessionToken())
             }
+            .onChange(of: defaultDuration) { _, _ in applyDefaultDuration() }
         }
     }
 
@@ -180,6 +183,17 @@ struct HomeViewEN: View {
                     selectedDuration = selection == -1 ? customDuration : selection
                 }
             }
+        }
+    }
+
+    private func applyDefaultDuration() {
+        let duration = subscriptionStore.isPro ? min(20, max(5, defaultDuration)) : 10
+        selectedDuration = duration
+        if durations.contains(duration) {
+            durationSelection = duration
+        } else {
+            customDuration = duration
+            durationSelection = -1
         }
     }
 

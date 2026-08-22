@@ -332,7 +332,7 @@ struct SettingsView: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.japanese.rawValue
     @AppStorage(AppAppearance.storageKey) private var appAppearance = AppAppearance.system.rawValue
     @State private var notificationsEnabled = true
-    @State private var defaultDuration = 10
+    @AppStorage(castDefaultDurationKey) private var defaultDuration = 10
     @AppStorage(castPlaybackRateKey) private var defaultSpeed = 1.0
     @State private var isShowingSubscription = false
     @State private var isShowingAIDataUse = false
@@ -458,7 +458,7 @@ struct SettingsView: View {
     private var playbackSection: some View {
         Section("Cast") {
             Picker("既定の時間", selection: $defaultDuration) {
-                ForEach([5, 10, 15, 20], id: \.self) { duration in
+                ForEach(Array(5...20), id: \.self) { duration in
                     Text("\(duration)分").tag(duration)
                 }
             }

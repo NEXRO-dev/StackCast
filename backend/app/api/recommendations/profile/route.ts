@@ -136,7 +136,7 @@ async function readInput(request: Request): Promise<ProfileInput | null> {
     const ageBand = typeof body.ageBand === "string" ? body.ageBand : "unspecified";
     const timeZone = normalizeTimeZone(body.timeZone) ?? "Asia/Tokyo";
     const duration = body.dailyCastDurationMinutes ?? 5;
-    if (!allowedAgeBands.has(ageBand) || topicIDs.length + customInterests.length < 3 || ![5, 10, 15, 20].includes(duration)) return null;
+    if (!allowedAgeBands.has(ageBand) || topicIDs.length + customInterests.length < 3 || !isSupportedCastDuration(duration)) return null;
     return {
       ageBand,
       gender: typeof body.gender === "string" ? body.gender.slice(0, 40) : null,
@@ -151,6 +151,10 @@ async function readInput(request: Request): Promise<ProfileInput | null> {
   } catch {
     return null;
   }
+}
+
+function isSupportedCastDuration(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 5 && value <= 20;
 }
 
 async function readProfile(userID: string) {

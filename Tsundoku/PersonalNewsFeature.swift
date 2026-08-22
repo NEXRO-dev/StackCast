@@ -1570,7 +1570,7 @@ struct PersonalizationSettingsView: View {
                         .disabled(subscriptionStore?.isPro == false)
                     if autoCastEnabled {
                         Picker(isEnglish ? "Length" : "長さ", selection: $durationMinutes) {
-                            ForEach([5, 10, 15, 20], id: \.self) { Text("\($0) min").tag($0) }
+                            ForEach(Array(5...20), id: \.self) { Text("\($0) min").tag($0) }
                         }
                         Toggle(isEnglish ? "I agree to AI data processing" : "AIデータ処理に同意する", isOn: $aiConsent)
                     }

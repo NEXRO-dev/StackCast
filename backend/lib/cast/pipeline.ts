@@ -20,7 +20,7 @@ export type CastSourceInput = {
 
 export type CreateCastInput = {
   title?: string;
-  durationMinutes?: 2 | 5 | 10 | 15 | 20;
+  durationMinutes?: number;
   sources: CastSourceInput[];
   internalKind?: "daily_news";
 };
@@ -898,10 +898,13 @@ function validateInput(input: CreateCastInput): void {
       throw new Error("SOURCE_TEXT_TOO_LONG");
     }
   }
-  const allowedDurations = isDevelopmentTest ? [2, 5, 10, 15, 20] : [5, 10, 15, 20];
-  if (input.durationMinutes && !allowedDurations.includes(input.durationMinutes)) {
+  if (input.durationMinutes && !isSupportedDuration(input.durationMinutes, isDevelopmentTest)) {
     throw new Error("CAST_DURATION_UNSUPPORTED");
   }
+}
+
+function isSupportedDuration(value: number, isDevelopmentTest: boolean): boolean {
+  return Number.isInteger(value) && ((value >= 5 && value <= 20) || (isDevelopmentTest && value === 2));
 }
 
 function normalizeTitle(title: string | undefined, sources: CastSourceInput[]): string {
