@@ -1,7 +1,6 @@
 import { enqueueEligibleDailyCasts, processNextDailyCast } from "@/lib/daily-news/cast-queue";
 import { featureEnabled } from "@/lib/feature-flags";
 import {
-  newsRefreshBuildDecision,
   newsRefreshProviderUnavailable,
   newsRefreshProviderUnderfilled,
   refreshSharedNewsPool,
@@ -37,7 +36,7 @@ export async function GET(request: Request) {
     console.info("[daily-news] 日次ニュースの対象ユーザーを確認", {
       requestID,
       対象ユーザー数: targets.length,
-      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける16:00〜16:14",
+      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける16:15〜16:29",
       対象ユーザー_日本語: targets.map((target) => ({
         userID: target.userID,
         timeZone: target.timeZone,
@@ -51,7 +50,7 @@ export async function GET(request: Request) {
       console.info("[daily-news] cron request skipped", {
         requestID,
         reason: "no_users_due",
-        説明_日本語: "現在のCron実行時刻は、対象ユーザーの16:00〜16:14実行枠ではありません。",
+        説明_日本語: "現在のCron実行時刻は、対象ユーザーの16:15〜16:29実行枠ではありません。",
       });
       return Response.json({ success: true, skipped: "no_users_due" });
     }
@@ -83,6 +82,7 @@ export async function GET(request: Request) {
         language: group.language,
         sourceCountry: group.sourceCountry,
         topicIDs: [...group.topicIDs],
+        force: true,
       });
       console.info("[daily-news] ロケールグループの取得結果", {
         requestID,
@@ -118,7 +118,10 @@ export async function GET(request: Request) {
       }
       const groupEditions = await buildDailyEditionsForUsers(
         group.targets,
-        newsRefreshBuildDecision(providerResult),
+        {
+          forceRebuild: true,
+          markFallback: providerResult.stored < 5,
+        },
       );
       editions = {
         users: editions.users + groupEditions.users,
