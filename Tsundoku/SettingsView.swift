@@ -457,9 +457,15 @@ struct SettingsView: View {
 
     private var playbackSection: some View {
         Section("Cast") {
-            Picker("既定の時間", selection: $defaultDuration) {
-                ForEach(Array(5...20), id: \.self) { duration in
-                    Text("\(duration)分").tag(duration)
+            Group {
+                if subscriptionStore.isPro {
+                    Picker("既定の時間", selection: $defaultDuration) {
+                        ForEach([5, 10, 15, 20], id: \.self) { duration in
+                            Text("\(duration)分").tag(duration)
+                        }
+                    }
+                } else {
+                    LabeledContent("既定の時間", value: "10分")
                 }
             }
             .onChange(of: defaultDuration) { _, duration in
@@ -468,6 +474,9 @@ struct SettingsView: View {
                     isShowingSubscription = true
                     return
                 }
+            }
+            .onAppear {
+                if !subscriptionStore.isPro { defaultDuration = 10 }
             }
 
             Picker("既定の再生速度", selection: $defaultSpeed) {

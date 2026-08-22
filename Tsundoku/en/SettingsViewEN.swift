@@ -134,9 +134,15 @@ struct SettingsViewEN: View {
 
     private var playbackSection: some View {
         Section("Cast") {
-            Picker("Default Duration", selection: $defaultDuration) {
-                ForEach(Array(5...20), id: \.self) { duration in
-                    Text("\(duration) min").tag(duration)
+            Group {
+                if subscriptionStore.isPro {
+                    Picker("Default Duration", selection: $defaultDuration) {
+                        ForEach([5, 10, 15, 20], id: \.self) { duration in
+                            Text("\(duration) min").tag(duration)
+                        }
+                    }
+                } else {
+                    LabeledContent("Default Duration", value: "10 min")
                 }
             }
             .onChange(of: defaultDuration) { _, duration in
@@ -145,6 +151,9 @@ struct SettingsViewEN: View {
                     isShowingSubscription = true
                     return
                 }
+            }
+            .onAppear {
+                if !subscriptionStore.isPro { defaultDuration = 10 }
             }
 
             Picker("Default Playback Speed", selection: $defaultSpeed) {

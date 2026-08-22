@@ -875,12 +875,6 @@ struct PersonalNewsHomeView: View {
         if isPreviousEdition { return isEnglish ? "PREVIOUS EDITION" : "前回の5件" }
         return isEnglish ? "TODAY'S FIVE" : "今日の5件"
     }
-    private var editionTitle: String {
-        if store.isFallback { return isEnglish ? "Saved news available" : "保存済みのニュース" }
-        if isPreviousEdition { return isEnglish ? "Previously saved news" : "前回取得したニュース" }
-        return isEnglish ? "News picked for you" : "あなたに合わせたニュース"
-    }
-
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 18) {
             header
@@ -940,8 +934,6 @@ struct PersonalNewsHomeView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(editionEyebrow)
                     .font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(.indigo)
-                Text(editionTitle)
-                    .font(.largeTitle.bold())
             }
 
             Spacer(minLength: 8)
@@ -1283,9 +1275,6 @@ struct PersonalNewsHomePreview: View {
 
                             Spacer(minLength: 0)
 
-                            Image(systemName: "chevron.right")
-                                .font(.caption.bold())
-                                .foregroundStyle(.tertiary)
                         }
                         .padding(.horizontal, 18)
                         .padding(.vertical, 12)
@@ -1575,8 +1564,17 @@ struct PersonalizationSettingsView: View {
                     Toggle(isEnglish ? "Create automatically" : "毎日自動生成", isOn: $autoCastEnabled)
                         .disabled(subscriptionStore?.isPro == false)
                     if autoCastEnabled {
-                        Picker(isEnglish ? "Length" : "長さ", selection: $durationMinutes) {
-                            ForEach(Array(5...20), id: \.self) { Text("\($0) min").tag($0) }
+                        if subscriptionStore?.planTier == .free {
+                            HStack {
+                                Text(isEnglish ? "Length" : "長さ")
+                                Spacer()
+                                Text(isEnglish ? "10 min" : "10分")
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Picker(isEnglish ? "Length" : "長さ", selection: $durationMinutes) {
+                                ForEach([5, 10, 15, 20], id: \.self) { Text("\($0) min").tag($0) }
+                            }
                         }
                         Toggle(isEnglish ? "I agree to AI data processing" : "AIデータ処理に同意する", isOn: $aiConsent)
                     }
@@ -1627,7 +1625,9 @@ struct PersonalizationSettingsView: View {
                 gender = store.profile?.gender ?? "unspecified"
                 personalizationEnabled = store.profile?.personalizationEnabled != 0
                 autoCastEnabled = store.profile?.dailyAutoCastEnabled == 1
-                durationMinutes = store.profile?.dailyCastDurationMinutes ?? 5
+                durationMinutes = subscriptionStore?.planTier == .free
+                    ? 10
+                    : (store.profile?.dailyCastDurationMinutes ?? 5)
                 aiConsent = aiConsent || store.profile?.aiProcessingConsentAt != nil
             }
             .sheet(item: $presentedSheet) { _ in
@@ -1659,7 +1659,8 @@ struct PersonalizationSettingsView: View {
                 token: authStore.sessionToken(), ageBand: ageBand, gender: gender, topicIDs: selectedTopics,
                 customInterests: customInterests,
                 personalizationEnabled: personalizationEnabled, dailyAutoCastEnabled: autoCastEnabled,
-                durationMinutes: durationMinutes, aiConsent: aiConsent
+                durationMinutes: subscriptionStore?.planTier == .free ? 10 : durationMinutes,
+                aiConsent: aiConsent
             )
             dismiss()
         } catch {
