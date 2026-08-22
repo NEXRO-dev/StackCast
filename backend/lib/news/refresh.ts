@@ -137,8 +137,8 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     const groq = new GroqWebSearchProvider();
     const perTopicLimit = groqPerTopicLimit();
     console.info("[daily-news] Groq候補ニュース取得を開始", {
-      説明_日本語: "Groq CompoundのWeb Searchで各ジャンルから複数URLを集め、DB候補プールへ保存します。",
-      リクエスト数: topics.length,
+      説明_日本語: "Groq CompoundのWeb Searchで全ジャンルを1回にまとめて検索し、複数URLをDB候補プールへ保存します。",
+      リクエスト数: 1,
       目標候補数_ジャンルごと: perTopicLimit,
       モデル: process.env.GROQ_NEWS_MODEL?.trim() || "groq/compound-mini",
       タイムアウト秒: Number(process.env.GROQ_NEWS_REQUEST_TIMEOUT_MS ?? 45000) / 1000,
@@ -159,7 +159,7 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
         fetched: candidates.length,
         stored: groqStored,
         totalStored: stored,
-        requests: topics.length,
+        requests: 1,
         説明_日本語: `Groq Web Searchから${candidates.length}件の候補URLを受信し、${groqStored}件をDBへ保存しました。`,
       });
     } catch (error) {
@@ -168,7 +168,7 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
       failures.push(`groq:${details.message}`);
       console.warn("[daily-news] groq candidate refresh failed", {
         topics: topics.length,
-        requests: topics.length,
+        requests: 1,
         ...details,
         エラーコード: diagnostic.code,
         原因_日本語: diagnostic.explanationJa,

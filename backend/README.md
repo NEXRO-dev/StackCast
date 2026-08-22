@@ -91,6 +91,7 @@ Daily CastのAI生成は日次ニュースcron内では実行せず、`daily_cas
 - `GROQ_API_KEY`: Groq Compound Web Searchでニュース候補URLを取得するためのAPIキー
 - `GROQ_NEWS_PROVIDER_ENABLED`: `false` でGroq候補取得を停止。未設定時は `GROQ_API_KEY` があれば有効
 - `GROQ_NEWS_MODEL`: Groqのニュース取得モデル（既定 `groq/compound-mini`）
+- `GROQ_NEWS_MODEL_VERSION`: Groq Compoundのversion（既定 `2025-07-23`。Basic Search寄りでAPI占有を抑える）
 - `GROQ_NEWS_PER_TOPIC_LIMIT`: 1ジャンルあたりの候補URL数（既定 `12`、上限 `20`）
 - `GROQ_NEWS_TOTAL_LIMIT`: 1回の共通プール更新で保存する候補URL数（既定はジャンル数×12、上限 `80`）
 - `GROQ_NEWS_REQUEST_TIMEOUT_MS`: Groq 1リクエストの待ち時間（既定 `45000`、上限 `90000`）

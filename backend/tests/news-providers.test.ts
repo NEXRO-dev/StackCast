@@ -21,8 +21,10 @@ test("Groq web search collects multiple article URLs per topic", async () => {
       calls += 1;
       requestBodies.push(parseRequestBody(init));
       return successfulGroqResponse([
-        { topicID: calls === 1 ? "topic-1" : "topic-2", url: `https://example.com/${calls}-a?utm_source=test`, title: `Article ${calls}A`, description: "News", publishedAt: "2026-08-22T00:00:00Z" },
-        { topicID: calls === 1 ? "topic-1" : "topic-2", url: `https://example.com/${calls}-b`, title: `Article ${calls}B`, description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+        { topicID: "topic-1", url: "https://example.com/1-a?utm_source=test", title: "Article 1A", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+        { topicID: "topic-1", url: "https://example.com/1-b", title: "Article 1B", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+        { topicID: "topic-2", url: "https://example.com/2-a", title: "Article 2A", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+        { topicID: "topic-2", url: "https://example.com/2-b", title: "Article 2B", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
         { topicID: calls === 1 ? "topic-1" : "topic-2", url: "https://example.com/duplicate", title: "Duplicate", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
       ]);
     }, async () => {
@@ -31,18 +33,20 @@ test("Groq web search collects multiple article URLs per topic", async () => {
         { ...input, topicID: "topic-2", query: "business", limit: 4 },
       ]);
       assert.equal(articles.length, 5);
-      assert.deepEqual(articles.map((article) => article.topicID), ["topic-1", "topic-1", "topic-1", "topic-2", "topic-2"]);
+      assert.deepEqual(articles.map((article) => article.topicID), ["topic-1", "topic-1", "topic-2", "topic-2", "topic-1"]);
       assert.deepEqual(articles.map((article) => article.sourceDomain), [
         "example.com", "example.com", "example.com", "example.com", "example.com",
       ]);
     });
   });
 
-  assert.equal(calls, 2);
-  assert.deepEqual(requestBodies.map((body) => body.model), ["groq/compound-mini", "groq/compound-mini"]);
-  assert.deepEqual(requestBodies.map((body) => Array.isArray(body.messages)), [true, true]);
-  assert.deepEqual(requestBodies.map((body) => body.response_format), [undefined, undefined]);
-  assert.deepEqual(requestBodies.map((body) => (body.search_settings as { country?: string }).country), ["united states", "united states"]);
+  assert.equal(calls, 1);
+  assert.deepEqual(requestBodies.map((body) => body.model), ["groq/compound-mini"]);
+  assert.deepEqual(requestBodies.map((body) => Array.isArray(body.messages)), [true]);
+  assert.deepEqual(requestBodies.map((body) => body.response_format), [undefined]);
+  assert.deepEqual(requestBodies.map((body) => (body.search_settings as { country?: string }).country), ["united states"]);
+  assert.match(JSON.stringify(requestBodies[0]?.messages), /topic-1/u);
+  assert.match(JSON.stringify(requestBodies[0]?.messages), /topic-2/u);
 });
 
 test("Groq 429 preserves safe diagnostics and is not retried", async () => {
@@ -91,33 +95,28 @@ test("Groq 429 preserves safe diagnostics and is not retried", async () => {
   assert.equal(calls, 1);
 });
 
-test("Groq continues with later topics after one topic fails", async () => {
+test("Groq multi-topic search fails fast without extra requests on provider 429", async () => {
   let calls = 0;
 
   await withGroqKey(async () => {
     await withFetchMock(async () => {
       calls += 1;
-      if (calls === 1) {
-        return new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", type: "requests" } }), {
-          status: 429,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      return successfulGroqResponse([
-        { topicID: "topic-2", url: "https://example.com/recovered", title: "Recovered", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
-      ]);
+      return new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", type: "requests" } }), {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      });
     }, async () => {
-      const articles = await new GroqWebSearchProvider().searchTopics([
-        { ...input, topicID: "topic-1", query: "technology", limit: 4 },
-        { ...input, topicID: "topic-2", query: "business", limit: 4 },
-      ]);
-      assert.equal(articles.length, 1);
-      assert.equal(articles[0]?.topicID, "topic-2");
-      assert.equal(articles[0]?.url, "https://example.com/recovered");
+      await assert.rejects(
+        new GroqWebSearchProvider().searchTopics([
+          { ...input, topicID: "topic-1", query: "technology", limit: 4 },
+          { ...input, topicID: "topic-2", query: "business", limit: 4 },
+        ]),
+        /GROQ_NEWS_REQUEST_FAILED_429/u,
+      );
     });
   });
 
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
 });
 
 test("GDELT bounds the search window and does not retry non-429 4xx responses", async () => {

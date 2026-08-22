@@ -41,42 +41,43 @@ export class GroqWebSearchProvider implements NewsProvider {
   }
 
   async searchTopics(inputs: NewsSearchInput[]): Promise<NewsCandidate[]> {
+    const first = inputs[0];
+    if (!first) return [];
     const apiKey = requiredEnvironmentVariable("GROQ_API_KEY");
     const totalLimit = totalLimitFor(inputs);
     const articles: NewsCandidate[] = [];
     const seen = new Set<string>();
-    let firstError: unknown;
-
-    for (const input of inputs) {
+    const payload = await requestGroqArticles(
+      apiKey,
+      {
+        language: first.language,
+        sourceCountry: first.sourceCountry,
+        prompt: buildMultiTopicPrompt(inputs, totalLimit),
+        country: searchCountry(first.sourceCountry),
+      },
+    );
+    const validTopicIDs = new Set(inputs.map((input) => input.topicID));
+    for (const candidate of parseArticles(payload, first, totalLimit, validTopicIDs)) {
       if (articles.length >= totalLimit) break;
-      const topicLimit = Math.min(limitFor(input), totalLimit - articles.length);
-      try {
-        const payload = await requestGroqArticles(apiKey, input, topicLimit);
-        for (const candidate of parseArticles(payload, input, topicLimit)) {
-          if (articles.length >= totalLimit) break;
-          const key = canonicalArticleKey(candidate);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          articles.push(candidate);
-        }
-      } catch (error) {
-        console.warn("[daily-news] groq topic search failed", {
-          topicID: input.topicID,
-          ...errorDetails(error),
-        });
-        if (!firstError) firstError = error;
-      }
+      const key = canonicalArticleKey(candidate);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      articles.push(candidate);
     }
-
-    if (articles.length === 0 && firstError) throw firstError;
     return articles;
   }
 }
 
+type GroqRequestOptions = {
+  prompt: string;
+  country?: string;
+  language?: "japanese" | "english";
+  sourceCountry?: string;
+};
+
 async function requestGroqArticles(
   apiKey: string,
-  input: NewsSearchInput,
-  limit: number,
+  options: GroqRequestOptions,
 ): Promise<GroqChatCompletion> {
   let response: Response;
   try {
@@ -86,8 +87,9 @@ async function requestGroqArticles(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Groq-Model-Version": process.env.GROQ_NEWS_MODEL_VERSION?.trim() || "2025-07-23",
       },
-      body: JSON.stringify(requestBody(input, limit)),
+      body: JSON.stringify(requestBody(options)),
     });
   } catch (error) {
     throw networkRequestError(error);
@@ -100,41 +102,57 @@ async function requestGroqArticles(
   return await response.json() as GroqChatCompletion;
 }
 
-function requestBody(input: NewsSearchInput, limit: number): Record<string, unknown> {
-  const country = searchCountry(input.sourceCountry);
+function requestBody(options: GroqRequestOptions): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: process.env.GROQ_NEWS_MODEL?.trim() || DEFAULT_MODEL,
     messages: [
       {
         role: "user",
-        content: buildPrompt(input, limit),
+        content: options.prompt,
       },
     ],
     search_settings: {
       exclude_domains: ["wikipedia.org", "youtube.com", "x.com", "twitter.com", "facebook.com", "instagram.com"],
-      ...(country ? { country } : {}),
+      ...(options.country ? { country: options.country } : {}),
+    },
+    compound_custom: {
+      tools: {
+        enabled_tools: ["web_search"],
+      },
     },
   };
   return body;
 }
 
-function buildPrompt(input: NewsSearchInput, limit: number): string {
-  const language = input.language === "english" ? "English" : "Japanese";
-  const country = input.sourceCountry ? `Country/region focus: ${input.sourceCountry}.` : "Country/region focus: worldwide.";
+function buildMultiTopicPrompt(inputs: NewsSearchInput[], totalLimit: number): string {
+  const first = inputs[0];
+  const language = first?.language === "english" ? "English" : "Japanese";
+  const country = first?.sourceCountry ? `Country/region focus: ${first.sourceCountry}.` : "Country/region focus: worldwide.";
+  const topics = inputs.map((input) => {
+    const topicLimit = limitFor(input);
+    return `- topicID "${jsonStringValue(input.topicID)}": ${input.query} / up to ${topicLimit} article URLs`;
+  });
   return [
     "You collect current news article URLs for a recommendation engine. Use web search.",
-    `Find up to ${limit} important news article URLs for this topic: ${input.query}.`,
+    `Find up to ${totalLimit} important news article URLs across these topics:`,
+    ...topics,
     `Target output language metadata: ${language}. ${country}`,
     "Prefer articles published today or within the last 48 hours. Include international coverage when relevant.",
     "Prefer original publisher article URLs over aggregators, homepages, search pages, videos, social posts, or liveblog index pages.",
+    "Keep a reasonable spread across topicIDs when relevant articles exist.",
     "If fewer suitable articles exist, return fewer articles rather than inventing URLs.",
     "Return ONLY raw JSON. Do not include markdown, citations outside the JSON, or explanatory prose. The JSON shape must be exactly:",
-    `{"articles":[{"topicID":"${jsonStringValue(input.topicID)}","url":"https://publisher.example/article","title":"Article title","description":"One sentence summary","publishedAt":"2026-08-22T00:00:00Z"}]}`,
-    "Rules: topicID must be the supplied topicID. url must be a working http/https article URL. publishedAt must be ISO-8601 when available; otherwise use today's date.",
+    `{"articles":[{"topicID":"${jsonStringValue(inputs[0]?.topicID ?? "topic_id")}","url":"https://publisher.example/article","title":"Article title","description":"One sentence summary","publishedAt":"2026-08-22T00:00:00Z"}]}`,
+    "Rules: topicID must be one of the supplied topicIDs. url must be a working http/https article URL. publishedAt must be ISO-8601 when available; otherwise use today's date.",
   ].join("\n");
 }
 
-function parseArticles(payload: GroqChatCompletion, input: NewsSearchInput, limit: number): NewsCandidate[] {
+function parseArticles(
+  payload: GroqChatCompletion,
+  input: NewsSearchInput,
+  limit: number,
+  validTopicIDs?: Set<string>,
+): NewsCandidate[] {
   const outputText = payload.choices?.[0]?.message?.content?.trim();
   if (!outputText) throw new Error("GROQ_NEWS_EMPTY_OUTPUT");
 
@@ -159,7 +177,7 @@ function parseArticles(payload: GroqChatCompletion, input: NewsSearchInput, limi
         country: input.sourceCountry,
         publishedAt: parsePublishedAt(article.publishedAt),
         providerID: payload.id,
-        topicID: input.topicID,
+        topicID: validTopicIDs?.has(article.topicID ?? "") ? article.topicID : input.topicID,
       } satisfies NewsCandidate];
     } catch {
       return [];
@@ -289,11 +307,6 @@ function networkRequestError(error: unknown): Error {
   const result = new Error(timeout ? "GROQ_NEWS_REQUEST_TIMEOUT" : "GROQ_NEWS_REQUEST_NETWORK_ERROR");
   result.name = timeout && error instanceof Error ? error.name : "GroqNewsNetworkError";
   return result;
-}
-
-function errorDetails(error: unknown): { name: string; message: string } {
-  if (!(error instanceof Error)) return { name: "UnknownError", message: String(error) };
-  return { name: error.name, message: error.message };
 }
 
 function jsonStringValue(value: string): string {
