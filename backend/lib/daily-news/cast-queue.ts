@@ -75,9 +75,15 @@ export async function processNextDailyCast(): Promise<{ processed: boolean; jobI
      FROM daily_cast_jobs j
      JOIN users u ON u.id = j.user_id
      LEFT JOIN user_recommendation_profiles p ON p.user_id = j.user_id
-     WHERE j.status IN ('queued', 'retry_wait')
-       AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= ?)
-       AND (j.lease_until IS NULL OR j.lease_until < ?)
+     WHERE (
+         j.status IN ('queued', 'retry_wait')
+         AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= ?)
+       )
+       OR (
+         j.status = 'processing'
+         AND j.lease_until IS NOT NULL
+         AND j.lease_until < ?
+       )
      ORDER BY j.created_at LIMIT 1`,
     now.toISOString(), now.toISOString(),
   )) as { jobID?: string; editionID?: string; userID?: string; durationMinutes?: number; language?: string } | null;
@@ -87,8 +93,11 @@ export async function processNextDailyCast(): Promise<{ processed: boolean; jobI
   const claimed = await database.run(
     `UPDATE daily_cast_jobs SET status = 'processing', stage = 'fetch', lease_until = ?,
        attempt_count = attempt_count + 1, updated_at = ?
-     WHERE id = ? AND status IN ('queued', 'retry_wait')`,
-    leaseUntil, now.toISOString(), row.jobID,
+     WHERE id = ? AND (
+       status IN ('queued', 'retry_wait')
+       OR (status = 'processing' AND lease_until IS NOT NULL AND lease_until < ?)
+     )`,
+    leaseUntil, now.toISOString(), row.jobID, now.toISOString(),
   );
   if (claimed.changes !== 1) return { processed: false };
   await database.run("UPDATE daily_news_editions SET auto_cast_status = 'processing', updated_at = ? WHERE id = ?", now.toISOString(), row.editionID);

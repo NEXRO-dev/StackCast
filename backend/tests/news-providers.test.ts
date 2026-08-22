@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GDELTProvider } from "../lib/news/providers/gdelt";
+import { GroqWebSearchProvider } from "../lib/news/providers/groq-web-search";
 import { OpenAIWebSearchProvider } from "../lib/news/providers/openai-web-search";
 
 const input = {
@@ -10,6 +11,112 @@ const input = {
   sourceCountry: "UnitedStates",
   limit: 3,
 };
+
+test("Groq web search collects multiple article URLs per topic", async () => {
+  let calls = 0;
+  const requestBodies: Record<string, unknown>[] = [];
+
+  await withGroqKey(async () => {
+    await withFetchMock(async (_request, init) => {
+      calls += 1;
+      requestBodies.push(parseRequestBody(init));
+      return successfulGroqResponse([
+        { topicID: calls === 1 ? "topic-1" : "topic-2", url: `https://example.com/${calls}-a?utm_source=test`, title: `Article ${calls}A`, description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+        { topicID: calls === 1 ? "topic-1" : "topic-2", url: `https://example.com/${calls}-b`, title: `Article ${calls}B`, description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+        { topicID: calls === 1 ? "topic-1" : "topic-2", url: "https://example.com/duplicate", title: "Duplicate", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+      ]);
+    }, async () => {
+      const articles = await new GroqWebSearchProvider().searchTopics([
+        { ...input, topicID: "topic-1", limit: 4 },
+        { ...input, topicID: "topic-2", query: "business", limit: 4 },
+      ]);
+      assert.equal(articles.length, 5);
+      assert.deepEqual(articles.map((article) => article.topicID), ["topic-1", "topic-1", "topic-1", "topic-2", "topic-2"]);
+      assert.deepEqual(articles.map((article) => article.sourceDomain), [
+        "example.com", "example.com", "example.com", "example.com", "example.com",
+      ]);
+    });
+  });
+
+  assert.equal(calls, 2);
+  assert.deepEqual(requestBodies.map((body) => body.model), ["groq/compound-mini", "groq/compound-mini"]);
+  assert.deepEqual(requestBodies.map((body) => (body.response_format as { type?: string }).type), ["json_object", "json_object"]);
+});
+
+test("Groq 429 preserves safe diagnostics and is not retried", async () => {
+  let calls = 0;
+
+  await withGroqKey(async () => {
+    await withFetchMock(async () => {
+      calls += 1;
+      return new Response(JSON.stringify({
+        error: {
+          code: "rate_limit_exceeded",
+          type: "requests",
+          message: "ERROR_MESSAGE_MUST_NOT_BE_LOGGED",
+        },
+      }), {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+          "retry-after": "7",
+          "x-request-id": "req.test/123",
+          "x-ratelimit-remaining-requests": "0",
+          "x-ratelimit-reset-requests": "42s",
+        },
+      });
+    }, async () => {
+      await assert.rejects(
+        new GroqWebSearchProvider().search(input),
+        (error: unknown) => {
+          assert.ok(error instanceof Error);
+          assert.equal(error.name, "GroqNewsRequestError");
+          assert.match(error.message, /GROQ_NEWS_REQUEST_FAILED_429/u);
+          assert.match(error.message, /CODE_rate_limit_exceeded/u);
+          assert.match(error.message, /TYPE_requests/u);
+          assert.match(error.message, /RETRY_AFTER_MS_7000/u);
+          assert.match(error.message, /REQUEST_ID_req_test_123/u);
+          assert.match(error.message, /REMAINING_REQUESTS_0/u);
+          assert.match(error.message, /RESET_REQUESTS_42s/u);
+          assert.doesNotMatch(error.message, /ERROR_MESSAGE_MUST_NOT_BE_LOGGED/u);
+          assert.equal((error as Error & { status?: number }).status, 429);
+          return true;
+        },
+      );
+    });
+  });
+
+  assert.equal(calls, 1);
+});
+
+test("Groq continues with later topics after one topic fails", async () => {
+  let calls = 0;
+
+  await withGroqKey(async () => {
+    await withFetchMock(async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", type: "requests" } }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return successfulGroqResponse([
+        { topicID: "topic-2", url: "https://example.com/recovered", title: "Recovered", description: "News", publishedAt: "2026-08-22T00:00:00Z" },
+      ]);
+    }, async () => {
+      const articles = await new GroqWebSearchProvider().searchTopics([
+        { ...input, topicID: "topic-1", query: "technology", limit: 4 },
+        { ...input, topicID: "topic-2", query: "business", limit: 4 },
+      ]);
+      assert.equal(articles.length, 1);
+      assert.equal(articles[0]?.topicID, "topic-2");
+      assert.equal(articles[0]?.url, "https://example.com/recovered");
+    });
+  });
+
+  assert.equal(calls, 2);
+});
 
 test("GDELT bounds the search window and does not retry non-429 4xx responses", async () => {
   let calls = 0;
@@ -374,6 +481,25 @@ async function withOpenAIKey<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+async function withGroqKey<T>(operation: () => Promise<T>): Promise<T> {
+  const originalAPIKey = process.env.GROQ_API_KEY;
+  const originalModel = process.env.GROQ_NEWS_MODEL;
+  const originalTotalLimit = process.env.GROQ_NEWS_TOTAL_LIMIT;
+  process.env.GROQ_API_KEY = "test-api-key";
+  delete process.env.GROQ_NEWS_MODEL;
+  delete process.env.GROQ_NEWS_TOTAL_LIMIT;
+  try {
+    return await operation();
+  } finally {
+    if (originalAPIKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = originalAPIKey;
+    if (originalModel === undefined) delete process.env.GROQ_NEWS_MODEL;
+    else process.env.GROQ_NEWS_MODEL = originalModel;
+    if (originalTotalLimit === undefined) delete process.env.GROQ_NEWS_TOTAL_LIMIT;
+    else process.env.GROQ_NEWS_TOTAL_LIMIT = originalTotalLimit;
+  }
+}
+
 function parseRequestBody(init?: RequestInit): Record<string, unknown> {
   const body = init?.body;
   if (typeof body !== "string") throw new Error("Expected a string request body");
@@ -386,6 +512,20 @@ function successfulOpenAIResponse(articles: Array<Record<string, string>> = []):
     output: [{
       type: "message",
       content: [{ type: "output_text", text: JSON.stringify({ articles }) }],
+    }],
+  }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function successfulGroqResponse(articles: Array<Record<string, string>> = []): Response {
+  return new Response(JSON.stringify({
+    id: "chatcmpl_test",
+    choices: [{
+      message: {
+        content: JSON.stringify({ articles }),
+      },
     }],
   }), {
     status: 200,

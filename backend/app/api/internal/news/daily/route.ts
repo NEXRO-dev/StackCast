@@ -1,4 +1,4 @@
-import { enqueueEligibleDailyCasts, processNextDailyCast } from "@/lib/daily-news/cast-queue";
+import { enqueueEligibleDailyCasts } from "@/lib/daily-news/cast-queue";
 import { featureEnabled } from "@/lib/feature-flags";
 import {
   newsRefreshProviderUnavailable,
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     console.info("[daily-news] 日次ニュースの対象ユーザーを確認", {
       requestID,
       対象ユーザー数: targets.length,
-      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける16:15〜16:29",
+      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける17:00〜17:59",
       対象ユーザー_日本語: targets.map((target) => ({
         userID: target.userID,
         timeZone: target.timeZone,
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       console.info("[daily-news] cron request skipped", {
         requestID,
         reason: "no_users_due",
-        説明_日本語: "現在のCron実行時刻は、対象ユーザーの16:15〜16:29実行枠ではありません。",
+        説明_日本語: "現在のCron実行時刻は対象ユーザーの17:00〜17:59実行枠外、または今日の定期版が処理済みです。",
       });
       return Response.json({ success: true, skipped: "no_users_due" });
     }
@@ -150,15 +150,7 @@ export async function GET(request: Request) {
         enqueueEligibleDailyCasts(editionDate, targets.filter((target) => target.editionDate === editionDate).map((target) => target.userID))))
       : [];
     const queueSummary = queue.reduce((summary, item) => ({ queued: summary.queued + item.queued, skipped: summary.skipped + item.skipped }), { queued: 0, skipped: 0 });
-    const processed = [];
-    const inlineLimit = dailyCastEnabled
-      ? Math.min(Math.max(Number(process.env.DAILY_CAST_INLINE_LIMIT ?? "3"), 0), 3)
-      : 0;
-    for (let index = 0; index < inlineLimit; index += 1) {
-      const result = await processNextDailyCast();
-      if (!result.processed) break;
-      processed.push(result);
-    }
+    const processed: Array<never> = [];
     const result = { success: true, providerUnavailable, providerUnderfilled, provider, editions, queue: queueSummary, processed };
     console.info("[daily-news] cron request completed", {
       requestID,
@@ -168,6 +160,7 @@ export async function GET(request: Request) {
       editions,
       queue: queueSummary,
       processed: processed.length,
+      AI処理_日本語: "このcronではDaily Castを直接生成せず、queue投入のみ行います。別workerが1回1件ずつ処理します。",
       elapsedMs: Date.now() - startedAt,
     });
     return Response.json(result);

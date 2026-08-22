@@ -1,6 +1,7 @@
 import { featureEnabled } from "../feature-flags";
 import { getTurso } from "../turso";
 import { GDELTProvider } from "./providers/gdelt";
+import { GroqWebSearchProvider } from "./providers/groq-web-search";
 import { OpenAIWebSearchProvider } from "./providers/openai-web-search";
 import { upsertNewsCandidate } from "./repository";
 
@@ -63,7 +64,7 @@ export function newsRefreshBuildDecision(result: NewsRefreshResult): NewsRefresh
   };
 }
 
-/** GDELT first; one OpenAI request only when GDELT cannot fill five items. */
+/** Groq web search first; GDELT/OpenAI are optional fallback providers. */
 export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): Promise<NewsRefreshResult> {
   const startedAt = Date.now();
   const topicIDs = [...new Set(options.topicIDs ?? [])];
@@ -83,8 +84,16 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     ...args,
   )) as TopicRow[];
   const language = options.language ?? "japanese";
+  const groqEnabled = featureEnabled("GROQ_NEWS_PROVIDER_ENABLED", Boolean(process.env.GROQ_API_KEY?.trim()));
+  const gdeltEnabled = featureEnabled("GDELT_PROVIDER_ENABLED", false);
+  const openAIEnabled = featureEnabled("OPENAI_NEWS_FALLBACK_ENABLED", false);
+  const providerOrder = [
+    ...(groqEnabled ? ["Groq"] : []),
+    ...(gdeltEnabled ? ["GDELT"] : []),
+    ...(openAIEnabled ? ["OpenAI予備"] : []),
+  ];
   console.info("[daily-news] ニュース取得の準備完了", {
-    provider候補: featureEnabled("GDELT_PROVIDER_ENABLED") ? "GDELT → OpenAI予備" : "OpenAI予備のみ",
+    provider候補: providerOrder.length > 0 ? providerOrder.join(" → ") : "すべて無効",
     言語: language === "japanese" ? "日本語" : "英語",
     対象国: options.sourceCountry ?? "指定なし",
     ジャンル数: topics.length,
@@ -94,15 +103,15 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
   const cooldownCutoff = new Date(Date.now() - NEWS_POOL_COOLDOWN_MS).toISOString();
   const latest = (await getTurso().get(
     `SELECT MAX(fetched_at) AS fetchedAt, COUNT(DISTINCT id) AS articleCount FROM news_articles
-     WHERE provider IN (?, ?) AND LOWER(language) = LOWER(?)
+     WHERE provider IN (?, ?, ?) AND LOWER(language) = LOWER(?)
        AND ((LOWER(country) = LOWER(?) AND ? IS NOT NULL) OR (country IS NULL AND ? IS NULL))
        AND fetched_at >= ?`,
-    "gdelt", "openai-web-search", language, options.sourceCountry ?? null,
+    "groq-web-search", "gdelt", "openai-web-search", language, options.sourceCountry ?? null,
     options.sourceCountry ?? null, options.sourceCountry ?? null, cooldownCutoff,
   )) as { fetchedAt?: string | null; articleCount?: number } | null;
   if (newsRefreshIsWithinCooldown(latest?.fetchedAt, new Date(), options.force, latest?.articleCount ?? 0)) {
     console.info("[daily-news] shared pool refresh skipped", {
-      reason: "cooldown", providers: ["gdelt", "openai-web-search"], topics: topics.length,
+      reason: "cooldown", providers: ["groq-web-search", "gdelt", "openai-web-search"], topics: topics.length,
       lastFetchedAt: latest?.fetchedAt, articleCount: latest?.articleCount ?? 0,
       cooldownHours: NEWS_POOL_COOLDOWN_MS / 3_600_000,
       説明_日本語: "直近6時間以内に十分な記事が保存済みのため、同じニュースの重複取得を防止しました。",
@@ -111,19 +120,72 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     return { topics: topics.length, fetched: 0, stored: 0, failures: [], cooldown: true };
   }
 
-  const gdeltEnabled = featureEnabled("GDELT_PROVIDER_ENABLED");
   let fetched = 0;
   let stored = 0;
   const failures: string[] = [];
   console.info("[daily-news] shared pool refresh started", {
-    provider: gdeltEnabled ? "gdelt" : "disabled", fallbackProvider: "openai-web-search", topics: topics.length,
+    provider: groqEnabled ? "groq-web-search" : gdeltEnabled ? "gdelt" : "disabled",
+    fallbackProviders: [
+      ...(gdeltEnabled ? ["gdelt"] : []),
+      ...(openAIEnabled ? ["openai-web-search"] : []),
+    ],
+    topics: topics.length,
     language, sourceCountry: options.sourceCountry ?? null,
   });
 
-  if (gdeltEnabled) {
+  if (groqEnabled) {
+    const groq = new GroqWebSearchProvider();
+    const perTopicLimit = groqPerTopicLimit();
+    console.info("[daily-news] Groq候補ニュース取得を開始", {
+      説明_日本語: "Groq CompoundのWeb Searchで各ジャンルから複数URLを集め、DB候補プールへ保存します。",
+      リクエスト数: topics.length,
+      目標候補数_ジャンルごと: perTopicLimit,
+      モデル: process.env.GROQ_NEWS_MODEL?.trim() || "groq/compound-mini",
+      タイムアウト秒: Number(process.env.GROQ_NEWS_REQUEST_TIMEOUT_MS ?? 45000) / 1000,
+    });
+    try {
+      const candidates = await groq.searchTopics(topics.map((topic) => ({
+        topicID: topic.id,
+        query: topic.query,
+        language,
+        sourceCountry: options.sourceCountry,
+        limit: perTopicLimit,
+      })));
+      fetched += candidates.length;
+      const groqStored = await storeCandidates(topics[0]?.id ?? "", "groq-web-search", candidates, failures);
+      stored += groqStored;
+      console.info("[daily-news] groq candidate refresh completed", {
+        topics: topics.length,
+        fetched: candidates.length,
+        stored: groqStored,
+        totalStored: stored,
+        requests: topics.length,
+        説明_日本語: `Groq Web Searchから${candidates.length}件の候補URLを受信し、${groqStored}件をDBへ保存しました。`,
+      });
+    } catch (error) {
+      const details = errorDetails(error);
+      const diagnostic = diagnoseNewsError(error);
+      failures.push(`groq:${details.message}`);
+      console.warn("[daily-news] groq candidate refresh failed", {
+        topics: topics.length,
+        requests: topics.length,
+        ...details,
+        エラーコード: diagnostic.code,
+        原因_日本語: diagnostic.explanationJa,
+        対応_日本語: diagnostic.nextActionJa,
+      });
+    }
+  } else {
+    console.info("[daily-news] groq refresh skipped", {
+      reason: process.env.GROQ_NEWS_PROVIDER_ENABLED === "false" ? "feature_disabled" : "missing_api_key",
+      説明_日本語: "GROQ_API_KEY が未設定、または GROQ_NEWS_PROVIDER_ENABLED=false のため、Groq候補取得を使いません。",
+    });
+  }
+
+  if (stored < 5 && gdeltEnabled) {
     const gdelt = new GDELTProvider();
     console.info("[daily-news] GDELT取得を開始", {
-      説明_日本語: "無料公開のGDELTを優先し、ユーザーの興味ジャンルをまとめて検索します。",
+      説明_日本語: "Groqだけでは5件に届かなかったため、無料公開のGDELTで補完します。",
       リクエスト数: 1,
       タイムアウト秒: Number(process.env.GDELT_REQUEST_TIMEOUT_MS ?? 15000) / 1000,
       最小リクエスト間隔秒: Number(process.env.GDELT_MIN_REQUEST_INTERVAL_MS ?? 6000) / 1000,
@@ -137,12 +199,15 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
         limit: 5,
       })));
       fetched += candidates.length;
-      stored += await storeCandidates(topics[0]?.id ?? "", "gdelt", candidates, failures);
+      const gdeltStored = await storeCandidates(topics[0]?.id ?? "", "gdelt", candidates, failures);
+      stored += gdeltStored;
       console.info("[daily-news] gdelt combined refresh completed", {
         topics: topics.length,
         fetched: candidates.length,
         requests: 1,
-        説明_日本語: `GDELTから${candidates.length}件を受信し、${stored}件をDBへ保存しました。`,
+        stored: gdeltStored,
+        totalStored: stored,
+        説明_日本語: `GDELTから${candidates.length}件を受信し、${gdeltStored}件をDBへ保存しました。`,
       });
     } catch (error) {
       const details = errorDetails(error);
@@ -157,16 +222,21 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
         対応_日本語: diagnostic.nextActionJa,
       });
     }
+  } else if (stored >= 5) {
+    console.info("[daily-news] gdelt refresh skipped", {
+      reason: "already_filled_by_groq",
+      説明_日本語: "Groq候補取得で5件以上そろったため、GDELTは呼び出しません。",
+    });
   } else {
     console.info("[daily-news] gdelt refresh skipped", {
       reason: "feature_disabled",
-      説明_日本語: "GDELT_PROVIDER_ENABLED が false のため、GDELTを使わずOpenAI予備取得へ進みます。",
+      説明_日本語: "GDELT_PROVIDER_ENABLED が true ではないため、GDELTを使わず次の予備取得へ進みます。",
     });
   }
 
-  if (stored < 5 && process.env.OPENAI_NEWS_FALLBACK_ENABLED !== "false") {
+  if (stored < 5 && openAIEnabled) {
     console.info("[daily-news] OpenAI予備取得を開始", {
-      理由_日本語: `GDELTだけでは5件に届かなかったため（現在${stored}件）、不足分を補完します。`,
+      理由_日本語: `Groq/GDELTだけでは5件に届かなかったため（現在${stored}件）、不足分を補完します。`,
       対象ジャンル数: topics.length,
       リトライ回数: 1,
     });
@@ -181,7 +251,7 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
       console.info("[daily-news] openai fallback refreshed", {
         fetched: candidates.length,
         stored,
-        reason: gdeltEnabled ? "gdelt_underfilled" : "gdelt_disabled",
+        reason: groqEnabled ? "groq_underfilled" : gdeltEnabled ? "gdelt_underfilled" : "primary_provider_disabled",
         説明_日本語: `OpenAI Web Searchから${candidates.length}件を受信し、合計${stored}件をDBへ保存しました。`,
       });
     } catch (error) {
@@ -197,11 +267,11 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     }
   } else if (stored >= 5) {
     console.info("[daily-news] OpenAI予備取得をスキップ", {
-      説明_日本語: "GDELTまたはキャッシュで5件そろったため、OpenAIの追加利用を抑止しました。",
+      説明_日本語: "GroqまたはGDELTで5件以上そろったため、OpenAIの追加利用を抑止しました。",
     });
   } else {
     console.info("[daily-news] OpenAI予備取得を無効化", {
-      説明_日本語: "OPENAI_NEWS_FALLBACK_ENABLED=false のため、不足分の補完を行いません。",
+      説明_日本語: "OPENAI_NEWS_FALLBACK_ENABLED=true が明示されていないため、不足分のOpenAI Web Search補完を行いません。",
     });
   }
 
@@ -227,6 +297,12 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     })),
   });
   return result;
+}
+
+function groqPerTopicLimit(): number {
+  const requested = Number(process.env.GROQ_NEWS_PER_TOPIC_LIMIT);
+  if (!Number.isFinite(requested)) return 12;
+  return Math.min(Math.max(Math.round(requested), 1), 20);
 }
 
 async function storeCandidates(
@@ -306,7 +382,7 @@ export function diagnoseNewsError(error: unknown): NewsErrorDiagnostic {
     return {
       code: "CONFIGURATION_ERROR",
       explanationJa: "ニュース取得に必要な環境変数またはAPIキーが設定されていません。",
-      nextActionJa: "サーバー環境のOPENAI_API_KEYなどを確認し、キー自体はログへ出力しないで設定します。",
+      nextActionJa: "サーバー環境のGROQ_API_KEYやOPENAI_API_KEYなどを確認し、キー自体はログへ出力しないで設定します。",
     };
   }
   return {

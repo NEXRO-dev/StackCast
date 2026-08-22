@@ -51,10 +51,10 @@ export type DailyEditionBuildOptions = {
 export function isDailyEditionCatchUpTime(now: Date, timeZone: string): boolean {
   const parts = localDateParts(now, timeZone);
   const hour = Number(parts.hour);
-  const minute = Number(parts.minute);
-  // Temporary production schedule: 16:15 local time. The 15-minute window
-  // lets a */5 UTC cron catch users in whole-hour and quarter-hour zones.
-  return hour === 16 && minute >= 15 && minute < 30;
+  // The Vercel cron runs every five minutes. Treat the full 17:00 hour in the
+  // user's saved timezone as a catch-up window, then skip users already handled
+  // by the scheduled job so transient API errors do not make the day fail.
+  return hour === 17;
 }
 
 export function dailyEditionStatusForSelection(
@@ -80,6 +80,9 @@ export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEdi
     const timeZone = validTimeZone(row.timeZone);
     const parts = localDateParts(now, timeZone);
     if (!isDailyEditionCatchUpTime(now, timeZone)) return null;
+    if (await scheduledDailyEditionAlreadyCompleted(row.userID, `${parts.year}-${parts.month}-${parts.day}`, timeZone)) {
+      return null;
+    }
     const locale = await newsLocaleForUser(row.userID);
     return {
       userID: row.userID,
@@ -91,6 +94,31 @@ export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEdi
     } satisfies DailyEditionTarget;
   }));
   return targets.filter((target): target is DailyEditionTarget => target !== null);
+}
+
+async function scheduledDailyEditionAlreadyCompleted(
+  userID: string,
+  editionDate: string,
+  timeZone: string,
+): Promise<boolean> {
+  const row = (await getTurso().get(
+    `SELECT e.status, e.auto_cast_status AS autoCastStatus,
+            COALESCE(e.generated_at, e.updated_at) AS generatedAt,
+            (SELECT COUNT(*) FROM daily_news_edition_items i WHERE i.edition_id = e.id) AS itemCount
+     FROM daily_news_editions e
+     WHERE e.user_id = ? AND e.edition_date = ? LIMIT 1`,
+    userID, editionDate,
+  )) as { status?: string; autoCastStatus?: string | null; generatedAt?: string | null; itemCount?: number } | null;
+  if (!row?.generatedAt || (row.itemCount ?? 0) < 5 || row.status === "failed") return false;
+  const generatedAt = new Date(row.generatedAt);
+  if (Number.isNaN(generatedAt.valueOf())) return false;
+  const generatedParts = localDateParts(generatedAt, timeZone);
+  const generatedEditionDate = `${generatedParts.year}-${generatedParts.month}-${generatedParts.day}`;
+  const generatedAfterScheduleStart = generatedEditionDate === editionDate && Number(generatedParts.hour) >= 17;
+  // A regular app feed GET can lazily build today's edition too. That path
+  // leaves auto_cast_status as "disabled", while this scheduled cron updates it
+  // to queued/skipped/processing/ready after enqueueing or eligibility checks.
+  return generatedAfterScheduleStart && row.autoCastStatus !== "disabled";
 }
 
 export async function buildDailyEdition(
