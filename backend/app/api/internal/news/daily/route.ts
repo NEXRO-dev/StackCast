@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     console.info("[daily-news] 日次ニュースの対象ユーザーを確認", {
       requestID,
       対象ユーザー数: targets.length,
-      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける15:40〜15:59",
+      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける15:45〜15:59",
       対象ユーザー_日本語: targets.map((target) => ({
         userID: target.userID,
         timeZone: target.timeZone,
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       console.info("[daily-news] cron request skipped", {
         requestID,
         reason: "no_users_due",
-        説明_日本語: "現在のCron実行時刻は、対象ユーザーの15:40〜15:59実行枠ではありません。",
+        説明_日本語: "現在のCron実行時刻は、対象ユーザーの15:45〜15:59実行枠ではありません。",
       });
       return Response.json({ success: true, skipped: "no_users_due" });
     }
