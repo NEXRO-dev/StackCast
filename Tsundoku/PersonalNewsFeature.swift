@@ -67,6 +67,8 @@ struct RecommendationProfile: Codable {
     let dailyAutoCastEnabled: Int?
     let dailyCastDurationMinutes: Int?
     let aiProcessingConsentAt: String?
+    let onboardingCompletedAt: String?
+    let requiresSetup: Bool?
     let topics: [SelectedTopic]
     let customInterests: [CustomInterest]?
 }
@@ -347,7 +349,11 @@ final class RecommendationStore {
     private var hasAttemptedInitialLoad = false
     private var lastFeedRefreshAt: Date?
 
-    var requiresSetup: Bool { profile != nil && (profile?.topics.count ?? 0) < 3 }
+    var requiresSetup: Bool {
+        guard let profile else { return false }
+        if let serverValue = profile.requiresSetup { return serverValue }
+        return profile.onboardingCompletedAt == nil || profile.topics.count + (profile.customInterests?.count ?? 0) < 3
+    }
 
     func load(token: String?) async {
         guard !hasAttemptedInitialLoad else { return }

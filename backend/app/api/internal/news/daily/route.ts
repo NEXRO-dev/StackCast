@@ -34,8 +34,25 @@ export async function GET(request: Request) {
   }
   try {
     const targets = await dueDailyEditionTargets();
+    console.info("[daily-news] 日次ニュースの対象ユーザーを確認", {
+      requestID,
+      対象ユーザー数: targets.length,
+      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける15:40〜15:59",
+      対象ユーザー_日本語: targets.map((target) => ({
+        userID: target.userID,
+        timeZone: target.timeZone,
+        editionDate: target.editionDate,
+        language: target.language === "japanese" ? "日本語" : "英語",
+        sourceCountry: target.sourceCountry,
+        topicIDs: target.topicIDs,
+      })),
+    });
     if (targets.length === 0) {
-      console.info("[daily-news] cron request skipped", { requestID, reason: "no_users_due" });
+      console.info("[daily-news] cron request skipped", {
+        requestID,
+        reason: "no_users_due",
+        説明_日本語: "現在のCron実行時刻は、対象ユーザーの15:40〜15:59実行枠ではありません。",
+      });
       return Response.json({ success: true, skipped: "no_users_due" });
     }
     const localeGroups = new Map<string, {
@@ -66,6 +83,17 @@ export async function GET(request: Request) {
         language: group.language,
         sourceCountry: group.sourceCountry,
         topicIDs: [...group.topicIDs],
+      });
+      console.info("[daily-news] ロケールグループの取得結果", {
+        requestID,
+        localeKey,
+        対象ユーザー数: group.targets.length,
+        成功取得数: providerResult.fetched,
+        DB保存数: providerResult.stored,
+        失敗数: providerResult.failures.length,
+        説明_日本語: providerResult.stored >= 5
+          ? "この言語・地域グループでは5件以上を確保しました。"
+          : "5件未満のため、既存DBキャッシュを使ったfallback版を生成します。",
       });
       providerResults.push(providerResult);
       const unavailableForGroup = newsRefreshProviderUnavailable(providerResult);
@@ -144,6 +172,8 @@ export async function GET(request: Request) {
     console.error("[daily-news] cron request failed", {
       requestID,
       error: error instanceof Error ? error.message : String(error),
+      原因_日本語: "日次ニュース処理の途中で、データベース・設定・外部プロバイダーのいずれかが失敗しました。",
+      対応_日本語: "この実行は500で終了しました。次の15分間隔Cronで再実行されます。",
       elapsedMs: Date.now() - startedAt,
     });
     return Response.json({ success: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });

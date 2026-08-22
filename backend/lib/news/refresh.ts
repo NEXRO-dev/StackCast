@@ -28,6 +28,12 @@ export type NewsRefreshBuildDecision = {
   markFallback: boolean;
 };
 
+export type NewsErrorDiagnostic = {
+  code: string;
+  explanationJa: string;
+  nextActionJa: string;
+};
+
 export function newsRefreshIsWithinCooldown(
   latestSuccessfulFetchAt: string | null | undefined,
   now = new Date(),
@@ -59,6 +65,7 @@ export function newsRefreshBuildDecision(result: NewsRefreshResult): NewsRefresh
 
 /** GDELT first; one OpenAI request only when GDELT cannot fill five items. */
 export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): Promise<NewsRefreshResult> {
+  const startedAt = Date.now();
   const topicIDs = [...new Set(options.topicIDs ?? [])];
   const filters = ["is_active = 1"];
   const args: string[] = [];
@@ -76,6 +83,14 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     ...args,
   )) as TopicRow[];
   const language = options.language ?? "japanese";
+  console.info("[daily-news] ニュース取得の準備完了", {
+    provider候補: featureEnabled("GDELT_PROVIDER_ENABLED") ? "GDELT → OpenAI予備" : "OpenAI予備のみ",
+    言語: language === "japanese" ? "日本語" : "英語",
+    対象国: options.sourceCountry ?? "指定なし",
+    ジャンル数: topics.length,
+    ジャンル: topics.map((topic) => ({ id: topic.id, 検索語: topic.query })),
+    再取得強制: options.force === true,
+  });
   const cooldownCutoff = new Date(Date.now() - NEWS_POOL_COOLDOWN_MS).toISOString();
   const latest = (await getTurso().get(
     `SELECT MAX(fetched_at) AS fetchedAt, COUNT(DISTINCT id) AS articleCount FROM news_articles
@@ -90,6 +105,8 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
       reason: "cooldown", providers: ["gdelt", "openai-web-search"], topics: topics.length,
       lastFetchedAt: latest?.fetchedAt, articleCount: latest?.articleCount ?? 0,
       cooldownHours: NEWS_POOL_COOLDOWN_MS / 3_600_000,
+      説明_日本語: "直近6時間以内に十分な記事が保存済みのため、同じニュースの重複取得を防止しました。",
+      次の動作_日本語: "キャッシュ済み記事を使い、次回の定期処理まで外部APIを呼び出しません。",
     });
     return { topics: topics.length, fetched: 0, stored: 0, failures: [], cooldown: true };
   }
@@ -105,6 +122,12 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
 
   if (gdeltEnabled) {
     const gdelt = new GDELTProvider();
+    console.info("[daily-news] GDELT取得を開始", {
+      説明_日本語: "無料公開のGDELTを優先し、ユーザーの興味ジャンルをまとめて検索します。",
+      リクエスト数: 1,
+      タイムアウト秒: Number(process.env.GDELT_REQUEST_TIMEOUT_MS ?? 15000) / 1000,
+      最小リクエスト間隔秒: Number(process.env.GDELT_MIN_REQUEST_INTERVAL_MS ?? 6000) / 1000,
+    });
     try {
       const candidates = await gdelt.searchTopics(topics.map((topic) => ({
         topicID: topic.id,
@@ -119,21 +142,34 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
         topics: topics.length,
         fetched: candidates.length,
         requests: 1,
+        説明_日本語: `GDELTから${candidates.length}件を受信し、${stored}件をDBへ保存しました。`,
       });
     } catch (error) {
       const details = errorDetails(error);
+      const diagnostic = diagnoseNewsError(error);
       failures.push(`combined:gdelt:${details.message}`);
       console.warn("[daily-news] gdelt combined refresh failed", {
         topics: topics.length,
         requests: 1,
         ...details,
+        エラーコード: diagnostic.code,
+        原因_日本語: diagnostic.explanationJa,
+        対応_日本語: diagnostic.nextActionJa,
       });
     }
   } else {
-    console.info("[daily-news] gdelt refresh skipped", { reason: "feature_disabled" });
+    console.info("[daily-news] gdelt refresh skipped", {
+      reason: "feature_disabled",
+      説明_日本語: "GDELT_PROVIDER_ENABLED が false のため、GDELTを使わずOpenAI予備取得へ進みます。",
+    });
   }
 
   if (stored < 5 && process.env.OPENAI_NEWS_FALLBACK_ENABLED !== "false") {
+    console.info("[daily-news] OpenAI予備取得を開始", {
+      理由_日本語: `GDELTだけでは5件に届かなかったため（現在${stored}件）、不足分を補完します。`,
+      対象ジャンル数: topics.length,
+      リトライ回数: 1,
+    });
     try {
       const fallback = new OpenAIWebSearchProvider();
       const candidates = await fallback.searchTopics(topics.map((topic) => ({
@@ -146,12 +182,27 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
         fetched: candidates.length,
         stored,
         reason: gdeltEnabled ? "gdelt_underfilled" : "gdelt_disabled",
+        説明_日本語: `OpenAI Web Searchから${candidates.length}件を受信し、合計${stored}件をDBへ保存しました。`,
       });
     } catch (error) {
       const details = errorDetails(error);
+      const diagnostic = diagnoseNewsError(error);
       failures.push(`openai-fallback:${details.message}`);
-      console.warn("[daily-news] openai fallback failed", details);
+      console.warn("[daily-news] openai fallback failed", {
+        ...details,
+        エラーコード: diagnostic.code,
+        原因_日本語: diagnostic.explanationJa,
+        対応_日本語: diagnostic.nextActionJa,
+      });
     }
+  } else if (stored >= 5) {
+    console.info("[daily-news] OpenAI予備取得をスキップ", {
+      説明_日本語: "GDELTまたはキャッシュで5件そろったため、OpenAIの追加利用を抑止しました。",
+    });
+  } else {
+    console.info("[daily-news] OpenAI予備取得を無効化", {
+      説明_日本語: "OPENAI_NEWS_FALLBACK_ENABLED=false のため、不足分の補完を行いません。",
+    });
   }
 
   const result: NewsRefreshResult = {
@@ -161,7 +212,20 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
     failures: failures.slice(0, 50),
     cooldown: false,
   };
-  console.info("[daily-news] shared pool refresh completed", { ...result, failureCount: failures.length });
+  console.info("[daily-news] shared pool refresh completed", {
+    ...result,
+    failureCount: failures.length,
+    所要時間Ms: Date.now() - startedAt,
+    結果_日本語: stored >= 5
+      ? "5件以上の記事を確保しました。"
+      : stored > 0
+        ? `一部成功です。${stored}件のみ確保したため、DBキャッシュを使って補完します。`
+        : "外部APIから記事を取得できませんでした。既存キャッシュを使って処理を継続します。",
+    失敗一覧_日本語: failures.map((failure) => ({
+      raw: failure,
+      説明: diagnoseNewsError(new Error(failure)).explanationJa,
+    })),
+  });
   return result;
 }
 
@@ -174,12 +238,35 @@ async function storeCandidates(
   let stored = 0;
   for (const candidate of candidates) {
     const topicID = candidate.topicID ?? defaultTopicID;
-    if (!topicID) continue;
+    if (!topicID) {
+      console.warn("[daily-news] 記事を保存せずスキップ", {
+        理由_日本語: "記事にジャンルIDが付いていないため、ユーザーの興味と紐付けられません。",
+        provider,
+        title: candidate.title,
+      });
+      continue;
+    }
     try {
       await upsertNewsCandidate(topicID, provider, candidate);
       stored += 1;
+      console.info("[daily-news] 記事をDBへ保存", {
+        provider,
+        topicID,
+        source: candidate.sourceDomain,
+        publishedAt: candidate.publishedAt,
+        説明_日本語: "取得記事を正規化し、同一URLは重複登録せず保存しました。",
+      });
     } catch (error) {
-      failures.push(`${topicID}:${provider}:store:${error instanceof Error ? error.message : String(error)}`);
+      const diagnostic = diagnoseNewsError(error);
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${topicID}:${provider}:store:${message}`);
+      console.error("[daily-news] 記事のDB保存に失敗", {
+        provider,
+        topicID,
+        エラーコード: diagnostic.code,
+        原因_日本語: diagnostic.explanationJa,
+        対応_日本語: diagnostic.nextActionJa,
+      });
     }
   }
   return stored;
@@ -189,4 +276,42 @@ function errorDetails(error: unknown): { name: string; message: string; cause?: 
   if (!(error instanceof Error)) return { name: "UnknownError", message: String(error) };
   const cause = error.cause instanceof Error ? `${error.cause.name}: ${error.cause.message}` : error.cause ? String(error.cause) : undefined;
   return { name: error.name, message: error.message, ...(cause ? { cause } : {}) };
+}
+
+export function diagnoseNewsError(error: unknown): NewsErrorDiagnostic {
+  const details = errorDetails(error);
+  const raw = `${details.message} ${details.cause ?? ""}`.toLowerCase();
+  if (raw.includes("429") || raw.includes("rate_limit")) {
+    return {
+      code: "HTTP_429_RATE_LIMIT",
+      explanationJa: "アクセス過多または利用上限により、ニュース提供元がリクエストを拒否しました。APIキーの有無だけでなく、短時間の呼び出し集中や利用枠も確認が必要です。",
+      nextActionJa: "この実行中に連続再試行せず、クールダウン後の次回処理で再取得します。保存済みキャッシュがあればそれを表示します。",
+    };
+  }
+  if (raw.includes("circuit_open") || raw.includes("temporarily_unavailable")) {
+    return {
+      code: "PROVIDER_CIRCUIT_OPEN",
+      explanationJa: "直前のタイムアウトまたは429を検知したため、同じ実行内の追加リクエストを安全のため停止しました。",
+      nextActionJa: "APIをさらに叩かず、クールダウン終了後の次回定期処理で再開します。",
+    };
+  }
+  if (raw.includes("timeout") || raw.includes("aborted") || raw.includes("connect_timeout")) {
+    return {
+      code: "NETWORK_TIMEOUT",
+      explanationJa: "ニュース提供元から設定時間内に応答が返らず、接続を中断しました。提供元の混雑、ネットワーク経路、検索条件の重さが候補です。",
+      nextActionJa: "同じリクエストを即時に繰り返さず、別プロバイダーまたはDBキャッシュへ切り替えます。",
+    };
+  }
+  if (raw.includes("missing required environment variable") || raw.includes("api_key")) {
+    return {
+      code: "CONFIGURATION_ERROR",
+      explanationJa: "ニュース取得に必要な環境変数またはAPIキーが設定されていません。",
+      nextActionJa: "サーバー環境のOPENAI_API_KEYなどを確認し、キー自体はログへ出力しないで設定します。",
+    };
+  }
+  return {
+    code: details.name || "UNKNOWN_ERROR",
+    explanationJa: `ニュース取得処理で予期しないエラーが発生しました（${details.message}）。`,
+    nextActionJa: "エラーコード・発生時刻・対象ジャンルを確認し、キャッシュ表示を維持したまま次回処理で再試行します。",
+  };
 }

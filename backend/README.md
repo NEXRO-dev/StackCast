@@ -79,7 +79,7 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 
 ## Personal News / Daily Cast
 
-`vercel.json` は毎時 `GET /api/internal/news/daily` を呼び出し、各ユーザーの保存タイムゾーンで1:00〜3:59を日次処理の再試行枠として扱います。取得に成功した記事が直近6時間に5件以上あれば重複取得を抑止し、Providerが利用できない場合も30日間の共通キャッシュからfallback版を作ります。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
+`vercel.json` は5分間隔で `GET /api/internal/news/daily` を呼び出し、各ユーザーの保存タイムゾーンで15:40〜15:59を日次処理の実行・再試行枠として扱います。取得に成功した記事が直近6時間に5件以上あれば重複取得を抑止し、Providerが利用できない場合も30日間の共通キャッシュからfallback版を作ります。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
 
 主な環境変数:
 
@@ -87,7 +87,7 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 - `PERSONAL_NEWS_ENABLED`: `false` でPersonal News APIと日次処理を停止（既定 `true`）
 - `DAILY_NEWS_EDITION_ENABLED`: `false` で日次候補取得・版生成を停止（既定 `true`）
 - `GDELT_PROVIDER_ENABLED`: `false` でGDELT取得を停止（既定 `true`）
-- `GDELT_REQUEST_TIMEOUT_MS`: GDELT 1リクエストの待ち時間（既定 `3000`、上限 `10000`）
+- `GDELT_REQUEST_TIMEOUT_MS`: GDELT 1リクエストの待ち時間（既定 `15000`、上限 `30000`）
 - `GDELT_FAILURE_COOLDOWN_MS`: GDELT timeout/429 後に同一プロセスでGDELTをスキップする時間（既定15分）
 - `GDELT_TIMESPAN`: GDELT検索窓（既定 `1d`）
 - `OPENAI_NEWS_FALLBACK_ENABLED`: `false` でGDELT不足時のOpenAI Web Searchを停止（既定 `true`）

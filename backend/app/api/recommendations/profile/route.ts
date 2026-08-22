@@ -179,7 +179,25 @@ async function readProfile(userID: string) {
      FROM user_custom_interests WHERE user_id = ? ORDER BY created_at`,
     userID,
   );
-  return { ...(profile ?? { ageBand: "unspecified", timeZone: "Asia/Tokyo", personalizationEnabled: 1, dailyAutoCastEnabled: 0, dailyCastDurationMinutes: 5 }), topics, customInterests };
+  const resolvedProfile = profile ?? {
+    ageBand: "unspecified",
+    gender: null,
+    timeZone: "Asia/Tokyo",
+    personalizationEnabled: 1,
+    dailyAutoCastEnabled: 0,
+    dailyCastDurationMinutes: 5,
+    aiProcessingConsentAt: null,
+    onboardingCompletedAt: null,
+  };
+  return {
+    ...resolvedProfile,
+    topics,
+    customInterests,
+    // This is the single server-side source of truth for the first-run sheet.
+    // Once the user saves the complete profile, it must remain false on every login.
+    requiresSetup: !resolvedProfile.onboardingCompletedAt
+      || topics.length + customInterests.length < 3,
+  };
 }
 
 function normalizeTimeZone(value: unknown): string | null {

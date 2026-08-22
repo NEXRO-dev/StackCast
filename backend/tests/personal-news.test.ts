@@ -30,11 +30,11 @@ test("Tokyo edition date changes at JST midnight", () => {
   assert.equal(tokyoEditionDate(new Date("2026-08-18T15:00:00Z")), "2026-08-19");
 });
 
-test("daily edition catch-up window covers local hours 1 through 3", () => {
-  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T15:59:59Z"), "Asia/Tokyo"), false);
-  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T16:00:00Z"), "Asia/Tokyo"), true);
-  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T18:59:59Z"), "Asia/Tokyo"), true);
-  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T19:00:00Z"), "Asia/Tokyo"), false);
+test("daily edition catch-up window covers local 15:40 through 15:59", () => {
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T06:39:59Z"), "Asia/Tokyo"), false);
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T06:40:00Z"), "Asia/Tokyo"), true);
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T06:59:59Z"), "Asia/Tokyo"), true);
+  assert.equal(isDailyEditionCatchUpTime(new Date("2026-08-18T07:00:00Z"), "Asia/Tokyo"), false);
 });
 
 test("news refresh cooldown lasts six hours and force bypasses it", () => {

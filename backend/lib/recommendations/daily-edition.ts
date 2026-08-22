@@ -49,8 +49,12 @@ export type DailyEditionBuildOptions = {
 };
 
 export function isDailyEditionCatchUpTime(now: Date, timeZone: string): boolean {
-  const hour = Number(localDateParts(now, timeZone).hour);
-  return hour >= 1 && hour <= 3;
+  const parts = localDateParts(now, timeZone);
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  // Temporary production schedule: 15:40 local time. The 20-minute window
+  // lets a */5 UTC cron catch users in whole-hour and quarter-hour zones.
+  return hour === 15 && minute >= 40;
 }
 
 export function dailyEditionStatusForSelection(
@@ -424,13 +428,14 @@ function validTimeZone(value?: string | null): string {
   }
 }
 
-function localDateParts(now: Date, timeZone: string): { year: string; month: string; day: string; hour: string } {
+function localDateParts(now: Date, timeZone: string): { year: string; month: string; day: string; hour: string; minute: string } {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: validTimeZone(timeZone),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
   }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
@@ -439,6 +444,7 @@ function localDateParts(now: Date, timeZone: string): { year: string; month: str
     month: values.month,
     day: values.day,
     hour: values.hour,
+    minute: values.minute,
   };
 }
 
