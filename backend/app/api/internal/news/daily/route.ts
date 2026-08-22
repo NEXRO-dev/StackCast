@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     console.info("[daily-news] 日次ニュースの対象ユーザーを確認", {
       requestID,
       対象ユーザー数: targets.length,
-      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける15:45〜15:59",
+      実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける16:00〜16:14",
       対象ユーザー_日本語: targets.map((target) => ({
         userID: target.userID,
         timeZone: target.timeZone,
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       console.info("[daily-news] cron request skipped", {
         requestID,
         reason: "no_users_due",
-        説明_日本語: "現在のCron実行時刻は、対象ユーザーの15:45〜15:59実行枠ではありません。",
+        説明_日本語: "現在のCron実行時刻は、対象ユーザーの16:00〜16:14実行枠ではありません。",
       });
       return Response.json({ success: true, skipped: "no_users_due" });
     }
@@ -173,7 +173,7 @@ export async function GET(request: Request) {
       requestID,
       error: error instanceof Error ? error.message : String(error),
       原因_日本語: "日次ニュース処理の途中で、データベース・設定・外部プロバイダーのいずれかが失敗しました。",
-      対応_日本語: "この実行は500で終了しました。次の15分間隔Cronで再実行されます。",
+      対応_日本語: "この実行は500で終了しました。次の5分間隔Cronで再実行されます。",
       elapsedMs: Date.now() - startedAt,
     });
     return Response.json({ success: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });

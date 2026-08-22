@@ -52,9 +52,9 @@ export function isDailyEditionCatchUpTime(now: Date, timeZone: string): boolean 
   const parts = localDateParts(now, timeZone);
   const hour = Number(parts.hour);
   const minute = Number(parts.minute);
-  // Temporary production schedule: 15:45 local time. The 15-minute window
+  // Temporary production schedule: 16:00 local time. The 15-minute window
   // lets a */5 UTC cron catch users in whole-hour and quarter-hour zones.
-  return hour === 15 && minute >= 45;
+  return hour === 16 && minute < 15;
 }
 
 export function dailyEditionStatusForSelection(

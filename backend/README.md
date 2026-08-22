@@ -79,7 +79,7 @@ iOSアプリは`Tsundoku/Config.swift`の`Config.isProduction`で接続先を選
 
 ## Personal News / Daily Cast
 
-`vercel.json` は5分間隔で `GET /api/internal/news/daily` を呼び出し、各ユーザーの保存タイムゾーンで15:45〜15:59を日次処理の実行・再試行枠として扱います。取得に成功した記事が直近6時間に5件以上あれば重複取得を抑止し、Providerが利用できない場合も30日間の共通キャッシュからfallback版を作ります。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
+`vercel.json` は5分間隔で `GET /api/internal/news/daily` を呼び出し、各ユーザーの保存タイムゾーンで16:00〜16:14を日次処理の実行・再試行枠として扱います。取得に成功した記事が直近6時間に5件以上あれば重複取得を抑止し、Providerが利用できない場合も30日間の共通キャッシュからfallback版を作ります。Vercel側には十分に長い `CRON_SECRET` を設定してください。候補ニュースはGDELTからジャンル単位で共通取得し、ユーザーごとの興味・閲覧メモリから5件のデイリー版を固定します。
 
 主な環境変数:
 
