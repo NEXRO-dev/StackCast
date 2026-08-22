@@ -68,29 +68,52 @@ export async function PUT(request: Request) {
 export async function PATCH(request: Request) {
   const userID = await authenticatedUserID(request);
   if (!userID) return errorResponse("unauthorized", "Session is invalid or expired.", 401);
-  let body: { timeZone?: unknown };
+  let body: { timeZone?: unknown; ageBand?: unknown; gender?: unknown };
   try {
     body = await request.json() as { timeZone?: unknown };
   } catch {
     return errorResponse("invalid_input", "Time zone is invalid.", 400);
   }
   const timeZone = normalizeTimeZone(body.timeZone);
-  if (!timeZone) return errorResponse("invalid_input", "Time zone is invalid.", 400);
+  const ageBand = body.ageBand === undefined ? undefined : normalizeAgeBand(body.ageBand);
+  const gender = body.gender === undefined ? undefined : normalizeGender(body.gender);
+  if (body.timeZone !== undefined && !timeZone) return errorResponse("invalid_input", "Time zone is invalid.", 400);
+  if (body.ageBand !== undefined && !ageBand) return errorResponse("invalid_input", "Age range is invalid.", 400);
+  if (body.gender !== undefined && gender === undefined) return errorResponse("invalid_input", "Gender is invalid.", 400);
   const now = new Date().toISOString();
   const database = getTurso();
+  const updates: string[] = [];
+  const updateArgs: unknown[] = [];
+  if (timeZone) { updates.push("time_zone = ?"); updateArgs.push(timeZone); }
+  if (ageBand) {
+    updates.push("age_band = ?"); updateArgs.push(ageBand);
+    updates.push("onboarding_completed_at = ?"); updateArgs.push(now);
+  }
+  if (body.gender !== undefined) { updates.push("gender = ?"); updateArgs.push(gender); }
+  updateArgs.push(now, userID);
   await database.batch([
     {
       sql: `INSERT OR IGNORE INTO user_recommendation_profiles
         (user_id, time_zone, created_at, updated_at)
        VALUES (?, ?, ?, ?)`,
-      args: [userID, timeZone, now, now],
+      args: [userID, timeZone ?? "Asia/Tokyo", now, now],
     },
     {
-      sql: "UPDATE user_recommendation_profiles SET time_zone = ?, updated_at = ? WHERE user_id = ?",
-      args: [timeZone, now, userID],
+      sql: `UPDATE user_recommendation_profiles SET ${updates.length > 0 ? `${updates.join(", ")}, ` : ""}updated_at = ? WHERE user_id = ?`,
+      args: updateArgs,
     },
   ], "immediate");
-  return Response.json({ timeZone });
+  return Response.json({ timeZone: timeZone ?? null, ageBand: ageBand ?? null, gender: gender ?? null });
+}
+
+function normalizeAgeBand(value: unknown): string | null {
+  return typeof value === "string" && allowedAgeBands.has(value) ? value : null;
+}
+
+function normalizeGender(value: unknown): string | null | undefined {
+  if (value === null || value === "unspecified") return null;
+  if (value === "female" || value === "male" || value === "non_binary") return value;
+  return undefined;
 }
 
 type ProfileInput = {

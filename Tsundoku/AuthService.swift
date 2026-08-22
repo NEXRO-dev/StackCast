@@ -97,6 +97,7 @@ enum AuthServiceError: Error, Equatable {
 @Observable
 final class AuthStore {
     private(set) var status: AuthStatus = .checking
+    private(set) var requiresSocialProfileSetup = false
 
     private let client: AuthClient
     private let tokenStore: AuthTokenStore
@@ -200,13 +201,12 @@ final class AuthStore {
             let profileImageURL = result.user.profile?
                 .imageURL(withDimension: 256)?
                 .absoluteString
-            try accept(
-                try await client.signInWithGoogle(
-                    identityToken: identityToken,
-                    profileImageURL: profileImageURL,
-                    preferredLanguage: preferredLanguageForServer
-                )
+            let response = try await client.signInWithGoogle(
+                identityToken: identityToken,
+                profileImageURL: profileImageURL,
+                preferredLanguage: preferredLanguageForServer
             )
+            try accept(response)
         } catch let error as AuthServiceError {
             throw error
         } catch {
@@ -238,6 +238,7 @@ final class AuthStore {
             password: password
         )
         try tokenStore.save(response.session.token)
+        requiresSocialProfileSetup = response.requiresProfileSetup == true
         status = .signedIn(response.user)
     }
 
@@ -247,6 +248,7 @@ final class AuthStore {
         }
         try? tokenStore.delete()
         GIDSignIn.sharedInstance.signOut()
+        requiresSocialProfileSetup = false
         status = .signedOut
     }
 
@@ -255,6 +257,10 @@ final class AuthStore {
               let token = try tokenStore.load() else { return }
         let response = try await client.updatePreferredLanguage(language, token: token)
         status = .signedIn(response.user)
+    }
+
+    func clearSocialProfileSetupRequirement() {
+        requiresSocialProfileSetup = false
     }
 
     private var preferredLanguageForServer: String {
@@ -288,6 +294,7 @@ final class AuthStore {
     #endif
 
     private func accept(_ response: AuthResponse) throws {
+        requiresSocialProfileSetup = response.requiresProfileSetup == true
         try accept(user: response.user, session: response.session)
     }
 
@@ -305,6 +312,7 @@ enum EmailVerificationResult: Equatable {
 struct AuthResponse: Decodable {
     let user: AuthUser
     let session: Session
+    let requiresProfileSetup: Bool?
 
     struct Session: Decodable {
         let token: String

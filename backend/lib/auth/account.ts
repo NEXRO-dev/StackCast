@@ -21,7 +21,7 @@ export async function signInWithSocialIdentity(input: {
 
   if (existingIdentity) {
     const user = await updateSocialProfileImage(existingIdentity, input);
-    return createAuthenticatedResponse(user);
+    return createAuthenticatedResponse(user, !(await hasCompletedProfile(user.id)));
   }
 
   if (!input.email) {
@@ -95,7 +95,12 @@ export async function signInWithSocialIdentity(input: {
 
   try {
     await getTurso().batch(statements, "immediate");
-    return authResponse(user, session.token, session.expiresAt);
+    return authResponse(
+      user,
+      session.token,
+      session.expiresAt,
+      !(await hasCompletedProfile(user.id)),
+    );
   } catch (error) {
     const racedIdentity = await findIdentity(input.provider, input.subject);
     if (racedIdentity) {
@@ -105,14 +110,14 @@ export async function signInWithSocialIdentity(input: {
   }
 }
 
-export async function createAuthenticatedResponse(user: AuthUser): Promise<Response> {
+export async function createAuthenticatedResponse(user: AuthUser, requiresProfileSetup = false): Promise<Response> {
   const session = createSession();
   const insert = sessionInsert(user.id, session);
   await getTurso().run(
     insert.sql,
     ...insert.args,
   );
-  return authResponse(user, session.token, session.expiresAt);
+  return authResponse(user, session.token, session.expiresAt, requiresProfileSetup);
 }
 
 export class SocialAccountError extends Error {
@@ -208,4 +213,13 @@ function normalizedName(name: string | null, email: string): string {
     return trimmed;
   }
   return email.split("@")[0]?.slice(0, 100) || "StackCast User";
+}
+
+async function hasCompletedProfile(userID: string): Promise<boolean> {
+  const row = (await getTurso().get(
+    `SELECT onboarding_completed_at AS onboardingCompletedAt
+     FROM user_recommendation_profiles WHERE user_id = ? LIMIT 1`,
+    userID,
+  )) as { onboardingCompletedAt?: string | null } | null;
+  return Boolean(row?.onboardingCompletedAt);
 }

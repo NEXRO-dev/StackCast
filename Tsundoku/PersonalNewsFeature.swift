@@ -80,6 +80,168 @@ struct RecommendationMemoryItem: Codable, Identifiable {
     let reason: String
 }
 
+struct PeerTrend: Codable, Identifiable {
+    let id: String
+    let nameJA: String
+    let nameEN: String
+    let readerCount: Int
+
+    func name(language: AppLanguage) -> String { language == .english ? nameEN : nameJA }
+}
+
+struct PeerTrendArticle: Codable, Identifiable {
+    let id: String
+    let title: String
+    let sourceDomain: String
+    let imageURL: URL?
+    let originalURL: URL
+    let readerCount: Int
+}
+
+private struct PeerTrendsResponse: Decodable {
+    let available: Bool
+    let locked: Bool
+    let participantCount: Int
+    let topics: [PeerTrend]
+    let articles: [PeerTrendArticle]
+}
+
+@MainActor
+@Observable
+final class PeerTrendsStore {
+    private(set) var available = false
+    private(set) var locked = false
+    private(set) var participantCount = 0
+    private(set) var topics: [PeerTrend] = []
+    private(set) var articles: [PeerTrendArticle] = []
+    private(set) var isLoading = false
+
+    private let client = RecommendationClient()
+    private var hasLoaded = false
+
+    func load(token: String?) async {
+        guard !hasLoaded, let token else { return }
+        hasLoaded = true
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = try await client.peerTrends(token: token)
+            available = response.available
+            locked = response.locked
+            participantCount = response.participantCount
+            topics = response.topics
+            articles = response.articles
+        } catch {
+            available = false
+        }
+    }
+}
+
+struct PeerTrendsSection: View {
+    let language: AppLanguage
+    let store: PeerTrendsStore
+    let isPaid: Bool
+    let onUpgrade: () -> Void
+
+    private var isEnglish: Bool { language == .english }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(isEnglish ? "Popular trends in your age group" : "同年代の人気傾向")
+                .font(.title3.bold())
+            Text(isEnglish ? "Aggregated, anonymous trends from people in the same age group" : "同年代のユーザーを匿名で集計した人気の傾向")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Group {
+                if store.isLoading {
+                    ProgressView(isEnglish ? "Loading trends…" : "傾向を読み込み中…")
+                        .frame(maxWidth: .infinity, minHeight: 150)
+                } else if !isPaid {
+                    lockedContent
+                } else if store.available {
+                    availableContent
+                } else {
+                    ContentUnavailableView(
+                        isEnglish ? "No data yet" : "データがまだ\nありません",
+                        systemImage: "person.3",
+                        description: Text(isEnglish ? "Anonymous trends will appear when enough data is available." : "匿名データが十分に集まると\n表示されます。")
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 150)
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tsundokuCard()
+        }
+    }
+
+    private var lockedContent: some View {
+        VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(["テクノロジー", "社会", "ビジネス"], id: \.self) { title in
+                    HStack {
+                        Image(systemName: "chart.bar.fill")
+                            .foregroundStyle(.indigo)
+                        Text(isEnglish ? "Popular topic" : title)
+                        Spacer()
+                        Text("•••")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .blur(radius: 5)
+
+            Button(action: onUpgrade) {
+                Text(isEnglish ? "View with a paid plan" : "有料プランで見る")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var availableContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if !store.topics.isEmpty {
+                Text(isEnglish ? "Top topics" : "人気のジャンル")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(Array(store.topics.prefix(3))) { topic in
+                    HStack {
+                        Image(systemName: "chart.bar.fill")
+                            .foregroundStyle(.indigo)
+                        Text(topic.name(language: language))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                    }
+                }
+            }
+
+            if !store.articles.isEmpty {
+                Divider()
+                Text(isEnglish ? "Popular articles" : "よく読まれている記事")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(Array(store.articles.prefix(3))) { article in
+                    Link(destination: article.originalURL) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(article.title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(2)
+                                .foregroundStyle(.primary)
+                            Text(article.sourceDomain)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct InterestSuggestion: Identifiable, Hashable {
     let id: String
     let nameJA: String
@@ -189,6 +351,11 @@ final class RecommendationStore {
 
     func load(token: String?) async {
         guard !hasAttemptedInitialLoad else { return }
+        await runLoad(token: token)
+    }
+
+    func reload(token: String?) async {
+        hasAttemptedInitialLoad = false
         await runLoad(token: token)
     }
 
@@ -439,6 +606,11 @@ final class RecommendationStore {
             errorMessage = error.localizedDescription
         }
     }
+
+    func saveDemographics(token: String?, ageBand: String, gender: String) async throws {
+        guard let token else { throw URLError(.userAuthenticationRequired) }
+        try await client.saveDemographics(token: token, ageBand: ageBand, gender: gender)
+    }
 }
 
 private struct RecommendationClient {
@@ -452,6 +624,22 @@ private struct RecommendationClient {
     func profile(token: String) async throws -> RecommendationProfile {
         let response: ProfileResponse = try await send(path: "recommendations/profile", token: token)
         return response.profile
+    }
+
+    func peerTrends(token: String) async throws -> PeerTrendsResponse {
+        try await send(path: "recommendations/peer-trends", token: token)
+    }
+
+    func saveDemographics(token: String, ageBand: String, gender: String) async throws {
+        let _: TimeZoneResponse = try await send(
+            path: "recommendations/profile",
+            method: "PATCH",
+            json: [
+                "ageBand": ageBand,
+                "gender": gender == "unspecified" ? NSNull() : gender,
+            ],
+            token: token
+        )
     }
 
     func syncTimeZone(token: String) async throws {
@@ -592,7 +780,7 @@ private struct EmptyAPIResponse: Decodable {
 }
 
 private struct TimeZoneResponse: Decodable {
-    let timeZone: String
+    let timeZone: String?
 }
 
 private struct PersonalNewsRefreshBanner: View {
@@ -1151,6 +1339,100 @@ struct PersonalNewsHomePreview: View {
             Task {
                 await store.refreshOnForeground(token: authStore.sessionToken())
             }
+        }
+    }
+}
+
+struct SocialProfileSetupView: View {
+    let authStore: AuthStore
+    let language: AppLanguage
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var store = RecommendationStore()
+    @State private var ageBand = "unspecified"
+    @State private var gender = "unspecified"
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    private var isEnglish: Bool { language == .english }
+    private let ageBands = ["under_18", "18_24", "25_34", "35_44", "45_54", "55_plus"]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(isEnglish
+                         ? "Tell us a little about yourself so StackCast can tailor your recommendations."
+                         : "あなたに合ったニュースを届けるため、年代を設定してください。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section(isEnglish ? "Profile" : "プロフィール") {
+                    Picker(isEnglish ? "Age range" : "年代", selection: $ageBand) {
+                        ForEach(ageBands, id: \.self) { value in
+                            Text(ageLabel(value)).tag(value)
+                        }
+                    }
+                    Picker(isEnglish ? "Gender (optional)" : "性別（任意）", selection: $gender) {
+                        Text(isEnglish ? "Prefer not to say" : "回答しない").tag("unspecified")
+                        Text(isEnglish ? "Woman" : "女性").tag("female")
+                        Text(isEnglish ? "Man" : "男性").tag("male")
+                        Text(isEnglish ? "Non-binary / other" : "ノンバイナリー／その他").tag("non_binary")
+                    }
+                }
+
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red)
+                }
+            }
+            .navigationTitle(isEnglish ? "Profile setup" : "プロフィール設定")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if isSaving {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(isEnglish ? "Save" : "保存").fontWeight(.semibold)
+                        }
+                    }
+                    .disabled(ageBand == "unspecified" || isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled()
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await store.saveDemographics(
+                token: authStore.sessionToken(),
+                ageBand: ageBand,
+                gender: gender
+            )
+            authStore.clearSocialProfileSetupRequirement()
+            dismiss()
+        } catch {
+            errorMessage = isEnglish
+                ? "Could not save your profile. Please try again."
+                : "プロフィールを保存できませんでした。もう一度お試しください。"
+        }
+    }
+
+    private func ageLabel(_ value: String) -> String {
+        switch value {
+        case "under_18": isEnglish ? "Under 18" : "18歳未満"
+        case "18_24": "18–24"
+        case "25_34": "25–34"
+        case "35_44": "35–44"
+        case "45_54": "45–54"
+        case "55_plus": isEnglish ? "55+" : "55歳以上"
+        default: isEnglish ? "Prefer not to say" : "回答しない"
         }
     }
 }

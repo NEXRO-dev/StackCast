@@ -14,6 +14,7 @@ struct ContentView: View {
     @AppStorage(AppAppearance.storageKey) private var appAppearance = AppAppearance.system.rawValue
     @State private var isShowingLaunchSplash = true
     @State private var isAuthenticationPresented = false
+    @State private var isShowingSocialProfileSetup = false
     @State private var authenticationMode: AuthenticationMode = .signup
     @State private var selectedTab: AppTab = .home
     @State private var articleLibrary = ArticleLibrary()
@@ -47,6 +48,9 @@ struct ContentView: View {
             handleIncomingURL(url)
         }
         .appErrorAlert(isPresented: $isDeepLinkErrorPresented, language: currentLanguage)
+        .fullScreenCover(isPresented: $isShowingSocialProfileSetup) {
+            SocialProfileSetupView(authStore: authStore, language: currentLanguage)
+        }
         .sheet(isPresented: $isShowingSubscription) {
             NavigationStack {
                 SubscriptionManagementView(
@@ -318,6 +322,10 @@ struct ContentView: View {
     private func completeRegistration() {
         isAuthenticationPresented = false
         authenticationMode = .signup
+        guard authStore.requiresSocialProfileSetup else { return }
+        DispatchQueue.main.async {
+            isShowingSocialProfileSetup = true
+        }
     }
 
     private func handleIncomingURL(_ url: URL) {

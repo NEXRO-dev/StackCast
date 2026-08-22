@@ -15,6 +15,7 @@ test("GDELT bounds the search window and does not retry non-429 4xx responses", 
   let calls = 0;
   let requestedURL: URL | undefined;
   const originalTimespan = process.env.GDELT_TIMESPAN;
+  const originalInterval = process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
   const originalFetch = globalThis.fetch;
   const mockFetch: typeof fetch = async (request) => {
     calls += 1;
@@ -29,6 +30,7 @@ test("GDELT bounds the search window and does not retry non-429 4xx responses", 
   };
   globalThis.fetch = mockFetch;
   delete process.env.GDELT_TIMESPAN;
+  process.env.GDELT_MIN_REQUEST_INTERVAL_MS = "0";
 
   try {
     await assert.rejects(
@@ -48,45 +50,133 @@ test("GDELT bounds the search window and does not retry non-429 4xx responses", 
     globalThis.fetch = originalFetch;
     if (originalTimespan === undefined) delete process.env.GDELT_TIMESPAN;
     else process.env.GDELT_TIMESPAN = originalTimespan;
+    if (originalInterval === undefined) delete process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
+    else process.env.GDELT_MIN_REQUEST_INTERVAL_MS = originalInterval;
   }
 
   assert.equal(calls, 1);
   assert.equal(requestedURL?.searchParams.get("timespan"), "1d");
-  assert.equal(requestedURL?.searchParams.get("query"), "technology sourcelang:english sourcecountry:UnitedStates");
+  assert.equal(requestedURL?.searchParams.get("query"), "(technology OR AI OR software) sourcelang:english sourcecountry:UnitedStates");
 });
 
-test("GDELT timeout opens a local cooldown before the next request", async () => {
+test("GDELT timeout is isolated and does not block the next topic", async () => {
   let calls = 0;
   const originalTimeout = process.env.GDELT_REQUEST_TIMEOUT_MS;
   const originalCooldown = process.env.GDELT_FAILURE_COOLDOWN_MS;
+  const originalInterval = process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
   const originalFetch = globalThis.fetch;
   process.env.GDELT_REQUEST_TIMEOUT_MS = "1000";
   process.env.GDELT_FAILURE_COOLDOWN_MS = "60000";
+  process.env.GDELT_MIN_REQUEST_INTERVAL_MS = "0";
   globalThis.fetch = async () => {
     calls += 1;
-    const error = new Error("timeout");
-    error.name = "TimeoutError";
-    throw error;
+    if (calls === 1) {
+      const error = new Error("timeout");
+      error.name = "TimeoutError";
+      throw error;
+    }
+    return new Response(JSON.stringify({
+      articles: [{
+        url: "https://example.com/next-topic",
+        title: "Next topic succeeded",
+        domain: "example.com",
+        seendate: "20260822T010000Z",
+      }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
   };
 
   try {
     await assert.rejects(
       new GDELTProvider().search(input),
-      (error: unknown) => error instanceof Error && error.name === "TimeoutError",
+      (error: unknown) => error instanceof Error
+        && error.name === "GDELTConnectTimeoutError"
+        && error.message === "GDELT_CONNECT_TIMEOUT",
     );
-    await assert.rejects(
-      new GDELTProvider().search(input),
-      /GDELT_PROVIDER_TEMPORARILY_UNAVAILABLE/u,
-    );
+    const result = await new GDELTProvider().search({ ...input, topicID: "topic-2", query: "business" });
+    assert.equal(result.length, 1);
+    assert.equal(result[0]?.title, "Next topic succeeded");
   } finally {
     globalThis.fetch = originalFetch;
     if (originalTimeout === undefined) delete process.env.GDELT_REQUEST_TIMEOUT_MS;
     else process.env.GDELT_REQUEST_TIMEOUT_MS = originalTimeout;
     if (originalCooldown === undefined) delete process.env.GDELT_FAILURE_COOLDOWN_MS;
     else process.env.GDELT_FAILURE_COOLDOWN_MS = originalCooldown;
+    if (originalInterval === undefined) delete process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
+    else process.env.GDELT_MIN_REQUEST_INTERVAL_MS = originalInterval;
+  }
+
+  assert.equal(calls, 2);
+});
+
+test("GDELT Node connect timeout is normalized and is not retried", async () => {
+  let calls = 0;
+  const originalInterval = process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
+  const originalFetch = globalThis.fetch;
+  process.env.GDELT_MIN_REQUEST_INTERVAL_MS = "0";
+  globalThis.fetch = async () => {
+    calls += 1;
+    const cause = new Error("Connect Timeout Error");
+    cause.name = "ConnectTimeoutError";
+    const error = new TypeError("fetch failed", { cause });
+    throw error;
+  };
+
+  try {
+    await assert.rejects(
+      new GDELTProvider().search(input),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.equal(error.name, "GDELTConnectTimeoutError");
+        assert.equal(error.message, "GDELT_CONNECT_TIMEOUT");
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalInterval === undefined) delete process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
+    else process.env.GDELT_MIN_REQUEST_INTERVAL_MS = originalInterval;
   }
 
   assert.equal(calls, 1);
+});
+
+test("GDELT combines multiple interest topics into one request", async () => {
+  let calls = 0;
+  let requestedURL: URL | undefined;
+  const originalInterval = process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
+  const originalFetch = globalThis.fetch;
+  process.env.GDELT_MIN_REQUEST_INTERVAL_MS = "0";
+  globalThis.fetch = async (request) => {
+    calls += 1;
+    requestedURL = new URL(String(request));
+    return new Response(JSON.stringify({
+      articles: [
+        { url: "https://example.com/ai", title: "New AI technology", domain: "example.com" },
+        { url: "https://example.com/market", title: "Market business report", domain: "example.com" },
+        { url: "https://example.com/local", title: "地域社会のニュース", domain: "example.com" },
+      ],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  try {
+    const result = await new GDELTProvider().searchTopics([
+      { ...input, topicID: "technology", query: "technology OR AI", limit: 5 },
+      { ...input, topicID: "business", query: "business OR market", limit: 5 },
+      { ...input, topicID: "society", query: "society", limit: 5 },
+    ]);
+    assert.equal(result.length, 3);
+    assert.deepEqual(result.map((article) => article.topicID), ["technology", "business", "society"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalInterval === undefined) delete process.env.GDELT_MIN_REQUEST_INTERVAL_MS;
+    else process.env.GDELT_MIN_REQUEST_INTERVAL_MS = originalInterval;
+  }
+
+  assert.equal(calls, 1);
+  assert.match(requestedURL?.searchParams.get("query") ?? "", /technology OR AI/u);
+  assert.match(requestedURL?.searchParams.get("query") ?? "", /business OR market/u);
+  assert.match(requestedURL?.searchParams.get("query") ?? "", /society/u);
+  assert.equal(requestedURL?.searchParams.get("maxrecords"), "15");
 });
 
 test("OpenAI quota 429 preserves safe diagnostics and is not retried", async () => {

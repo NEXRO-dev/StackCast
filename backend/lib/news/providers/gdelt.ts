@@ -1,8 +1,8 @@
 import type { NewsCandidate, NewsProvider, NewsSearchInput } from "../types";
 
 const endpoint = "https://api.gdeltproject.org/api/v2/doc/doc";
-const MIN_REQUEST_INTERVAL_MS = 5_500;
-const DEFAULT_REQUEST_TIMEOUT_MS = 3_000;
+const DEFAULT_MIN_REQUEST_INTERVAL_MS = 6_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_FAILURE_COOLDOWN_MS = 15 * 60 * 1_000;
 const MAX_ATTEMPTS = 2;
 const MAX_RETRY_DELAY_MS = 15_000;
@@ -26,6 +26,22 @@ type GDELTArticle = {
 export class GDELTProvider implements NewsProvider {
   readonly name = "gdelt";
 
+  async searchTopics(inputs: NewsSearchInput[]): Promise<NewsCandidate[]> {
+    const first = inputs[0];
+    if (!first) return [];
+    const combinedQuery = inputs
+      .map((input) => `(${normalizedQuery(input.query)})`)
+      .join(" OR ");
+    const requestedLimit = inputs.reduce((total, input) => total + (input.limit ?? 5), 0);
+    const candidates = await this.search({
+      ...first,
+      topicID: "combined",
+      query: combinedQuery,
+      limit: Math.min(Math.max(requestedLimit, 5), 30),
+    });
+    return assignTopics(candidates, inputs);
+  }
+
   async search(input: NewsSearchInput): Promise<NewsCandidate[]> {
     if (Date.now() < unavailableUntil) {
       throw new Error("GDELT_PROVIDER_TEMPORARILY_UNAVAILABLE");
@@ -33,7 +49,7 @@ export class GDELTProvider implements NewsProvider {
     const url = new URL(endpoint);
     const language = input.language === "english" ? "english" : "japanese";
     const country = input.sourceCountry ? ` sourcecountry:${input.sourceCountry}` : "";
-    url.searchParams.set("query", `${compactQuery(input.query)} sourcelang:${language}${country}`);
+    url.searchParams.set("query", `${normalizedQuery(input.query)} sourcelang:${language}${country}`);
     url.searchParams.set("mode", "artlist");
     url.searchParams.set("format", "json");
     url.searchParams.set("maxrecords", String(Math.min(Math.max(input.limit ?? 30, 1), 250)));
@@ -52,16 +68,15 @@ export class GDELTProvider implements NewsProvider {
           cache: "no-store",
         });
       } catch (error) {
-        lastError = error;
-        // A connection timeout means the upstream is currently unreachable.
-        // Retrying the same request only makes the refresh block longer; the
-        // caller will open its fallback/cache path instead.
-        if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-          markUnavailable();
+        lastError = normalizeNetworkError(error);
+        // A single GDELT query can be slow while the next topic still succeeds.
+        // Do not open a provider-wide cooldown for timeouts; the refresh layer
+        // will continue with the remaining interest topics.
+        if (isTimeoutError(error)) {
           break;
         }
         if (attempt < MAX_ATTEMPTS) {
-          await wait(retryDelay(attempt) ?? MIN_REQUEST_INTERVAL_MS);
+          await wait(retryDelay(attempt) ?? minimumRequestIntervalMilliseconds());
           continue;
         }
         break;
@@ -99,6 +114,7 @@ export class GDELTProvider implements NewsProvider {
           language: article.language || (input.language === "english" ? "English" : "Japanese"),
           country: article.sourcecountry || undefined,
           publishedAt: parseGDELTDate(article.seendate),
+          topicID: input.topicID,
         } satisfies NewsCandidate];
       } catch {
         return [];
@@ -107,17 +123,85 @@ export class GDELTProvider implements NewsProvider {
   }
 }
 
-function compactQuery(query: string): string {
+function assignTopics(candidates: NewsCandidate[], inputs: NewsSearchInput[]): NewsCandidate[] {
+  const topicTerms = inputs.map((input) => ({
+    topicID: input.topicID,
+    terms: searchTerms(input.query),
+  }));
+  return candidates.map((candidate, index) => {
+    const searchable = `${candidate.title} ${candidate.description ?? ""} ${candidate.sourceDomain}`.toLowerCase();
+    let bestTopicID: string | undefined;
+    let bestScore = 0;
+    for (const topic of topicTerms) {
+      const score = topic.terms.reduce((total, term) => total + (searchable.includes(term) ? 1 : 0), 0);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTopicID = topic.topicID;
+      }
+    }
+    // GDELT translates non-English coverage for English queries, so a Japanese
+    // title may not contain the English query terms. Distribute those unmatched
+    // results across the requested interests instead of assigning all to one.
+    const fallbackTopicID = inputs[index % inputs.length]?.topicID;
+    return { ...candidate, topicID: bestTopicID ?? fallbackTopicID };
+  });
+}
+
+function searchTerms(query: string): string[] {
+  const ignored = new Set(["and", "or", "not", "sourcecountry", "sourcelang", "domain", "theme"]);
+  return [...new Set(
+    query.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu)
+      ?.filter((term) => !ignored.has(term)) ?? [],
+  )];
+}
+
+function normalizeNetworkError(error: unknown): Error {
+  if (!isTimeoutError(error)) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  const result = new Error("GDELT_CONNECT_TIMEOUT");
+  result.name = "GDELTConnectTimeoutError";
+  return result;
+}
+
+function isTimeoutError(error: unknown): boolean {
+  let current: unknown = error;
+  const visited = new Set<unknown>();
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    if (current instanceof Error) {
+      if (current.name === "TimeoutError"
+        || current.name === "AbortError"
+        || current.name === "ConnectTimeoutError") return true;
+      current = current.cause;
+      continue;
+    }
+    if (typeof current === "object") {
+      const value = current as { name?: unknown; code?: unknown; cause?: unknown };
+      if (value.name === "ConnectTimeoutError" || value.code === "UND_ERR_CONNECT_TIMEOUT") return true;
+      current = value.cause;
+      continue;
+    }
+    break;
+  }
+  return false;
+}
+
+function normalizedQuery(query: string): string {
   const normalized = query.trim();
-  const parenthesized = normalized.match(/^\((.*)\)$/u)?.[1] ?? normalized;
-  const firstTerm = parenthesized.split(/\s+OR\s+/iu)[0]?.trim();
-  return firstTerm || normalized;
+  return normalized || "news";
 }
 
 function requestTimeoutMilliseconds(): number {
   const value = Number(process.env.GDELT_REQUEST_TIMEOUT_MS);
   if (!Number.isFinite(value)) return DEFAULT_REQUEST_TIMEOUT_MS;
-  return Math.min(Math.max(Math.round(value), 1_000), 10_000);
+  return Math.min(Math.max(Math.round(value), 3_000), 30_000);
+}
+
+function minimumRequestIntervalMilliseconds(): number {
+  const value = Number(process.env.GDELT_MIN_REQUEST_INTERVAL_MS);
+  if (!Number.isFinite(value)) return DEFAULT_MIN_REQUEST_INTERVAL_MS;
+  return Math.min(Math.max(Math.round(value), 0), 60_000);
 }
 
 function failureCooldownMilliseconds(response?: Response): number {
@@ -139,9 +223,10 @@ async function waitForRequestSlot(): Promise<void> {
   let release!: () => void;
   requestGate = new Promise<void>((resolve) => { release = resolve; });
   await previous;
+  const minimumInterval = minimumRequestIntervalMilliseconds();
   const elapsed = Date.now() - lastRequestStartedAt;
-  if (elapsed < MIN_REQUEST_INTERVAL_MS) {
-    await wait(MIN_REQUEST_INTERVAL_MS - elapsed);
+  if (elapsed < minimumInterval) {
+    await wait(minimumInterval - elapsed);
   }
   lastRequestStartedAt = Date.now();
   release();
@@ -177,10 +262,10 @@ class GDELTRequestError extends Error {
 function retryDelay(attempt: number, response?: Response): number | undefined {
   const retryAfterMs = response ? retryAfterMilliseconds(response) : undefined;
   if (retryAfterMs !== undefined) {
-    const delay = Math.max(MIN_REQUEST_INTERVAL_MS, retryAfterMs);
+    const delay = Math.max(minimumRequestIntervalMilliseconds(), retryAfterMs);
     return delay <= MAX_RETRY_DELAY_MS ? delay : undefined;
   }
-  return Math.min(MIN_REQUEST_INTERVAL_MS * (2 ** (attempt - 1)), MAX_RETRY_DELAY_MS);
+  return Math.min(minimumRequestIntervalMilliseconds() * (2 ** (attempt - 1)), MAX_RETRY_DELAY_MS);
 }
 
 function retryAfterMilliseconds(response: Response): number | undefined {

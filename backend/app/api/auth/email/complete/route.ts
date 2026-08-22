@@ -99,7 +99,7 @@ export async function POST(request: Request) {
       "immediate",
     );
 
-    return authResponse(user, session.token, session.expiresAt, 201);
+    return authResponse(user, session.token, session.expiresAt, false, 201);
   } catch (error) {
     if (error instanceof Error && /unique constraint/i.test(error.message)) {
       return errorResponse(

@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var isShowingSubscription = false
     @State private var browserDestination: InAppBrowserDestination?
     @State private var recommendationStore = RecommendationStore()
+    @State private var peerTrendsStore = PeerTrendsStore()
 
     private let durations = [5, 10, 15, 20]
 
@@ -28,7 +29,15 @@ struct HomeView: View {
                     // digestCard
                     personalizedNewsSection
                     expiringSection
-                    weeklySummary
+                    Divider()
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                    PeerTrendsSection(
+                        language: .japanese,
+                        store: peerTrendsStore,
+                        isPaid: subscriptionStore.planTier != .free,
+                        onUpgrade: { isShowingSubscription = true }
+                    )
                 }
                 .padding(.horizontal, AppDesign.pagePadding)
                 .padding(.top, 20)
@@ -52,6 +61,9 @@ struct HomeView: View {
             .sheet(item: $browserDestination) { destination in
                 InAppBrowserView(url: destination.url)
                     .ignoresSafeArea()
+            }
+            .task {
+                await peerTrendsStore.load(token: authStore.sessionToken())
             }
         }
     }
@@ -118,17 +130,22 @@ struct HomeView: View {
 
     private var greeting: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("おかえりなさい")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            Text("あとで読むを、\nいま聴けるに。")
+            Text("StackCast")
                 .font(.largeTitle.bold())
 
-            Label("未消化の記事が\(unreadArticles.count)件あります", systemImage: "tray.full.fill")
+            Text(currentDateText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var currentDateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = .current
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter.string(from: .now)
     }
 
     private var durationPicker: some View {
@@ -257,45 +274,6 @@ struct HomeView: View {
             .filter { $0.status == .unread }
     }
 
-    private var weeklySummary: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("今週のデトックス")
-                .font(.title3.bold())
-
-            HStack(alignment: .top, spacing: 14) {
-                metricCard(value: "\(weeklyCompletedCount)", unit: "記事", label: "消化した記事", color: .green)
-                metricCard(value: "\(articleLibrary.articles.count)", unit: "記事", label: "保存した記事", color: .blue)
-            }
-        }
-    }
-
-    private func metricCard(value: String, unit: String, label: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: label == "消化した記事" ? "checkmark.circle.fill" : "tray.full.fill")
-                .font(.headline)
-                .foregroundStyle(color)
-                .frame(width: 38, height: 38)
-                .background(color.opacity(0.12), in: Circle())
-
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(.title2.bold())
-                Text(unit).font(.caption.weight(.semibold))
-            }
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 126, alignment: .leading)
-        .detoxMetricCard(tint: color)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var weeklyCompletedCount: Int {
-        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .distantPast
-        return articleLibrary.articles.filter {
-            $0.state == .completed && ($0.completedAt ?? $0.savedAt) >= weekAgo
-        }.count
-    }
 }
 
 #Preview {

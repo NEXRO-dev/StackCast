@@ -13,6 +13,7 @@ type UserRow = {
   password_hash: string;
   profileImageURL: string | null;
   preferredLanguage: "japanese" | "english";
+  onboardingCompletedAt: string | null;
 };
 
 export async function POST(request: Request) {
@@ -26,9 +27,11 @@ export async function POST(request: Request) {
     const user = (await getTurso().get(
       `SELECT users.id, users.name, users.email, users.password_hash,
               users.preferred_language AS preferredLanguage,
-              user_profiles.profile_image_url AS profileImageURL
+              user_profiles.profile_image_url AS profileImageURL,
+              user_recommendation_profiles.onboarding_completed_at AS onboardingCompletedAt
        FROM users
        LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+       LEFT JOIN user_recommendation_profiles ON user_recommendation_profiles.user_id = users.id
        WHERE users.email = ?
        LIMIT 1`,
       input.email,
@@ -61,6 +64,7 @@ export async function POST(request: Request) {
       },
       session.token,
       session.expiresAt,
+      !user.onboardingCompletedAt,
     );
   } catch (error) {
     console.error("Login failed", error);

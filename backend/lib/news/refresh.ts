@@ -105,36 +105,29 @@ export async function refreshSharedNewsPool(options: NewsRefreshOptions = {}): P
 
   if (gdeltEnabled) {
     const gdelt = new GDELTProvider();
-    let gdeltCircuitOpen = false;
-    for (const topic of topics) {
-      if (gdeltCircuitOpen) {
-        failures.push(`${topic.id}:gdelt:provider_circuit_open`);
-        continue;
-      }
-      try {
-        const candidates = await gdelt.search({
-          topicID: topic.id, query: topic.query, language,
-          sourceCountry: options.sourceCountry, limit: 5,
-        });
-        fetched += candidates.length;
-        stored += await storeCandidates(topic.id, "gdelt", candidates, failures);
-        console.info("[daily-news] gdelt topic refreshed", { topicID: topic.id, fetched: candidates.length });
-      } catch (error) {
-        const details = errorDetails(error);
-        failures.push(`${topic.id}:gdelt:${details.message}`);
-        console.warn("[daily-news] gdelt topic refresh failed", { topicID: topic.id, ...details });
-        if (details.name === "TimeoutError"
-          || details.name === "AbortError"
-          || details.message === "fetch failed"
-          || details.message.includes("_429")
-          || details.message === "GDELT_PROVIDER_TEMPORARILY_UNAVAILABLE") {
-          gdeltCircuitOpen = true;
-          console.warn("[daily-news] gdelt circuit opened", {
-            reason: details.name === "TimeoutError" || details.name === "AbortError" ? "timeout" : details.message,
-            skippedTopics: topics.length - topics.indexOf(topic) - 1,
-          });
-        }
-      }
+    try {
+      const candidates = await gdelt.searchTopics(topics.map((topic) => ({
+        topicID: topic.id,
+        query: topic.query,
+        language,
+        sourceCountry: options.sourceCountry,
+        limit: 5,
+      })));
+      fetched += candidates.length;
+      stored += await storeCandidates(topics[0]?.id ?? "", "gdelt", candidates, failures);
+      console.info("[daily-news] gdelt combined refresh completed", {
+        topics: topics.length,
+        fetched: candidates.length,
+        requests: 1,
+      });
+    } catch (error) {
+      const details = errorDetails(error);
+      failures.push(`combined:gdelt:${details.message}`);
+      console.warn("[daily-news] gdelt combined refresh failed", {
+        topics: topics.length,
+        requests: 1,
+        ...details,
+      });
     }
   } else {
     console.info("[daily-news] gdelt refresh skipped", { reason: "feature_disabled" });

@@ -20,6 +20,7 @@ struct AccountView: View {
     @State private var recommendationStore = RecommendationStore()
     @State private var isResetMemoryConfirmationPresented = false
     @State private var downloadStore = CastDownloadStore.shared
+    @State private var isShowingSubscription = false
 
     private var isEnglish: Bool { language == .english }
 
@@ -83,8 +84,39 @@ struct AccountView: View {
             } message: {
                 Text(isEnglish ? "Learned interests and dislikes will be deleted." : "学習した興味や「興味なし」の傾向が削除されます。")
             }
+            .fullScreenCover(isPresented: $isShowingSubscription) {
+                NavigationStack {
+                    SubscriptionManagementView(
+                        subscriptionStore: subscriptionStore,
+                        language: language,
+                        initialTier: .plus,
+                        showsUpgradeHeader: false
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                isShowingSubscription = false
+                            } label: {
+                                Label(
+                                    isEnglish ? "Back" : "戻る",
+                                    systemImage: "chevron.left"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             .task {
                 await recommendationStore.load(token: authStore.sessionToken())
+            }
+            .refreshable {
+                await recommendationStore.reload(token: authStore.sessionToken())
+                if case .signedIn(let user) = authStore.status {
+                    await subscriptionStore.identify(
+                        userID: user.id,
+                        sessionToken: authStore.sessionToken()
+                    )
+                }
             }
         }
     }
@@ -120,12 +152,8 @@ struct AccountView: View {
     }
 
     private var planCard: some View {
-        NavigationLink {
-            SubscriptionManagementView(
-                subscriptionStore: subscriptionStore,
-                language: language,
-                showsUpgradeHeader: false
-            )
+        Button {
+            isShowingSubscription = true
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: subscriptionStore.planTier == .free ? "sparkles" : "checkmark.seal.fill")

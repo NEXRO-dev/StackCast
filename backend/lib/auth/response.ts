@@ -10,6 +10,7 @@ export function authResponse(
   user: AuthUser,
   token: string,
   expiresAt: string,
+  requiresProfileSetup = false,
   status = 200,
 ): Response {
   return Response.json(
@@ -17,6 +18,7 @@ export function authResponse(
       mode: "signedIn",
       user,
       session: { token, expiresAt },
+      requiresProfileSetup,
     },
     { status },
   );
