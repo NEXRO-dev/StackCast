@@ -40,7 +40,9 @@ test("Groq web search collects multiple article URLs per topic", async () => {
 
   assert.equal(calls, 2);
   assert.deepEqual(requestBodies.map((body) => body.model), ["groq/compound-mini", "groq/compound-mini"]);
-  assert.deepEqual(requestBodies.map((body) => (body.response_format as { type?: string }).type), ["json_object", "json_object"]);
+  assert.deepEqual(requestBodies.map((body) => Array.isArray(body.messages)), [true, true]);
+  assert.deepEqual(requestBodies.map((body) => body.response_format), [undefined, undefined]);
+  assert.deepEqual(requestBodies.map((body) => (body.search_settings as { country?: string }).country), ["united states", "united states"]);
 });
 
 test("Groq 429 preserves safe diagnostics and is not retried", async () => {
@@ -53,7 +55,7 @@ test("Groq 429 preserves safe diagnostics and is not retried", async () => {
         error: {
           code: "rate_limit_exceeded",
           type: "requests",
-          message: "ERROR_MESSAGE_MUST_NOT_BE_LOGGED",
+          message: "rate limit exceeded",
         },
       }), {
         status: 429,
@@ -74,11 +76,11 @@ test("Groq 429 preserves safe diagnostics and is not retried", async () => {
           assert.match(error.message, /GROQ_NEWS_REQUEST_FAILED_429/u);
           assert.match(error.message, /CODE_rate_limit_exceeded/u);
           assert.match(error.message, /TYPE_requests/u);
+          assert.match(error.message, /MESSAGE_rate_limit_exceeded/u);
           assert.match(error.message, /RETRY_AFTER_MS_7000/u);
           assert.match(error.message, /REQUEST_ID_req_test_123/u);
           assert.match(error.message, /REMAINING_REQUESTS_0/u);
           assert.match(error.message, /RESET_REQUESTS_42s/u);
-          assert.doesNotMatch(error.message, /ERROR_MESSAGE_MUST_NOT_BE_LOGGED/u);
           assert.equal((error as Error & { status?: number }).status, 429);
           return true;
         },

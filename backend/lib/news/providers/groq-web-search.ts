@@ -26,6 +26,7 @@ type GroqChatCompletion = {
 type GroqErrorMetadata = {
   errorCode?: string;
   errorType?: string;
+  errorMessage?: string;
   retryAfterMs?: number;
   requestID?: string;
   rateLimitRemainingRequests?: string;
@@ -100,41 +101,34 @@ async function requestGroqArticles(
 }
 
 function requestBody(input: NewsSearchInput, limit: number): Record<string, unknown> {
-  return {
+  const country = searchCountry(input.sourceCountry);
+  const body: Record<string, unknown> = {
     model: process.env.GROQ_NEWS_MODEL?.trim() || DEFAULT_MODEL,
     messages: [
-      {
-        role: "system",
-        content: [
-          "You collect current news article URLs for a recommendation engine.",
-          "Use web search. Return only valid JSON. Do not include markdown.",
-          "Prefer original publisher article URLs over aggregators, homepages, search pages, videos, social posts, or liveblog index pages.",
-          "If fewer suitable articles exist, return fewer articles rather than inventing URLs.",
-        ].join(" "),
-      },
       {
         role: "user",
         content: buildPrompt(input, limit),
       },
     ],
-    response_format: { type: "json_object" },
-    citation_options: "enabled",
     search_settings: {
       exclude_domains: ["wikipedia.org", "youtube.com", "x.com", "twitter.com", "facebook.com", "instagram.com"],
+      ...(country ? { country } : {}),
     },
-    temperature: 0.1,
-    max_completion_tokens: 4_000,
   };
+  return body;
 }
 
 function buildPrompt(input: NewsSearchInput, limit: number): string {
   const language = input.language === "english" ? "English" : "Japanese";
   const country = input.sourceCountry ? `Country/region focus: ${input.sourceCountry}.` : "Country/region focus: worldwide.";
   return [
+    "You collect current news article URLs for a recommendation engine. Use web search.",
     `Find up to ${limit} important news article URLs for this topic: ${input.query}.`,
     `Target output language metadata: ${language}. ${country}`,
     "Prefer articles published today or within the last 48 hours. Include international coverage when relevant.",
-    "Return JSON exactly in this shape:",
+    "Prefer original publisher article URLs over aggregators, homepages, search pages, videos, social posts, or liveblog index pages.",
+    "If fewer suitable articles exist, return fewer articles rather than inventing URLs.",
+    "Return ONLY raw JSON. Do not include markdown, citations outside the JSON, or explanatory prose. The JSON shape must be exactly:",
     `{"articles":[{"topicID":"${jsonStringValue(input.topicID)}","url":"https://publisher.example/article","title":"Article title","description":"One sentence summary","publishedAt":"2026-08-22T00:00:00Z"}]}`,
     "Rules: topicID must be the supplied topicID. url must be a working http/https article URL. publishedAt must be ISO-8601 when available; otherwise use today's date.",
   ].join("\n");
@@ -224,16 +218,19 @@ function requiredEnvironmentVariable(name: string): string {
 async function readGroqErrorMetadata(response: Response): Promise<GroqErrorMetadata> {
   let errorCode: string | undefined;
   let errorType: string | undefined;
+  let errorMessage: string | undefined;
   try {
-    const payload = await response.json() as { error?: { code?: unknown; type?: unknown } };
+    const payload = await response.json() as { error?: { code?: unknown; type?: unknown; message?: unknown } };
     errorCode = safeErrorValue(payload.error?.code);
     errorType = safeErrorValue(payload.error?.type);
+    errorMessage = safeErrorValue(payload.error?.message);
   } catch {
     // Status and safe response headers still provide useful diagnostics.
   }
   return {
     errorCode,
     errorType,
+    errorMessage,
     retryAfterMs: retryAfterMilliseconds(response),
     requestID: safeErrorValue(response.headers.get("x-request-id")),
     rateLimitRemainingRequests: safeErrorValue(response.headers.get("x-ratelimit-remaining-requests")),
@@ -253,6 +250,7 @@ class GroqNewsRequestError extends Error {
       `GROQ_NEWS_REQUEST_FAILED_${status}`,
       ...(metadata.errorCode ? [`CODE_${metadata.errorCode}`] : []),
       ...(metadata.errorType ? [`TYPE_${metadata.errorType}`] : []),
+      ...(metadata.errorMessage ? [`MESSAGE_${metadata.errorMessage}`] : []),
       ...(metadata.retryAfterMs === undefined ? [] : [`RETRY_AFTER_MS_${metadata.retryAfterMs}`]),
       ...(metadata.requestID ? [`REQUEST_ID_${metadata.requestID}`] : []),
       ...(metadata.rateLimitRemainingRequests ? [`REMAINING_REQUESTS_${metadata.rateLimitRemainingRequests}`] : []),
@@ -300,4 +298,27 @@ function errorDetails(error: unknown): { name: string; message: string } {
 
 function jsonStringValue(value: string): string {
   return value.replace(/\\/gu, "\\\\").replace(/"/gu, "\\\"");
+}
+
+function searchCountry(sourceCountry?: string): string | undefined {
+  const normalized = sourceCountry?.trim().toLowerCase().replace(/[_-]+/gu, " ");
+  const compact = normalized?.replace(/[^a-z]/gu, "");
+  if (!normalized) return undefined;
+  switch (compact) {
+    case "jp":
+    case "japan":
+      return "japan";
+    case "us":
+    case "usa":
+    case "unitedstates":
+    case "unitedstatesofamerica":
+      return "united states";
+    case "uk":
+    case "gb":
+    case "greatbritain":
+    case "unitedkingdom":
+      return "united kingdom";
+    default:
+      return normalized;
+  }
 }

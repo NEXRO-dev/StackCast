@@ -32,9 +32,11 @@ export async function GET(request: Request) {
     return Response.json({ success: true, skipped: "daily_news_disabled" });
   }
   try {
-    const targets = await dueDailyEditionTargets();
+    const forceRun = new URL(request.url).searchParams.get("force") === "1";
+    const targets = await dueDailyEditionTargets(new Date(), { force: forceRun });
     console.info("[daily-news] 日次ニュースの対象ユーザーを確認", {
       requestID,
+      forceRun,
       対象ユーザー数: targets.length,
       実行時刻_日本語: "各ユーザーの保存タイムゾーンにおける17:00〜17:59",
       対象ユーザー_日本語: targets.map((target) => ({
@@ -50,6 +52,7 @@ export async function GET(request: Request) {
       console.info("[daily-news] cron request skipped", {
         requestID,
         reason: "no_users_due",
+        forceRun,
         説明_日本語: "現在のCron実行時刻は対象ユーザーの17:00〜17:59実行枠外、または今日の定期版が処理済みです。",
       });
       return Response.json({ success: true, skipped: "no_users_due" });

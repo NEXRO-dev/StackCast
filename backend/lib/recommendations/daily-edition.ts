@@ -48,6 +48,10 @@ export type DailyEditionBuildOptions = {
   markFallback?: boolean;
 };
 
+export type DailyEditionTargetOptions = {
+  force?: boolean;
+};
+
 export function isDailyEditionCatchUpTime(now: Date, timeZone: string): boolean {
   const parts = localDateParts(now, timeZone);
   const hour = Number(parts.hour);
@@ -70,7 +74,10 @@ export function editionDateForTimeZone(now: Date, timeZone: string): string {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEditionTarget[]> {
+export async function dueDailyEditionTargets(
+  now = new Date(),
+  options: DailyEditionTargetOptions = {},
+): Promise<DailyEditionTarget[]> {
   const rows = (await getTurso().all(
     `SELECT u.id AS userID, COALESCE(p.time_zone, 'Asia/Tokyo') AS timeZone
      FROM users u LEFT JOIN user_recommendation_profiles p ON p.user_id = u.id
@@ -79,8 +86,8 @@ export async function dueDailyEditionTargets(now = new Date()): Promise<DailyEdi
   const targets = await Promise.all(rows.map(async (row) => {
     const timeZone = validTimeZone(row.timeZone);
     const parts = localDateParts(now, timeZone);
-    if (!isDailyEditionCatchUpTime(now, timeZone)) return null;
-    if (await scheduledDailyEditionAlreadyCompleted(row.userID, `${parts.year}-${parts.month}-${parts.day}`, timeZone)) {
+    if (!options.force && !isDailyEditionCatchUpTime(now, timeZone)) return null;
+    if (!options.force && await scheduledDailyEditionAlreadyCompleted(row.userID, `${parts.year}-${parts.month}-${parts.day}`, timeZone)) {
       return null;
     }
     const locale = await newsLocaleForUser(row.userID);
