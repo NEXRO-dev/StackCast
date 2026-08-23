@@ -1,6 +1,8 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { getTurso } from "@/lib/turso";
 import { effectiveSubscriptionForUser } from "@/lib/billing/effective-plan";
 import { buildCastGenerationPrompt, buildFishAudioInput, castSafetyPolicy, type CastLanguage } from "./prompt";
@@ -39,6 +41,8 @@ export type CastRecord = {
   status: "queued" | "processing" | "completed" | "failed";
   audioObjectKey: string | null;
   audioURL?: string | null;
+  artworkObjectKey: string | null;
+  artworkURL?: string | null;
   creditCost: number;
   errorMessage: string | null;
   createdAt: string;
@@ -55,6 +59,7 @@ type CastRow = {
   durationMinutes: number;
   status: CastRecord["status"];
   audioObjectKey: string | null;
+  artworkObjectKey: string | null;
   creditCost: number;
   errorMessage: string | null;
   createdAt: string;
@@ -527,9 +532,10 @@ async function processCastGeneration(
       Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"), Key: objectKey, Body: audio,
       ContentType: "audio/mpeg", CacheControl: "private, max-age=3600",
     }));
+    const artworkObjectKey = await storeCastArtwork(userID, castID);
     const completedAt = new Date().toISOString();
     await database.batch([
-      { sql: `UPDATE casts SET title = ?, summary = ?, transcript = ?, status = 'completed', audio_object_key = ?, updated_at = ?, completed_at = ?, error_message = NULL WHERE id = ? AND user_id = ?`, args: [generated.title, buildSummary(script), script, objectKey, completedAt, completedAt, castID, userID] },
+      { sql: `UPDATE casts SET title = ?, summary = ?, transcript = ?, status = 'completed', audio_object_key = ?, artwork_object_key = ?, updated_at = ?, completed_at = ?, error_message = NULL WHERE id = ? AND user_id = ?`, args: [generated.title, buildSummary(script), script, objectKey, artworkObjectKey, completedAt, completedAt, castID, userID] },
       { sql: `UPDATE cast_generation_jobs SET status = 'completed', finished_at = ?, last_error = NULL WHERE id = ? AND cast_id = ?`, args: [completedAt, jobID, castID] },
     ], "immediate");
     await consumeCredits(userID, castID, creditCost, completedAt);
@@ -545,6 +551,23 @@ async function processCastGeneration(
     await releaseCredits(userID, castID, creditCost, failedAt);
     throw error;
   }
+}
+
+/**
+ * Stores the current fallback artwork per Cast. Replace the bytes returned by
+ * this helper with an AI-generated image when the image provider is selected.
+ */
+async function storeCastArtwork(userID: string, castID: string): Promise<string> {
+  const artwork = await readFile(join(process.cwd(), "public", "cast-artwork.png"));
+  const objectKey = `casts/${userID}/${castID}/artwork.png`;
+  await getR2Client().send(new PutObjectCommand({
+    Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"),
+    Key: objectKey,
+    Body: artwork,
+    ContentType: "image/png",
+    CacheControl: "private, max-age=86400",
+  }));
+  return objectKey;
 }
 
 async function moderateSourceContents(
@@ -588,7 +611,8 @@ export async function listCasts(userID: string): Promise<CastRecord[]> {
   const database = getTurso();
   const rows = (await database.all(
     `SELECT casts.id, casts.title, casts.summary, casts.transcript, casts.duration_minutes AS durationMinutes,
-            casts.status, casts.audio_object_key AS audioObjectKey, casts.credit_cost AS creditCost,
+            casts.status, casts.audio_object_key AS audioObjectKey,
+            casts.artwork_object_key AS artworkObjectKey, casts.credit_cost AS creditCost,
             casts.error_message AS errorMessage, casts.created_at AS createdAt,
             casts.updated_at AS updatedAt, casts.completed_at AS completedAt,
             cast_shares.token AS shareToken
@@ -607,7 +631,8 @@ export async function getCast(userID: string, castID: string): Promise<CastRecor
   const database = getTurso();
   const row = (await database.get(
     `SELECT casts.id, casts.title, casts.summary, casts.transcript, casts.duration_minutes AS durationMinutes,
-            casts.status, casts.audio_object_key AS audioObjectKey, casts.credit_cost AS creditCost,
+            casts.status, casts.audio_object_key AS audioObjectKey,
+            casts.artwork_object_key AS artworkObjectKey, casts.credit_cost AS creditCost,
             casts.error_message AS errorMessage, casts.created_at AS createdAt,
             casts.updated_at AS updatedAt, casts.completed_at AS completedAt,
             cast_shares.token AS shareToken
@@ -630,11 +655,31 @@ async function addSignedURL(row: CastRow): Promise<CastRecord> {
   const audioURL = row.audioObjectKey
     ? await signedCastAudioURL(row.audioObjectKey)
     : null;
+  const artworkURL = row.artworkObjectKey
+    ? await signedCastArtworkURL(row.artworkObjectKey)
+    : defaultCastArtworkURL();
 
-  return { ...row, audioURL };
+  return { ...row, audioURL, artworkURL };
+}
+
+function defaultCastArtworkURL(): string | null {
+  const backendURL = process.env.BACKEND_URL?.trim();
+  if (!backendURL) return null;
+  return new URL("/cast-artwork.png", backendURL).toString();
 }
 
 export async function signedCastAudioURL(objectKey: string): Promise<string> {
+  return getSignedUrl(
+    getR2Client(),
+    new GetObjectCommand({
+      Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"),
+      Key: objectKey,
+    }),
+    { expiresIn: signedURLLifetimeSeconds },
+  );
+}
+
+async function signedCastArtworkURL(objectKey: string): Promise<string> {
   return getSignedUrl(
     getR2Client(),
     new GetObjectCommand({

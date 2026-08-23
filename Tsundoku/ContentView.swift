@@ -70,9 +70,11 @@ struct ContentView: View {
                     sessionToken: authStore.sessionToken()
                 )
                 await castStore.load(token: authStore.sessionToken())
+                await articleLibrary.syncIfNeeded(token: authStore.sessionToken())
             } else if case .signedOut = authStore.status {
                 await subscriptionStore.signOut()
                 castStore.clear()
+                articleLibrary.resetServerSync()
             }
         }
         .task(id: signedInProfileImageURL) {

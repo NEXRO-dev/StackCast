@@ -601,6 +601,26 @@ struct CastArtwork: View {
     let size: CGFloat
 
     var body: some View {
+        Group {
+            if let artworkURL = cast.artworkURL {
+                AsyncImage(url: artworkURL) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        fallbackArtwork
+                    }
+                }
+            } else {
+                fallbackArtwork
+            }
+        }
+        .frame(width: size, height: size)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .accessibilityHidden(true)
+    }
+
+    private var fallbackArtwork: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
                 .fill(LinearGradient(
@@ -613,8 +633,6 @@ struct CastArtwork: View {
                 .font(.system(size: size * 0.34, weight: .semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
     }
 }
 

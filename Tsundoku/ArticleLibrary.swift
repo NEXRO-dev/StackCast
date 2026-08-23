@@ -256,6 +256,7 @@ enum SharedArticleRepository {
 final class ArticleLibrary {
     private(set) var articles: [SavedArticle] = []
     private var metadataTask: Task<Void, Never>?
+    private var serverSyncAttempted = false
 
     init() {
         refresh()
@@ -265,6 +266,30 @@ final class ArticleLibrary {
         articles = SharedArticleRepository.load()
         metadataTask?.cancel()
         metadataTask = Task { await enrichMissingTitles() }
+    }
+
+    /// Fetches the signed-in user's stock once per app session. Local data is
+    /// used as an offline fallback and is uploaded only when the server is empty.
+    func syncIfNeeded(token: String?) async {
+        guard !serverSyncAttempted, let token, !token.isEmpty else { return }
+        serverSyncAttempted = true
+
+        let localArticles = articles
+        do {
+            let remoteArticles = try await StockAPI.fetch(token: token)
+            if remoteArticles.isEmpty, !localArticles.isEmpty {
+                let saved = try await StockAPI.replace(token: token, articles: localArticles)
+                replaceLocalArticles(saved)
+            } else {
+                replaceLocalArticles(remoteArticles)
+            }
+        } catch {
+            print("[stock] initial sync failed: \(error.localizedDescription)")
+        }
+    }
+
+    func resetServerSync() {
+        serverSyncAttempted = false
     }
 
     @discardableResult
@@ -281,6 +306,7 @@ final class ArticleLibrary {
         let result = SharedArticleRepository.saveWithLimit(url: url, title: title)
         if case .saved = result {
             refresh()
+            pushCurrentStateToServer()
         }
         return result
     }
@@ -288,11 +314,29 @@ final class ArticleLibrary {
     func mark(_ articleID: UUID, as state: SavedArticleState) {
         guard SharedArticleRepository.updateState(state, for: articleID) else { return }
         refresh()
+        pushCurrentStateToServer()
     }
 
     func delete(_ articleID: UUID) {
         guard SharedArticleRepository.delete(id: articleID) else { return }
         refresh()
+        pushCurrentStateToServer()
+    }
+
+    private func replaceLocalArticles(_ remoteArticles: [SavedArticle]) {
+        articles = remoteArticles
+        guard let defaults = UserDefaults(suiteName: SharedArticleRepository.appGroupIdentifier),
+              let data = try? JSONEncoder().encode(remoteArticles) else { return }
+        defaults.set(data, forKey: "savedArticles")
+    }
+
+    private func pushCurrentStateToServer() {
+        guard let token = try? AuthTokenStore().load(), !token.isEmpty else { return }
+        let snapshot = articles
+        Task {
+            do { _ = try await StockAPI.replace(token: token, articles: snapshot) }
+            catch { print("[stock] update failed: \(error.localizedDescription)") }
+        }
     }
 
     private func enrichMissingTitles() async {
@@ -317,6 +361,89 @@ final class ArticleLibrary {
     }
 }
 
+private enum StockAPI {
+    private struct Response: Decodable {
+        let items: [Item]
+    }
+
+    private struct Item: Codable {
+        let id: String
+        let url: String
+        let title: String
+        let source: String
+        let savedAt: String
+        let state: SavedArticleState
+        let completedAt: String?
+        let updatedAt: String?
+    }
+
+    static func fetch(token: String) async throws -> [SavedArticle] {
+        var request = URLRequest(url: Config.apiBaseURL.appending(path: "stock"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response, data: data)
+        return try decode(Response.self, from: data).items.compactMap(makeArticle)
+    }
+
+    static func replace(token: String, articles: [SavedArticle]) async throws -> [SavedArticle] {
+        var request = URLRequest(url: Config.apiBaseURL.appending(path: "stock"))
+        request.httpMethod = "PUT"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "items": articles.map { article in
+                Item(
+                    id: article.id.uuidString,
+                    url: article.url.absoluteString,
+                    title: article.title,
+                    source: article.source,
+                    savedAt: iso8601.string(from: article.savedAt),
+                    state: article.state,
+                    completedAt: article.completedAt.map { iso8601.string(from: $0) },
+                    updatedAt: iso8601.string(from: article.completedAt ?? article.savedAt)
+                )
+            }
+        ])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response, data: data)
+        return try decode(Response.self, from: data).items.compactMap(makeArticle)
+    }
+
+    private static func makeArticle(_ item: Item) -> SavedArticle? {
+        guard let id = UUID(uuidString: item.id),
+              let url = URL(string: item.url),
+              let savedAt = iso8601.date(from: item.savedAt) else { return nil }
+        return SavedArticle(
+            id: id,
+            url: url,
+            title: item.title,
+            source: item.source,
+            savedAt: savedAt,
+            state: item.state,
+            completedAt: item.completedAt.flatMap(iso8601.date)
+        )
+    }
+
+    private static func validate(_ response: URLResponse, data: Data) throws {
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        try JSONDecoder().decode(type, from: data)
+    }
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
 struct CastRecord: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let title: String
@@ -325,6 +452,7 @@ struct CastRecord: Codable, Identifiable, Equatable, Sendable {
     let durationMinutes: Int
     let status: String
     let audioURL: URL?
+    let artworkURL: URL?
     let creditCost: Int
     let errorMessage: String?
     let createdAt: String

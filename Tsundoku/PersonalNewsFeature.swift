@@ -1244,7 +1244,7 @@ struct PersonalNewsHomePreview: View {
                 .padding(16)
             } else {
                 List {
-                    ForEach(Array(store.items.prefix(5).enumerated()), id: \.element.id) { index, item in
+                    ForEach(store.items.prefix(5)) { item in
                         HStack(spacing: 12) {
                             AsyncImage(url: item.article.imageURL) { phase in
                                 if let image = phase.image {
@@ -1252,8 +1252,8 @@ struct PersonalNewsHomePreview: View {
                                 } else {
                                     Color.indigo.opacity(0.1)
                                         .overlay {
-                                            Text("\(index + 1)")
-                                                .font(.headline.bold())
+                                            Image(systemName: "newspaper.fill")
+                                                .font(.title2)
                                                 .foregroundStyle(.indigo)
                                         }
                                 }
