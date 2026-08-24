@@ -5,7 +5,9 @@
 
 import AuthenticationServices
 import CryptoKit
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct SignupView: View {
     let authStore: AuthStore
@@ -37,7 +39,11 @@ struct SignupCardView: View {
     @State private var verificationCode = ""
     @State private var enrollmentToken = ""
     @State private var password = ""
+    @State private var isPasswordVisible = false
     @State private var appleNonce = ""
+    @State private var selectedProfilePhoto: PhotosPickerItem?
+    @State private var profilePhotoData: Data?
+    @State private var isUploadingProfilePhoto = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @State private var resendSeconds = 0
@@ -239,18 +245,74 @@ struct SignupCardView: View {
                     .focused($focusedField, equals: .name)
                     .onSubmit { focusedField = .password }
 
-                SecureField(copy.passwordPlaceholder, text: $password)
+                HStack(spacing: 8) {
+                    Group {
+                        if isPasswordVisible {
+                            TextField(copy.passwordPlaceholder, text: $password)
+                        } else {
+                            SecureField(copy.passwordPlaceholder, text: $password)
+                        }
+                    }
                     .textContentType(.newPassword)
                     .submitLabel(.done)
                     .focused($focusedField, equals: .password)
                     .onSubmit(completeEmailSignup)
+                    .textFieldStyle(.plain)
+
+                    Button {
+                        isPasswordVisible.toggle()
+                    } label: {
+                        Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        isPasswordVisible
+                            ? (copy.isEnglish ? "Hide password" : "パスワードを隠す")
+                            : (copy.isEnglish ? "Show password" : "パスワードを表示")
+                    )
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                }
             }
             .textFieldStyle(SignupTextFieldStyle())
+
+            PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                    Text(profilePhotoData == nil ? copy.chooseProfileImage : copy.profileImageSelected)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .onChange(of: selectedProfilePhoto) { _, item in
+                guard let item else { return }
+                Task { await loadProfileImage(item) }
+            }
 
             errorText
 
             primaryButton(title: copy.createAccount, action: completeEmailSignup)
-                .disabled(!detailsAreValid || isSubmitting)
+                .disabled(!detailsAreValid || isSubmitting || isUploadingProfilePhoto)
         }
         .onAppear {
             focusedField = .name
@@ -431,6 +493,9 @@ struct SignupCardView: View {
                     name: name,
                     password: password
                 )
+                if let profilePhotoData {
+                    try? await authStore.uploadProfileImage(data: profilePhotoData, contentType: "image/jpeg")
+                }
                 onComplete()
             } catch {
                 show(error)
@@ -455,6 +520,17 @@ struct SignupCardView: View {
                 show(error)
             }
         }
+    }
+
+    private func loadProfileImage(_ item: PhotosPickerItem) async {
+        isUploadingProfilePhoto = true
+        defer {
+            isUploadingProfilePhoto = false
+            selectedProfilePhoto = nil
+        }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else { return }
+        profilePhotoData = image.jpegData(compressionQuality: 0.82)
     }
 
     private func handleAppleAuthorization(_ result: Result<ASAuthorization, Error>) {
@@ -593,6 +669,8 @@ enum SignupCopy {
         isEnglish ? "Password (8+ chars, letter, number & symbol)" : "パスワード（8文字以上・英数字・記号）"
     }
     var createAccount: String { isEnglish ? "Create account" : "アカウントを作成" }
+    var chooseProfileImage: String { isEnglish ? "Add a profile photo (optional)" : "プロフィール写真を追加（任意）" }
+    var profileImageSelected: String { isEnglish ? "Profile photo selected" : "プロフィール写真を選択済み" }
     var back: String { isEnglish ? "Back" : "戻る" }
     var close: String { isEnglish ? "Close" : "閉じる" }
     var genericError: String {

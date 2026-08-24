@@ -51,6 +51,10 @@ enum AuthServiceError: Error, Equatable {
                 return isEnglish
                     ? "The email or password is incorrect."
                     : "メールアドレスまたはパスワードが正しくありません。"
+            case "account_not_found":
+                return isEnglish
+                    ? "No account exists for this email address. Please sign up first."
+                    : "このメールアドレスのアカウントがありません。先にサインアップしてください。"
             case "invalid_input":
                 return isEnglish
                     ? "Check the information you entered."
@@ -98,6 +102,8 @@ enum AuthServiceError: Error, Equatable {
 final class AuthStore {
     private(set) var status: AuthStatus = .checking
     private(set) var requiresSocialProfileSetup = false
+    private(set) var canEditProfileImage = false
+    private(set) var canChangePassword = false
 
     private let client: AuthClient
     private let tokenStore: AuthTokenStore
@@ -121,6 +127,9 @@ final class AuthStore {
 
             let user = try await client.currentUser(token: token)
             status = .signedIn(user)
+            let permission = try? await client.profileImagePermission(token: token)
+            canEditProfileImage = permission?.canEditProfileImage ?? false
+            canChangePassword = permission?.canChangePassword ?? false
         } catch AuthServiceError.api(let code, _) where code == "unauthorized" {
             try? tokenStore.delete()
             status = .signedOut
@@ -141,6 +150,8 @@ final class AuthStore {
         )
         try tokenStore.save(response.session.token)
         status = .signedIn(response.user)
+        canEditProfileImage = true
+        canChangePassword = true
     }
 
     func requestEmailCode(email: String) async throws {
@@ -157,6 +168,7 @@ final class AuthStore {
 
         if let user = response.user, let session = response.session {
             try accept(user: user, session: session)
+            await refreshProfileImagePermission()
             return .signedIn
         }
 
@@ -178,6 +190,9 @@ final class AuthStore {
             preferredLanguage: preferredLanguageForServer
         )
         try accept(response)
+        canEditProfileImage = true
+        canChangePassword = true
+        await refreshProfileImagePermission()
     }
 
     func signInWithGoogle() async throws {
@@ -207,6 +222,7 @@ final class AuthStore {
                 preferredLanguage: preferredLanguageForServer
             )
             try accept(response)
+            await refreshProfileImagePermission()
         } catch let error as AuthServiceError {
             throw error
         } catch {
@@ -230,6 +246,8 @@ final class AuthStore {
             preferredLanguage: preferredLanguageForServer
         )
         try accept(response)
+        canEditProfileImage = true
+        await refreshProfileImagePermission()
     }
 
     func login(email: String, password: String) async throws {
@@ -240,6 +258,7 @@ final class AuthStore {
         try tokenStore.save(response.session.token)
         requiresSocialProfileSetup = response.requiresProfileSetup == true
         status = .signedIn(response.user)
+        await refreshProfileImagePermission()
     }
 
     func logout() async {
@@ -250,6 +269,8 @@ final class AuthStore {
         GIDSignIn.sharedInstance.signOut()
         requiresSocialProfileSetup = false
         status = .signedOut
+        canEditProfileImage = false
+        canChangePassword = false
     }
 
     func updatePreferredLanguage(_ language: String) async throws {
@@ -259,8 +280,24 @@ final class AuthStore {
         status = .signedIn(response.user)
     }
 
+    func updateProfileName(_ name: String) async throws {
+        guard let token = sessionToken() else { return }
+        let response = try await client.updateProfileName(name, token: token)
+        status = .signedIn(response.user)
+    }
+
     func clearSocialProfileSetupRequirement() {
         requiresSocialProfileSetup = false
+    }
+
+    private func refreshProfileImagePermission() async {
+        guard let token = sessionToken() else {
+            canEditProfileImage = false
+            return
+        }
+        let permission = try? await client.profileImagePermission(token: token)
+        canEditProfileImage = permission?.canEditProfileImage ?? false
+        canChangePassword = permission?.canChangePassword ?? false
     }
 
     private var preferredLanguageForServer: String {
@@ -290,6 +327,8 @@ final class AuthStore {
                 preferredLanguage: AppLanguage.japanese.rawValue
             )
         )
+        canEditProfileImage = true
+        canChangePassword = false
     }
     #endif
 
@@ -301,6 +340,30 @@ final class AuthStore {
     private func accept(user: AuthUser, session: AuthResponse.Session) throws {
         try tokenStore.save(session.token)
         status = .signedIn(user)
+        canEditProfileImage = false
+        canChangePassword = false
+    }
+
+    func uploadProfileImage(data: Data, contentType: String) async throws {
+        guard let token = sessionToken(), canEditProfileImage else {
+            throw AuthServiceError.api(code: "profile_image_not_allowed", message: "Profile image is not available for this account.")
+        }
+        let imageURL = try await client.uploadProfileImage(data: data, contentType: contentType, token: token)
+        guard case .signedIn(let user) = status else { return }
+        status = .signedIn(AuthUser(
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            profileImageURL: imageURL,
+            preferredLanguage: user.preferredLanguage
+        ))
+    }
+
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        guard canChangePassword else {
+            throw AuthServiceError.api(code: "password_change_not_allowed", message: "Password change is not available for this account.")
+        }
+        try await client.changePassword(currentPassword: currentPassword, newPassword: newPassword, token: sessionToken() ?? "")
     }
 }
 
@@ -318,6 +381,14 @@ struct AuthResponse: Decodable {
         let token: String
         let expiresAt: String
     }
+}
+
+private struct EmptyResponse: Decodable {}
+
+fileprivate struct ProfileImagePermissionResponse: Decodable {
+    let canEditProfileImage: Bool
+    let canChangePassword: Bool
+    let profileImageURL: URL?
 }
 
 private struct EmailCodeRequestResponse: Decodable {
@@ -478,11 +549,60 @@ struct AuthClient {
         return response.user
     }
 
+    fileprivate func profileImagePermission(token: String) async throws -> ProfileImagePermissionResponse {
+        try await send(path: "auth/profile-image", method: "GET", token: token)
+    }
+
+    func uploadProfileImage(data: Data, contentType: String, token: String) async throws -> URL {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"image\"; filename=\"avatar.jpg\"\r\n".utf8))
+        body.append(Data("Content-Type: \(contentType)\r\n\r\n".utf8))
+        body.append(data)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+
+        var request = URLRequest(url: baseURL.appending(path: "auth/profile-image"))
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw AuthServiceError.invalidResponse }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if let payload = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+                throw AuthServiceError.api(code: payload.error.code, message: payload.error.message)
+            }
+            throw AuthServiceError.invalidResponse
+        }
+        struct UploadResponse: Decodable { let profileImageURL: URL }
+        return try JSONDecoder().decode(UploadResponse.self, from: data).profileImageURL
+    }
+
+    func changePassword(currentPassword: String, newPassword: String, token: String) async throws {
+        _ = try await send(
+            path: "auth/password",
+            method: "PATCH",
+            body: ["currentPassword": currentPassword, "newPassword": newPassword],
+            token: token
+        ) as EmptyResponse
+    }
+
     fileprivate func updatePreferredLanguage(_ language: String, token: String) async throws -> CurrentUserResponse {
         try await send(
             path: "auth/account",
             method: "PATCH",
             body: ["preferredLanguage": language],
+            token: token
+        )
+    }
+
+    fileprivate func updateProfileName(_ name: String, token: String) async throws -> CurrentUserResponse {
+        try await send(
+            path: "auth/account",
+            method: "PATCH",
+            body: ["name": name],
             token: token
         )
     }

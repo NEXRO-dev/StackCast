@@ -38,6 +38,7 @@ private struct LoginCardView: View {
 
     @State private var email = ""
     @State private var password = ""
+    @State private var isPasswordVisible = false
     @State private var appleNonce = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -73,12 +74,41 @@ private struct LoginCardView: View {
                         .onSubmit { focusedField = .password }
                         .textFieldStyle(LoginTextFieldStyle())
 
-                    SecureField(copy.passwordPlaceholder, text: $password)
+                    HStack(spacing: 8) {
+                        Group {
+                            if isPasswordVisible {
+                                TextField(copy.passwordPlaceholder, text: $password)
+                            } else {
+                                SecureField(copy.passwordPlaceholder, text: $password)
+                            }
+                        }
                         .textContentType(.password)
                         .submitLabel(.done)
                         .focused($focusedField, equals: .password)
                         .onSubmit(login)
-                        .textFieldStyle(LoginTextFieldStyle())
+
+                        Button {
+                            isPasswordVisible.toggle()
+                        } label: {
+                            Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isPasswordVisible
+                            ? (copy.isEnglish ? "Hide password" : "パスワードを隠す")
+                            : (copy.isEnglish ? "Show password" : "パスワードを表示"))
+                    }
+                    .padding(.leading, 14)
+                    .padding(.trailing, 4)
+                    .frame(minHeight: 56)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                    }
 
                     primaryButton(title: copy.loginButton, action: login)
                         .disabled(!formIsValid || isSubmitting)
@@ -252,7 +282,11 @@ private struct LoginCardView: View {
     }
 
     private func show(_ error: Error) {
-        errorMessage = copy.genericError
+        if let authError = error as? AuthServiceError {
+            errorMessage = authError.message(isEnglish: copy.isEnglish)
+        } else {
+            errorMessage = copy.genericError
+        }
     }
 
     private var errorAlertBinding: Binding<Bool> {

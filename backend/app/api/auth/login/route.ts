@@ -37,7 +37,15 @@ export async function POST(request: Request) {
       input.email,
     )) as UserRow | null;
 
-    if (!user || !(await verifyPassword(input.password, user.password_hash))) {
+    if (!user) {
+      return errorResponse(
+        "account_not_found",
+        "No account exists for this email address. Please sign up first.",
+        401,
+      );
+    }
+
+    if (!(await verifyPassword(input.password, user.password_hash))) {
       return invalidCredentialsResponse();
     }
 

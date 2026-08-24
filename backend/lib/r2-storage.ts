@@ -1,9 +1,12 @@
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
   S3Client,
   type ObjectIdentifier,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 let client: S3Client | undefined;
 
@@ -56,4 +59,31 @@ export async function deleteUserAudioObjects(userID: string): Promise<number> {
   }
 
   return objects.length;
+}
+
+export async function storeUserProfileImage(
+  userID: string,
+  body: Uint8Array,
+  contentType: string,
+): Promise<string> {
+  const objectKey = `profiles/${userID}/avatar`;
+  await getClient().send(new PutObjectCommand({
+    Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"),
+    Key: objectKey,
+    Body: body,
+    ContentType: contentType,
+    CacheControl: "private, max-age=86400",
+  }));
+  return objectKey;
+}
+
+export async function signedR2ObjectURL(objectKey: string): Promise<string> {
+  return getSignedUrl(
+    getClient(),
+    new GetObjectCommand({
+      Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"),
+      Key: objectKey,
+    }),
+    { expiresIn: 60 * 60 },
+  );
 }

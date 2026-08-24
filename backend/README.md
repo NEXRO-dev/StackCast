@@ -21,15 +21,15 @@ npm run db:migrate
 npm run dev
 ```
 
-開発環境で`RESEND_API_KEY`を設定していない場合、確認コードはバックエンドのターミナルにのみ表示されます。本番環境では`AUTH_OTP_SECRET`、`RESEND_API_KEY`、`AUTH_EMAIL_FROM`が必須です。
+本番環境では`AUTH_OTP_SECRET`、`RESEND_API_KEY`、`AUTH_EMAIL_FROM`が必須です。
 
 ## Production configuration
 
 ### Email delivery
 
-1. Resendで送信元ドメインを確認します。
+1. Resendで`stackcast.app`を送信元ドメインとして認証します。
 2. `RESEND_API_KEY`をバックエンド環境変数に保存します。
-3. `AUTH_EMAIL_FROM`を`StackCast <no-reply@auth.your-domain.com>`の形式で設定します。
+3. `AUTH_EMAIL_FROM`を`StackCast <no-reply@stackcast.app>`の形式で設定します。
 4. `AUTH_OTP_SECRET`には十分に長いランダム値を設定します。アプリへは入れません。
 
 ### Google Sign-In

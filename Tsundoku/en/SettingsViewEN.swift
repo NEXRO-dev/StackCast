@@ -23,6 +23,7 @@ struct SettingsViewEN: View {
     var body: some View {
         NavigationStack {
             Form {
+                profileSection
                 languageSection
                 appearanceSection
                 playbackSection
@@ -47,6 +48,31 @@ struct SettingsViewEN: View {
             }
             .alert(item: $destructiveAction) { action in
                 destructiveAlert(for: action)
+            }
+        }
+    }
+
+    private var profileSection: some View {
+        Section("Profile") {
+            NavigationLink {
+                ProfileSettingsView(authStore: authStore, language: .english)
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.indigo)
+                        .frame(width: 38, height: 38)
+                        .background(.indigo.opacity(0.12), in: Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Edit profile")
+                            .font(.body.weight(.semibold))
+                        Text("Change your photo or display name")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 68)
             }
         }
     }

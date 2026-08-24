@@ -257,6 +257,7 @@ final class ArticleLibrary {
     private(set) var articles: [SavedArticle] = []
     private var metadataTask: Task<Void, Never>?
     private var serverSyncAttempted = false
+    private var serverSyncToken: String?
 
     init() {
         refresh()
@@ -273,6 +274,7 @@ final class ArticleLibrary {
     func syncIfNeeded(token: String?) async {
         guard !serverSyncAttempted, let token, !token.isEmpty else { return }
         serverSyncAttempted = true
+        serverSyncToken = token
 
         let localArticles = articles
         do {
@@ -290,6 +292,14 @@ final class ArticleLibrary {
 
     func resetServerSync() {
         serverSyncAttempted = false
+        serverSyncToken = nil
+    }
+
+    /// Supplies the current app-session token for later mutation syncs.
+    /// ShareExtension can use the same shared library without needing the
+    /// main-app-only AuthTokenStore; when no token is supplied, sync is skipped.
+    func setServerSyncToken(_ token: String?) {
+        serverSyncToken = token
     }
 
     @discardableResult
@@ -331,7 +341,7 @@ final class ArticleLibrary {
     }
 
     private func pushCurrentStateToServer() {
-        guard let token = try? AuthTokenStore().load(), !token.isEmpty else { return }
+        guard let token = serverSyncToken, !token.isEmpty else { return }
         let snapshot = articles
         Task {
             do { _ = try await StockAPI.replace(token: token, articles: snapshot) }
@@ -499,13 +509,6 @@ final class CastDownloadStore {
         return url
     }
 
-    func merged(with remoteCasts: [CastRecord]) -> [CastRecord] {
-        var merged = remoteCasts
-        let remoteIDs = Set(remoteCasts.map(\.id))
-        merged.append(contentsOf: downloadedCasts.filter { !remoteIDs.contains($0.id) })
-        return merged
-    }
-
     func download(_ cast: CastRecord) async -> Bool {
         guard !isDownloaded(cast),
               !isDownloading(cast),
@@ -638,10 +641,6 @@ final class CastStore {
     private(set) var errorCode: String?
     private(set) var pendingOpenCastID: String?
 
-    init() {
-        casts = CastDownloadStore.shared.downloadedCasts
-    }
-
     func clear() {
         casts = []
         errorMessage = nil
@@ -669,14 +668,18 @@ final class CastStore {
                !loadedCasts.contains(where: { $0.id == pendingSharedCast.id }) {
                 loadedCasts.insert(pendingSharedCast, at: 0)
             }
-            casts = CastDownloadStore.shared.merged(with: loadedCasts)
+            // The Cast screen is server-authoritative. Local downloads are only
+            // used as an audio source for a Cast that already exists in this
+            // account's server response.
+            casts = loadedCasts
 #if CAST_LIVE_ACTIVITY_APP
             CastGenerationActivityStore.shared.sync(with: loadedCasts)
 #endif
             errorMessage = nil
             errorCode = nil
         } catch {
-            casts = CastDownloadStore.shared.merged(with: casts)
+            // Never fall back to another account's local Cast index.
+            // Keep the last server-backed list for a transient refresh error.
             errorMessage = "Castの読み込みに失敗しました。"
         }
     }

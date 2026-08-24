@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SafariServices
+import UIKit
 
 let castDefaultDurationKey = "castDefaultDuration"
 
@@ -73,28 +74,19 @@ struct InAppBrowserView: UIViewControllerRepresentable {
 
 struct AccountAvatarView: View {
     let user: AuthUser
+    @State private var loadedImage: UIImage?
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(.indigo.opacity(0.14))
 
-            if let profileImageURL = user.profileImageURL {
-                AsyncImage(url: profileImageURL) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .controlSize(.small)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        fallback
-                    @unknown default:
-                        fallback
-                    }
-                }
+            if let loadedImage {
+                Image(uiImage: loadedImage)
+                    .resizable()
+                    .scaledToFill()
+            } else if user.profileImageURL != nil {
+                ProgressView().controlSize(.small)
             } else {
                 fallback
             }
@@ -105,6 +97,20 @@ struct AccountAvatarView: View {
                 .stroke(.primary.opacity(0.08), lineWidth: 1)
         }
         .accessibilityHidden(true)
+        .task(id: user.profileImageURL) {
+            guard let url = user.profileImageURL else {
+                loadedImage = nil
+                return
+            }
+            if let cached = ProfileImageCache.shared.image(for: url) {
+                loadedImage = cached
+                return
+            }
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  let image = UIImage(data: data) else { return }
+            ProfileImageCache.shared.insert(image, for: url)
+            loadedImage = image
+        }
     }
 
     @ViewBuilder
@@ -117,6 +123,18 @@ struct AccountAvatarView: View {
             Image(systemName: "person.fill")
                 .foregroundStyle(.indigo)
         }
+    }
+}
+
+private final class ProfileImageCache: NSCache<NSString, UIImage> {
+    static let shared = ProfileImageCache()
+
+    func image(for url: URL) -> UIImage? {
+        object(forKey: url.absoluteString as NSString)
+    }
+
+    func insert(_ image: UIImage, for url: URL) {
+        setObject(image, forKey: url.absoluteString as NSString)
     }
 }
 

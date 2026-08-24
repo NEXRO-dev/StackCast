@@ -137,6 +137,11 @@ final class PeerTrendsStore {
             available = false
         }
     }
+
+    func reload(token: String?) async {
+        hasLoaded = false
+        await load(token: token)
+    }
 }
 
 struct PeerTrendsSection: View {

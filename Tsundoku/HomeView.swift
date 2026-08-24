@@ -67,6 +67,11 @@ struct HomeView: View {
                 applyDefaultDuration()
                 await peerTrendsStore.load(token: authStore.sessionToken())
             }
+            .refreshable {
+                articleLibrary.refresh()
+                await recommendationStore.reload(token: authStore.sessionToken())
+                await peerTrendsStore.reload(token: authStore.sessionToken())
+            }
             .onChange(of: defaultDuration) { _, _ in applyDefaultDuration() }
         }
     }

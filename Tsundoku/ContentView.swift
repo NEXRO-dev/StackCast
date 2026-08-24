@@ -65,11 +65,15 @@ struct ContentView: View {
         }
         .task(id: signedInUserID) {
             if let signedInUserID {
+                // Prevent the previous account's Cast list from being visible
+                // while the new account's server-backed list is loading.
+                castStore.clear()
                 await subscriptionStore.identify(
                     userID: signedInUserID,
                     sessionToken: authStore.sessionToken()
                 )
                 await castStore.load(token: authStore.sessionToken())
+                articleLibrary.setServerSyncToken(authStore.sessionToken())
                 await articleLibrary.syncIfNeeded(token: authStore.sessionToken())
             } else if case .signedOut = authStore.status {
                 await subscriptionStore.signOut()
