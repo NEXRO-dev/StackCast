@@ -44,33 +44,43 @@ export async function PUT(request: Request) {
 
   const now = new Date().toISOString();
   const items = Array.isArray(body.items) ? body.items.slice(0, 200) : [];
-  const statements = items
-    .filter((item) => typeof item.url === "string" && item.url.length > 0)
-    .map((item) => {
-      const state = item.state === "completed" || item.state === "inProgress" ? item.state : "unread";
-      const savedAt = typeof item.savedAt === "string" ? item.savedAt : now;
-      const updatedAt = typeof item.updatedAt === "string" ? item.updatedAt : now;
-      return {
-        sql: `INSERT INTO saved_articles
-          (id, user_id, canonical_url, title, source, saved_at, state, completed_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(user_id, canonical_url) DO UPDATE SET
-           id = excluded.id, title = excluded.title, source = excluded.source,
-           saved_at = excluded.saved_at, state = excluded.state,
-           completed_at = excluded.completed_at, updated_at = excluded.updated_at`,
-        args: [
-          typeof item.id === "string" && item.id ? item.id : randomUUID(),
-          userID,
-          item.url,
-          typeof item.title === "string" && item.title ? item.title : item.url,
-          typeof item.source === "string" ? item.source : "",
-          savedAt,
-          state,
-          state === "completed" ? (item.completedAt ?? now) : null,
-          updatedAt,
-        ],
-      };
-    });
+  const seenURLs = new Set<string>();
+  const uniqueItems = items.flatMap((item) => {
+    if (typeof item.url !== "string" || item.url.trim().length === 0) return [];
+    const url = item.url.trim();
+    if (seenURLs.has(url)) return [];
+    seenURLs.add(url);
+    return [{ ...item, url }];
+  });
+  const usedIDs = new Set<string>();
+  const statements = uniqueItems.map((item) => {
+    const state = item.state === "completed" || item.state === "inProgress" ? item.state : "unread";
+    const savedAt = typeof item.savedAt === "string" ? item.savedAt : now;
+    const updatedAt = typeof item.updatedAt === "string" ? item.updatedAt : now;
+    const requestedID = typeof item.id === "string" && item.id ? item.id : null;
+    const id = requestedID && !usedIDs.has(requestedID) ? requestedID : randomUUID();
+    usedIDs.add(id);
+    return {
+      sql: `INSERT INTO saved_articles
+        (id, user_id, canonical_url, title, source, saved_at, state, completed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, canonical_url) DO UPDATE SET
+         id = excluded.id, title = excluded.title, source = excluded.source,
+         saved_at = excluded.saved_at, state = excluded.state,
+         completed_at = excluded.completed_at, updated_at = excluded.updated_at`,
+      args: [
+        id,
+        userID,
+        item.url,
+        typeof item.title === "string" && item.title ? item.title : item.url,
+        typeof item.source === "string" ? item.source : "",
+        savedAt,
+        state,
+        state === "completed" ? (item.completedAt ?? now) : null,
+        updatedAt,
+      ],
+    };
+  });
 
   await getTurso().batch([
     { sql: "DELETE FROM saved_articles WHERE user_id = ?", args: [userID] },

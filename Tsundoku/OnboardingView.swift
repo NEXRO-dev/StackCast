@@ -13,56 +13,66 @@ struct OnboardingView: View {
     private let pages = OnboardingPage.all
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
+        ZStack {
+            LinearGradient(
+                colors: [pages[selectedPage].color.opacity(0.10), Color(.systemBackground), Color(.systemBackground)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-                Button("スキップ", action: onFinish)
-                    .font(.subheadline.weight(.semibold))
-                    .opacity(isLastPage ? 0 : 1)
-                    .disabled(isLastPage)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 12)
-
-            TabView(selection: $selectedPage) {
-                ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                    OnboardingPageView(page: page)
-                        .tag(index)
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("スキップ", action: onFinish)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .opacity(isLastPage ? 0 : 1)
+                        .disabled(isLastPage)
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
 
-            VStack(spacing: 24) {
-                HStack(spacing: 8) {
-                    ForEach(pages.indices, id: \.self) { index in
-                        Capsule()
-                            .fill(index == selectedPage ? Color.accentColor : Color.secondary.opacity(0.25))
-                            .frame(width: index == selectedPage ? 24 : 8, height: 8)
+                TabView(selection: $selectedPage) {
+                    ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
+                        OnboardingPageView(page: page)
+                            .tag(index)
                     }
                 }
-                .animation(.snappy, value: selectedPage)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("全4ページ中、\(selectedPage + 1)ページ目")
+                .tabViewStyle(.page(indexDisplayMode: .never))
 
-                Button(action: advance) {
-                    HStack {
-                        Text(isLastPage ? "アカウントを作成" : "次へ")
-
-                        if !isLastPage {
-                            Image(systemName: "arrow.right")
+                VStack(spacing: 14) {
+                    HStack(spacing: 6) {
+                        ForEach(pages.indices, id: \.self) { index in
+                            Capsule()
+                                .fill(index == selectedPage ? pages[selectedPage].color : Color.secondary.opacity(0.20))
+                                .frame(width: index == selectedPage ? 24 : 7, height: 7)
                         }
                     }
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("全\(pages.count)ページ中、\(selectedPage + 1)ページ目")
+
+                    Button(action: advance) {
+                        HStack(spacing: 8) {
+                            Text(isLastPage ? "アカウントを作成" : "次へ")
+                            Image(systemName: isLastPage ? "arrow.right" : "chevron.right")
+                                .font(.subheadline.weight(.bold))
+                        }
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(pages[selectedPage].color)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .animation(.easeInOut(duration: 0.2), value: selectedPage)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemBackground))
+        .animation(.easeInOut(duration: 0.35), value: selectedPage)
     }
 
     private var isLastPage: Bool {
@@ -84,35 +94,52 @@ private struct OnboardingPageView: View {
     let page: OnboardingPage
 
     var body: some View {
-        VStack(spacing: 36) {
-            Spacer()
+        VStack(spacing: 28) {
+            Spacer(minLength: 12)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 48, style: .continuous)
-                    .fill(page.color.opacity(0.12))
-                    .frame(width: 240, height: 240)
-
-                Image(systemName: page.systemImage)
-                    .font(.system(size: 92, weight: .medium))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(page.color)
-            }
+            OnboardingIllustration(systemImage: page.systemImage, color: page.color)
             .accessibilityHidden(true)
 
             VStack(spacing: 14) {
                 Text(page.title)
-                    .font(.largeTitle.bold())
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
                     .multilineTextAlignment(.center)
-
+                    .minimumScaleFactor(0.8)
                 Text(page.message)
-                    .font(.title3)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 28)
 
-            Spacer()
+            Spacer(minLength: 12)
+        }
+        .padding(.vertical, 12)
+    }
+}
+
+struct OnboardingIllustration: View {
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 304, height: 304)
+        .shadow(color: color.opacity(0.16), radius: 22, y: 12)
+    }
+
+    private var assetName: String {
+        switch systemImage {
+        case "discover.news": return "OnboardingDiscover"
+        case "save.articles": return "OnboardingSave"
+        case "reading.pace": return "OnboardingReading"
+        case "cast.audio": return "OnboardingCast"
+        case "listen": return "OnboardingListen"
+        default: return "OnboardingDiscover"
         }
     }
 }
@@ -125,27 +152,33 @@ private struct OnboardingPage {
 
     static let all = [
         OnboardingPage(
-            systemImage: "link.circle.fill",
-            title: "あとで読むを、\nひとつの場所に",
-            message: "気になったWeb記事を共有するだけ。\n読みたい情報をすっきり保存できます。",
+            systemImage: "discover.news",
+            title: "気になるニュースに、\n出会える",
+            message: "見逃していた話題も、\nあなたの興味から見つけます。",
             color: .indigo
         ),
         OnboardingPage(
-            systemImage: "hourglass.circle.fill",
-            title: "5日間で、\n気持ちよく手放す",
-            message: "期限が近い記事から優先して整理。\n未読が増え続ける負担を減らします。",
+            systemImage: "save.articles",
+            title: "あなた向けの\nニュース",
+            message: "興味のあるジャンルから、\n毎日のニュースをお届けします。",
+            color: .indigo
+        ),
+        OnboardingPage(
+            systemImage: "reading.pace",
+            title: "気になったら、\nあとで読む",
+            message: "保存した記事は、\nあなたのペースで楽しめます。",
             color: .orange
         ),
         OnboardingPage(
-            systemImage: "timer.circle.fill",
-            title: "空き時間に\nぴったり収まる",
-            message: "5分、10分、15分、20分から選ぶと、\n記事をCastにまとめます。",
+            systemImage: "cast.audio",
+            title: "ニュースをCastにして\n聴く",
+            message: "あなた向けのニュースを、\nわかりやすい音声に変えます。",
             color: .pink
         ),
         OnboardingPage(
-            systemImage: "headphones.circle.fill",
-            title: "画面を見ずに、\n記事を消化",
-            message: "要約を音声で連続再生。\n移動や家事の時間をニュース時間に変えます。",
+            systemImage: "listen",
+            title: "見ていない時間も、\n知識に変わる",
+            message: "移動中や家事の時間も、\n耳でニュースを楽しめます。",
             color: .teal
         )
     ]

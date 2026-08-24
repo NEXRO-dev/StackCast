@@ -1,0 +1,8 @@
+schemaVersion: 1
+sessionDefaults:
+  projectPath: /Volumes/Extreme SSD/Tsundoku/Tsundoku.xcodeproj
+  scheme: Tsundoku
+  configuration: Debug
+  simulatorId: E0C2E6A9-49EA-4090-8822-4132C2D35841
+  simulatorName: iPhone 17 Pro
+  simulatorPlatform: iOS Simulator

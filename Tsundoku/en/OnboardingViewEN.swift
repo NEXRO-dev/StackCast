@@ -13,56 +13,66 @@ struct OnboardingViewEN: View {
     private let pages = OnboardingPageEN.all
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
+        ZStack {
+            LinearGradient(
+                colors: [pages[selectedPage].color.opacity(0.10), Color(.systemBackground), Color(.systemBackground)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-                Button("Skip", action: onFinish)
-                    .font(.subheadline.weight(.semibold))
-                    .opacity(isLastPage ? 0 : 1)
-                    .disabled(isLastPage)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 12)
-
-            TabView(selection: $selectedPage) {
-                ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                    OnboardingPageViewEN(page: page)
-                        .tag(index)
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Skip", action: onFinish)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .opacity(isLastPage ? 0 : 1)
+                        .disabled(isLastPage)
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
 
-            VStack(spacing: 24) {
-                HStack(spacing: 8) {
-                    ForEach(pages.indices, id: \.self) { index in
-                        Capsule()
-                            .fill(index == selectedPage ? Color.accentColor : Color.secondary.opacity(0.25))
-                            .frame(width: index == selectedPage ? 24 : 8, height: 8)
+                TabView(selection: $selectedPage) {
+                    ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
+                        OnboardingPageViewEN(page: page)
+                            .tag(index)
                     }
                 }
-                .animation(.snappy, value: selectedPage)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Page \(selectedPage + 1) of 4")
+                .tabViewStyle(.page(indexDisplayMode: .never))
 
-                Button(action: advance) {
-                    HStack {
-                        Text(isLastPage ? "Create an Account" : "Next")
-
-                        if !isLastPage {
-                            Image(systemName: "arrow.right")
+                VStack(spacing: 14) {
+                    HStack(spacing: 6) {
+                        ForEach(pages.indices, id: \.self) { index in
+                            Capsule()
+                                .fill(index == selectedPage ? pages[selectedPage].color : Color.secondary.opacity(0.20))
+                                .frame(width: index == selectedPage ? 24 : 7, height: 7)
                         }
                     }
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Page \(selectedPage + 1) of \(pages.count)")
+
+                    Button(action: advance) {
+                        HStack(spacing: 8) {
+                            Text(isLastPage ? "Create an Account" : "Next")
+                            Image(systemName: isLastPage ? "arrow.right" : "chevron.right")
+                                .font(.subheadline.weight(.bold))
+                        }
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(pages[selectedPage].color)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .animation(.easeInOut(duration: 0.2), value: selectedPage)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemBackground))
+        .animation(.easeInOut(duration: 0.35), value: selectedPage)
     }
 
     private var isLastPage: Bool {
@@ -84,36 +94,29 @@ private struct OnboardingPageViewEN: View {
     let page: OnboardingPageEN
 
     var body: some View {
-        VStack(spacing: 36) {
-            Spacer()
+        VStack(spacing: 28) {
+            Spacer(minLength: 12)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 48, style: .continuous)
-                    .fill(page.color.opacity(0.12))
-                    .frame(width: 240, height: 240)
-
-                Image(systemName: page.systemImage)
-                    .font(.system(size: 92, weight: .medium))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(page.color)
-            }
+            OnboardingIllustration(systemImage: page.systemImage, color: page.color)
             .accessibilityHidden(true)
 
             VStack(spacing: 14) {
                 Text(page.title)
-                    .font(.largeTitle.bold())
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
                     .multilineTextAlignment(.center)
-
+                    .minimumScaleFactor(0.8)
                 Text(page.message)
-                    .font(.title3)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 28)
 
-            Spacer()
+            Spacer(minLength: 12)
         }
+        .padding(.vertical, 12)
     }
 }
 
@@ -125,27 +128,33 @@ private struct OnboardingPageEN {
 
     static let all = [
         OnboardingPageEN(
-            systemImage: "link.circle.fill",
-            title: "Save It for Later,\nAll in One Place",
-            message: "Share any article that catches your eye.\nKeep everything you want to read organized.",
+            systemImage: "discover.news",
+            title: "Discover News\nThat Matters to You",
+            message: "Find stories you might have missed,\nshaped by your interests.",
             color: .indigo
         ),
         OnboardingPageEN(
-            systemImage: "hourglass.circle.fill",
-            title: "Let It Go\nWithin Five Days",
-            message: "We prioritize articles nearing expiration,\nso your unread list never feels overwhelming.",
+            systemImage: "save.articles",
+            title: "News\nJust for You",
+            message: "Get a daily selection built\nfrom the topics you care about.",
+            color: .indigo
+        ),
+        OnboardingPageEN(
+            systemImage: "reading.pace",
+            title: "Save It and\nRead at Your Pace",
+            message: "Keep articles for later\nand come back whenever you like.",
             color: .orange
         ),
         OnboardingPageEN(
-            systemImage: "timer.circle.fill",
-            title: "A Cast That Fits\nYour Free Time",
-            message: "Choose 5, 10, 15, or 20 minutes.\nWe'll build a Cast that fits.",
+            systemImage: "cast.audio",
+            title: "Turn News\ninto a Cast",
+            message: "Transform your personalized news\ninto clear, easy-to-listen audio.",
             color: .pink
         ),
         OnboardingPageEN(
-            systemImage: "headphones.circle.fill",
-            title: "Catch Up Without\nLooking at a Screen",
-            message: "Listen to article summaries back to back.\nTurn commutes and chores into news time.",
+            systemImage: "listen",
+            title: "Learn Without\nLooking at a Screen",
+            message: "Enjoy your news while commuting,\nworking out, or doing chores.",
             color: .teal
         )
     ]

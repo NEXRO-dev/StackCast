@@ -21,6 +21,7 @@ struct AccountView: View {
     @State private var isResetMemoryConfirmationPresented = false
     @State private var downloadStore = CastDownloadStore.shared
     @State private var isShowingSubscription = false
+    @State private var isLogCardFlipped = false
 
     private var isEnglish: Bool { language == .english }
 
@@ -108,9 +109,11 @@ struct AccountView: View {
             }
             .task {
                 await recommendationStore.load(token: authStore.sessionToken())
+                await recommendationStore.loadContributionActivity(token: authStore.sessionToken())
             }
             .refreshable {
                 await recommendationStore.reload(token: authStore.sessionToken())
+                await recommendationStore.loadContributionActivity(token: authStore.sessionToken())
                 if case .signedIn(let user) = authStore.status {
                     await subscriptionStore.identify(
                         userID: user.id,
@@ -221,21 +224,31 @@ struct AccountView: View {
 #endif
 
     private var logCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 14) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.indigo)
-                    .frame(width: 42, height: 42)
-                    .background(.indigo.opacity(0.12), in: Circle())
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(isEnglish ? "Activity log" : "利用ログ")
-                        .font(.headline).foregroundStyle(.primary)
-                    Text(isEnglish ? "Articles and Cast activity" : "記事とCastの利用状況")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
+        ZStack {
+            logCardFront
+                .opacity(isLogCardFlipped ? 0 : 1)
+                .rotation3DEffect(.degrees(isLogCardFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+
+            logCardBack
+                .opacity(isLogCardFlipped ? 1 : 0)
+                .rotation3DEffect(.degrees(isLogCardFlipped ? 0 : -180), axis: (x: 0, y: 1, z: 0))
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.55)) {
+                isLogCardFlipped.toggle()
             }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(logSummary)
+    }
+
+    private var logCardFront: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            logCardHeader(
+                title: isEnglish ? "Activity log" : "利用ログ",
+                subtitle: isEnglish ? "Articles and Cast activity" : "記事とCastの利用状況"
+            )
 
             Divider()
 
@@ -244,27 +257,11 @@ struct AccountView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 0) {
-                accountLogMetric(
-                    value: articleLibrary.articles.count,
-                    label: isEnglish ? "Saved" : "保存",
-                    color: .indigo
-                )
-
+                accountLogMetric(value: articleLibrary.articles.count, label: isEnglish ? "Saved" : "保存", color: .indigo)
                 Divider().frame(height: 46)
-
-                accountLogMetric(
-                    value: completedArticleCount,
-                    label: isEnglish ? "Completed" : "完了",
-                    color: .green
-                )
-
+                accountLogMetric(value: completedArticleCount, label: isEnglish ? "Completed" : "完了", color: .green)
                 Divider().frame(height: 46)
-
-                accountLogMetric(
-                    value: unreadArticleCount,
-                    label: isEnglish ? "Unread" : "未消化",
-                    color: .orange
-                )
+                accountLogMetric(value: unreadArticleCount, label: isEnglish ? "Unread" : "未消化", color: .orange)
             }
 
             Divider()
@@ -282,8 +279,196 @@ struct AccountView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accountCard()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(logSummary)
+    }
+
+    private var logCardBack: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            logCardHeader(
+                title: isEnglish ? "Contribution graph" : "コントリビューション・グラフ",
+                subtitle: isEnglish ? "Your activity since joining" : "登録日からのアクティビティ"
+            )
+
+            contributionGrid
+
+            HStack(spacing: 6) {
+                contributionLegendColor(.orange)
+                Text(isEnglish ? "Joined" : "登録日")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 4)
+
+                Text(isEnglish ? "Less" : "少ない")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                contributionLegendColor(.secondary.opacity(0.10))
+                contributionLegendColor(.indigo.opacity(0.35))
+                contributionLegendColor(.indigo.opacity(0.65))
+                contributionLegendColor(.indigo)
+
+                Text(isEnglish ? "More" : "多い")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accountCard()
+    }
+
+    private func contributionLegendColor(_ color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(color)
+            .frame(width: 14, height: 14)
+    }
+
+    private func logCardHeader(title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: isLogCardFlipped ? "chart.bar.fill" : "clock.arrow.circlepath")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.indigo)
+                .frame(width: 42, height: 42)
+                .background(.indigo.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.headline).foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Button {
+                withAnimation(.easeInOut(duration: 0.55)) {
+                    isLogCardFlipped.toggle()
+                }
+            } label: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(.secondary.opacity(0.10), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isEnglish ? "Flip card" : "カードを回転")
+        }
+    }
+
+    private var contributionGrid: some View {
+        let calendar = contributionCalendar
+        return HStack(alignment: .top, spacing: 6) {
+            VStack(spacing: 6) {
+                ForEach(Array((isEnglish ? ["S", "M", "T", "W", "T", "F", "S"] : ["日", "月", "火", "水", "木", "金", "土"]).enumerated()), id: \.offset) { _, day in
+                    Text(day)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14, height: 14)
+                }
+            }
+
+            HStack(alignment: .top, spacing: 6) {
+                ForEach(Array(calendar.weeks.enumerated()), id: \.offset) { _, week in
+                    VStack(spacing: 6) {
+                        ForEach(Array(week.enumerated()), id: \.offset) { _, cell in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(cell.color)
+                                .frame(width: 14, height: 14)
+                        }
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 6) {
+                ForEach(calendar.monthLabels, id: \.offset) { label in
+                    Text(label.value)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: label.width, alignment: .leading)
+                }
+            }
+            .offset(x: 20, y: -18)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    private struct ContributionCell {
+        let color: Color
+    }
+
+    private struct ContributionMonthLabel: Identifiable {
+        let offset: Int
+        let value: String
+        let width: CGFloat
+        var id: Int { offset }
+    }
+
+    private struct ContributionCalendar {
+        let weeks: [[ContributionCell]]
+        let monthLabels: [ContributionMonthLabel]
+    }
+
+    private var contributionCalendar: ContributionCalendar {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: isEnglish ? "en_US" : "ja_JP")
+        formatter.dateFormat = isEnglish ? "MMM" : "M月"
+        let dateKeyFormatter = DateFormatter()
+        dateKeyFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateKeyFormatter.calendar = calendar
+        dateKeyFormatter.timeZone = calendar.timeZone
+        dateKeyFormatter.dateFormat = "yyyy-MM-dd"
+        let iso = ISO8601DateFormatter()
+        let start = iso.date(from: recommendationStore.contributionActivity?.accountCreatedAt ?? "") ?? .now
+        let startDay = calendar.startOfDay(for: start)
+        let today = calendar.startOfDay(for: .now)
+        let counts = Dictionary(uniqueKeysWithValues: (recommendationStore.contributionActivity?.days ?? []).map { ($0.date, $0.count) })
+        var weeks: [[ContributionCell]] = []
+        var monthLabels: [ContributionMonthLabel] = []
+
+        let startComponents = calendar.dateComponents([.year, .month], from: startDay)
+        let firstMonth = calendar.date(from: startComponents) ?? startDay
+        let monthWidth: CGFloat = 4 * 14 + 3 * 6
+        let graphStart = calendar.dateInterval(of: .weekOfYear, for: startDay)?.start ?? startDay
+
+        // Start at the registration week so that the registration marker is
+        // always in the leftmost four-column month block.
+        for month in 0..<3 {
+            let monthStart = calendar.date(byAdding: .month, value: month, to: firstMonth) ?? firstMonth
+            monthLabels.append(
+                ContributionMonthLabel(offset: month, value: formatter.string(from: monthStart), width: monthWidth)
+            )
+            for week in 0..<4 {
+                var column: [ContributionCell] = []
+                for day in 0..<7 {
+                    let weekOffset = (month * 4 + week) * 7 + day
+                    let date = calendar.date(byAdding: .day, value: weekOffset, to: graphStart) ?? graphStart
+                    let dateKey = dateKeyFormatter.string(from: date)
+                    let isBeforeRegistration = date < startDay
+                    let isFuture = date > today
+                    let count = counts[String(dateKey)] ?? 0
+                    let isRegistrationDay = date == startDay
+                    let color: Color = isRegistrationDay
+                        ? .orange
+                        : isBeforeRegistration || isFuture
+                        ? Color.secondary.opacity(0.10)
+                        : contributionColor(count)
+                    column.append(ContributionCell(color: color))
+                }
+                weeks.append(column)
+            }
+        }
+        return ContributionCalendar(weeks: weeks, monthLabels: monthLabels)
+    }
+
+    private func contributionColor(_ count: Int) -> Color {
+        switch count {
+        case 0: return Color.secondary.opacity(0.10)
+        case 1...2: return .indigo.opacity(0.35)
+        case 3...5: return .indigo.opacity(0.65)
+        default: return .indigo
+        }
     }
 
     private func accountLogMetric(value: Int, label: String, color: Color) -> some View {
@@ -388,28 +573,81 @@ struct AccountView: View {
         if items.isEmpty {
             emptyMemoryText(emptyText)
         } else {
-            VStack(spacing: 9) {
+            VStack(spacing: 10) {
                 ForEach(items.prefix(4)) { item in
-                    HStack(spacing: 10) {
-                        memoryChip(memoryDisplayValue(item), color: color)
-                        if !item.reason.isEmpty {
-                            Text(item.reason)
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(color)
+                            .frame(width: 44, height: 44)
+                            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(memoryDisplayValue(item))
+                                    .font(.headline.weight(.semibold))
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(memoryStrengthLabel(item))
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+
+                            GeometryReader { proxy in
+                                Capsule()
+                                    .fill(color.opacity(0.14))
+                                    .overlay(alignment: .leading) {
+                                        Capsule()
+                                            .fill(color)
+                                            .frame(width: proxy.size.width * memoryProgress(item))
+                                    }
+                            }
+                            .frame(height: 6)
+
+                            Text(memoryReason(item))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
-                        Spacer(minLength: 0)
+
                         Button(role: .destructive) {
                             Task { await recommendationStore.deleteMemory(token: authStore.sessionToken(), id: item.id) }
                         } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(isEnglish ? "Delete \(memoryDisplayValue(item))" : "\(memoryDisplayValue(item))を削除")
                     }
+                    .padding(12)
+                    .background(color.opacity(0.075), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
             }
         }
+    }
+
+    private func memoryStrengthLabel(_ item: RecommendationMemoryItem) -> String {
+        if isEnglish {
+            return item.weight >= 0.65 ? "Strong interest" : "Learning"
+        }
+        return item.weight >= 0.65 ? "関心が強い" : "学習中"
+    }
+
+    private func memoryProgress(_ item: RecommendationMemoryItem) -> CGFloat {
+        CGFloat(min(1, max(0.08, abs(item.weight))))
+    }
+
+    private func memoryReason(_ item: RecommendationMemoryItem) -> String {
+        if isEnglish {
+            return item.polarity.lowercased() == "negative"
+                ? "Based on your recent dismissals"
+                : "Based on your recent viewing and saving activity"
+        }
+        return item.reason.isEmpty
+            ? (item.polarity.lowercased() == "negative" ? "最近の興味なし操作から" : "最近の閲覧・保存行動から")
+            : item.reason
     }
 
     private var settingsButton: some View {
@@ -539,7 +777,7 @@ struct AccountView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.top, 96)
+        .padding(.top, 64)
     }
 
     private var logSummary: String {

@@ -82,6 +82,17 @@ struct RecommendationMemoryItem: Codable, Identifiable {
     let reason: String
 }
 
+struct ContributionDay: Codable, Identifiable, Sendable {
+    let date: String
+    let count: Int
+    var id: String { date }
+}
+
+struct ContributionActivity: Codable, Sendable {
+    let accountCreatedAt: String
+    let days: [ContributionDay]
+}
+
 struct PeerTrend: Codable, Identifiable {
     let id: String
     let nameJA: String
@@ -347,6 +358,7 @@ final class RecommendationStore {
     private(set) var isLoading = false
     private(set) var isDebugRefreshing = false
     private(set) var errorMessage: String?
+    private(set) var contributionActivity: ContributionActivity?
 
     private let client = RecommendationClient()
     private var recordedImpressionFeedIDs: Set<String> = []
@@ -368,6 +380,11 @@ final class RecommendationStore {
     func reload(token: String?) async {
         hasAttemptedInitialLoad = false
         await runLoad(token: token)
+    }
+
+    func loadContributionActivity(token: String?) async {
+        guard let token else { return }
+        contributionActivity = try? await client.activity(token: token)
     }
 
     func refresh(token: String?) async {
@@ -664,6 +681,10 @@ private struct RecommendationClient {
 
     func feed(token: String) async throws -> FeedResponse {
         try await send(path: "recommendations/feed", token: token)
+    }
+
+    func activity(token: String) async throws -> ContributionActivity {
+        try await send(path: "recommendations/activity", token: token)
     }
 
     #if DEBUG
