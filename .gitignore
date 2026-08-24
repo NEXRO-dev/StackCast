@@ -1,5 +1,11 @@
-# AppleDouble metadata files
-._* 
+node_modules
+.next
+out
+.DS_Store
+._*
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
 
 # Swift Package Manager build products
 .build/
