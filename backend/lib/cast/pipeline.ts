@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getTurso } from "@/lib/turso";
 import { effectiveSubscriptionForUser } from "@/lib/billing/effective-plan";
+import { sendUserPush } from "@/lib/notifications/push";
 import { buildCastGenerationPrompt, buildFishAudioInput, castSafetyPolicy, type CastLanguage } from "./prompt";
 
 const openAIModel = "gpt-5.6-luna";
@@ -39,6 +40,7 @@ export type CastRecord = {
   transcript: string | null;
   durationMinutes: number;
   status: "queued" | "processing" | "completed" | "failed";
+  progressPercent: number;
   audioObjectKey: string | null;
   audioURL?: string | null;
   artworkObjectKey: string | null;
@@ -58,6 +60,7 @@ type CastRow = {
   transcript: string | null;
   durationMinutes: number;
   status: CastRecord["status"];
+  progressPercent: number;
   audioObjectKey: string | null;
   artworkObjectKey: string | null;
   creditCost: number;
@@ -338,12 +341,31 @@ export async function createCast(userID: string, input: CreateCastInput): Promis
     sourceCount: input.sources.length,
   });
 
-  const sourceContents = await Promise.all(
+  const resolvedSources = await Promise.allSettled(
     input.sources.map(async (source) => ({
       ...source,
       text: await resolveSourceText(source),
     })),
   );
+  const sourceContents = resolvedSources.flatMap((result, index) => {
+    if (result.status === "fulfilled") return [result.value];
+
+    const source = input.sources[index];
+    logCastEvent("source skipped after fetch failure", {
+      userID,
+      castID,
+      url: source.url,
+      title: source.title ?? null,
+      reason: safeErrorMessage(result.reason),
+    });
+    return [];
+  });
+  const minimumUsableSources = input.internalKind === "daily_news"
+    ? 5
+    : (process.env.NODE_ENV !== "production" ? 1 : 2);
+  if (sourceContents.length < minimumUsableSources) {
+    throw new Error(`SOURCE_FETCH_INSUFFICIENT_SOURCES_${sourceContents.length}`);
+  }
   logCastEvent("source contents resolved", {
     userID,
     castID,
@@ -359,8 +381,8 @@ export async function createCast(userID: string, input: CreateCastInput): Promis
       [
       {
         sql: `INSERT INTO casts
-          (id, user_id, title, duration_minutes, language, status, credit_cost, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'processing', ?, ?, ?)`,
+          (id, user_id, title, duration_minutes, language, status, progress_percent, credit_cost, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'processing', 0, ?, ?, ?)`,
         args: [castID, userID, title, durationMinutes, language, creditCost, now, now],
       },
       ...sourceContents.map((source, index) => ({
@@ -419,6 +441,7 @@ export async function createCast(userID: string, input: CreateCastInput): Promis
     throw error;
   }
 
+  await updateCastProgress(castID, 10);
   return processCastGeneration(userID, castID, jobID, language, title, durationMinutes, creditCost, sourceContents);
 }
 
@@ -561,21 +584,43 @@ async function processCastGeneration(
 ): Promise<CastRecord> {
   const database = getTurso();
   try {
-    const generated = await createCastContent(userID, language, title, durationMinutes, sourceContents);
+    await updateCastProgress(castID, 20);
+    const generated = await withProgressTicker(
+      castID,
+      20,
+      50,
+      () => createCastContent(userID, language, title, durationMinutes, sourceContents),
+    );
     const script = generated.script;
-    const audio = await createAudio(script);
+    await updateCastProgress(castID, 50);
+    const audio = await withProgressTicker(castID, 50, 75, () => createAudio(script));
+    await updateCastProgress(castID, 75);
     const objectKey = `casts/${userID}/${castID}/audio.mp3`;
     await getR2Client().send(new PutObjectCommand({
       Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"), Key: objectKey, Body: audio,
       ContentType: "audio/mpeg", CacheControl: "private, max-age=3600",
     }));
     const artworkObjectKey = await storeCastArtwork(userID, castID);
+    await updateCastProgress(castID, 90);
     const completedAt = new Date().toISOString();
     await database.batch([
-      { sql: `UPDATE casts SET title = ?, summary = ?, transcript = ?, status = 'completed', audio_object_key = ?, artwork_object_key = ?, updated_at = ?, completed_at = ?, error_message = NULL WHERE id = ? AND user_id = ?`, args: [generated.title, buildSummary(script), script, objectKey, artworkObjectKey, completedAt, completedAt, castID, userID] },
+      { sql: `UPDATE casts SET title = ?, summary = ?, transcript = ?, status = 'completed', progress_percent = 100, audio_object_key = ?, artwork_object_key = ?, updated_at = ?, completed_at = ?, error_message = NULL WHERE id = ? AND user_id = ?`, args: [generated.title, buildSummary(script), script, objectKey, artworkObjectKey, completedAt, completedAt, castID, userID] },
       { sql: `UPDATE cast_generation_jobs SET status = 'completed', finished_at = ?, last_error = NULL WHERE id = ? AND cast_id = ?`, args: [completedAt, jobID, castID] },
     ], "immediate");
     await consumeCredits(userID, castID, creditCost, completedAt);
+    try {
+      await sendUserPush(userID, {
+        title: "Castが作成されました",
+        body: "あなたのCastを聴いてみましょう",
+        deepLink: `stackcast://cast/${castID}`,
+      });
+    } catch (pushError) {
+      console.warn("[cast] completion push failed; Cast remains completed", {
+        userID,
+        castID,
+        message: pushError instanceof Error ? pushError.message : String(pushError),
+      });
+    }
     logCastEvent("pipeline completed", { userID, castID, jobID });
     return getCast(userID, castID);
   } catch (error) {
@@ -587,6 +632,41 @@ async function processCastGeneration(
     ], "immediate");
     await releaseCredits(userID, castID, creditCost, failedAt);
     throw error;
+  }
+}
+
+async function updateCastProgress(castID: string, progressPercent: number): Promise<void> {
+  await getTurso().run(
+    "UPDATE casts SET progress_percent = ?, updated_at = ? WHERE id = ? AND status = 'processing'",
+    Math.max(0, Math.min(100, Math.round(progressPercent))),
+    new Date().toISOString(),
+    castID,
+  );
+}
+
+async function withProgressTicker<T>(
+  castID: string,
+  startPercent: number,
+  endPercent: number,
+  operation: () => Promise<T>,
+): Promise<T> {
+  let progress = startPercent;
+  const timer = setInterval(() => {
+    if (progress >= endPercent - 1) return;
+    progress += 1;
+    void updateCastProgress(castID, progress).catch((error) => {
+      console.warn("[cast] progress update skipped", {
+        castID,
+        progressPercent: progress,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, 1_000);
+
+  try {
+    return await operation();
+  } finally {
+    clearInterval(timer);
   }
 }
 
@@ -648,7 +728,7 @@ export async function listCasts(userID: string): Promise<CastRecord[]> {
   const database = getTurso();
   const rows = (await database.all(
     `SELECT casts.id, casts.title, casts.summary, casts.transcript, casts.duration_minutes AS durationMinutes,
-            casts.status, casts.audio_object_key AS audioObjectKey,
+            casts.status, casts.progress_percent AS progressPercent, casts.audio_object_key AS audioObjectKey,
             casts.artwork_object_key AS artworkObjectKey, casts.credit_cost AS creditCost,
             casts.error_message AS errorMessage, casts.created_at AS createdAt,
             casts.updated_at AS updatedAt, casts.completed_at AS completedAt,
@@ -668,7 +748,7 @@ export async function getCast(userID: string, castID: string): Promise<CastRecor
   const database = getTurso();
   const row = (await database.get(
     `SELECT casts.id, casts.title, casts.summary, casts.transcript, casts.duration_minutes AS durationMinutes,
-            casts.status, casts.audio_object_key AS audioObjectKey,
+            casts.status, casts.progress_percent AS progressPercent, casts.audio_object_key AS audioObjectKey,
             casts.artwork_object_key AS artworkObjectKey, casts.credit_cost AS creditCost,
             casts.error_message AS errorMessage, casts.created_at AS createdAt,
             casts.updated_at AS updatedAt, casts.completed_at AS completedAt,

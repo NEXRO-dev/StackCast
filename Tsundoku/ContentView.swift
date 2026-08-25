@@ -73,6 +73,7 @@ struct ContentView: View {
                     sessionToken: authStore.sessionToken()
                 )
                 await castStore.load(token: authStore.sessionToken())
+                PushDeviceTokenRegistration.shared.registerIfPossible(sessionToken: authStore.sessionToken())
                 articleLibrary.setServerSyncToken(authStore.sessionToken())
                 await articleLibrary.syncIfNeeded(
                     token: authStore.sessionToken(),

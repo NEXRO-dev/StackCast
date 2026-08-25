@@ -42,7 +42,7 @@ Paid features are offered through Apple’s App Store and may be managed using R
 
 9. Support and Attachments
 
-Users may contact support through the app or support@stackcast.app. Support requests may include the request text, category, attachments, app version, and technical information needed to investigate the issue. Do not attach passwords, payment information, private keys, or another person’s personal information.
+Users may contact support through the app or inbox@stackcast.app. Support requests may include the request text, category, attachments, app version, and technical information needed to investigate the issue. Do not attach passwords, payment information, private keys, or another person’s personal information.
 
 10. Availability and External Services
 
@@ -74,7 +74,7 @@ These Terms may be updated when the service, law, security requirements, or thir
 
 Operator: [legal name]
 Address: [address]
-Email: support@stackcast.app
+Email: inbox@stackcast.app
 Website: https://stackcast.app
 
 Date information

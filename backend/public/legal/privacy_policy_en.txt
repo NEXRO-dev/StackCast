@@ -4,7 +4,7 @@ Important: This is the current StackCast Privacy Policy. It describes the inform
 
 1. Operator and Contact
 
-StackCast is operated by NEXRO. Contact: support@stackcast.app. NEXRO is also identified as the operator/representative name for this draft. Whether an address must be displayed should be confirmed under applicable law before publication. Privacy, deletion, AI-processing, public-Cast, and support inquiries may be sent through the app or this email address.
+StackCast is operated by NEXRO. Contact: inbox@stackcast.app. NEXRO is also identified as the operator/representative name for this draft. Whether an address must be displayed should be confirmed under applicable law before publication. Privacy, deletion, AI-processing, public-Cast, and support inquiries may be sent through the app or this email address.
 
 2. Information Collected
 
@@ -69,7 +69,7 @@ StackCast currently does not use Firebase, AdMob, advertising networks, or adver
 This Policy may change when the service, law, providers, data types, purposes, or security measures change. Important changes will be announced in the app or on the website.
 
 Operator: NEXRO
-Email: support@stackcast.app
+Email: inbox@stackcast.app
 Website: https://stackcast.app
 
 Date information

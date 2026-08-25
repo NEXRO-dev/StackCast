@@ -22,6 +22,7 @@ struct AccountView: View {
     @State private var downloadStore = CastDownloadStore.shared
     @State private var isShowingSubscription = false
     @State private var isLogCardFlipped = false
+    @State private var isFrequentlyViewedHelpPresented = false
 
     private var isEnglish: Bool { language == .english }
 
@@ -528,8 +529,16 @@ struct AccountView: View {
             }
 
             Divider()
-            memorySectionTitle(isEnglish ? "Frequently viewed" : "よく見るジャンル")
-            memoryRows(positiveMemoryItems, emptyText: isEnglish ? "Learning from your activity" : "利用状況から学習中です", color: .blue)
+            memorySectionTitle(
+                isEnglish ? "Frequently viewed" : "よく見るジャンル",
+                showsHelp: true
+            )
+            memoryRows(
+                positiveMemoryItems,
+                emptyText: isEnglish ? "Learning from your activity" : "利用状況から学習中です",
+                color: .blue,
+                showsReason: false
+            )
 
             Divider()
             memorySectionTitle(isEnglish ? "Not interested" : "興味なしにした傾向")
@@ -550,10 +559,44 @@ struct AccountView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accountCard()
+        .alert(
+            isEnglish ? "About Frequently Viewed" : "よく見るジャンルについて",
+            isPresented: $isFrequentlyViewedHelpPresented
+        ) {
+            Button(isEnglish ? "OK" : "OK", role: .cancel) {}
+        } message: {
+            Text(
+                isEnglish
+                    ? "These results are calculated from your recent news viewing, saving, and completion activity."
+                    : "最近のニュースの閲覧履歴や保存、完了などの行動をもとに、よく見るジャンルを算出しています。"
+            )
+        }
     }
 
-    private func memorySectionTitle(_ title: String) -> some View {
-        Text(title).font(.subheadline.weight(.semibold))
+    private func memorySectionTitle(_ title: String, showsHelp: Bool = false) -> some View {
+        HStack(spacing: 7) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+
+            Spacer(minLength: 0)
+
+            if showsHelp {
+                Button {
+                    isFrequentlyViewedHelpPresented = true
+                } label: {
+                    Image(systemName: "questionmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .overlay {
+                            Circle()
+                                .stroke(.secondary.opacity(0.55), lineWidth: 1.2)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isEnglish ? "About frequently viewed genres" : "よく見るジャンルの説明")
+            }
+        }
     }
 
     private func memoryChip(_ value: String, color: Color) -> some View {
@@ -569,7 +612,12 @@ struct AccountView: View {
     }
 
     @ViewBuilder
-    private func memoryRows(_ items: [RecommendationMemoryItem], emptyText: String, color: Color) -> some View {
+    private func memoryRows(
+        _ items: [RecommendationMemoryItem],
+        emptyText: String,
+        color: Color,
+        showsReason: Bool = true
+    ) -> some View {
         if items.isEmpty {
             emptyMemoryText(emptyText)
         } else {
@@ -605,10 +653,12 @@ struct AccountView: View {
                             }
                             .frame(height: 6)
 
-                            Text(memoryReason(item))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                            if showsReason {
+                                Text(memoryReason(item))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
 
                         Button(role: .destructive) {

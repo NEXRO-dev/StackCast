@@ -19,7 +19,7 @@ struct SupportView: View {
     @State private var isShowingMailComposer = false
     @State private var mailBody = ""
 
-    private let supportEmail = "support@stackcast.app"
+    private let supportEmail = "inbox@stackcast.app"
 
     var body: some View {
         Form {

@@ -300,7 +300,7 @@ struct StockView: View {
     }
 
     private func contactSupport() {
-        guard let url = URL(string: "mailto:support@stackcast.app?subject=StackCast%20Cast%20generation%20support") else { return }
+        guard let url = URL(string: "mailto:inbox@stackcast.app?subject=StackCast%20Cast%20generation%20support") else { return }
         openURL(url)
     }
 

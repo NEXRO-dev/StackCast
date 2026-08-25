@@ -9,6 +9,57 @@ import ActivityKit
 #endif
 import LinkPresentation
 import Observation
+import UIKit
+import UserNotifications
+
+@MainActor
+final class PushDeviceTokenRegistration {
+    static let shared = PushDeviceTokenRegistration()
+    private let tokenKey = "stackcast.apns.device-token"
+    private var deviceToken: String?
+
+    private init() {
+        deviceToken = UserDefaults.standard.string(forKey: tokenKey)
+    }
+
+    func didRegister(_ data: Data) {
+        let token = data.map { String(format: "%02x", $0) }.joined()
+        guard !token.isEmpty else { return }
+        deviceToken = token
+        UserDefaults.standard.set(token, forKey: tokenKey)
+    }
+
+    func registerIfPossible(sessionToken: String?) {
+        guard let sessionToken, !sessionToken.isEmpty, let deviceToken else { return }
+        Task {
+            var request = URLRequest(url: Config.apiBaseURL.appending(path: "notifications/device-token"))
+            request.httpMethod = "POST"
+            request.timeoutInterval = 15
+            request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+#if DEBUG
+            let environment = "sandbox"
+#else
+            let environment = "production"
+#endif
+            request.httpBody = try? JSONSerialization.data(withJSONObject: [
+                "token": deviceToken,
+                "environment": environment,
+            ])
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                guard let response = response as? HTTPURLResponse,
+                      (200..<300).contains(response.statusCode) else {
+                    print("[push] device token registration failed")
+                    return
+                }
+                print("[push] device token registered")
+            } catch {
+                print("[push] device token registration request failed: \(error.localizedDescription)")
+            }
+        }
+    }
+}
 
 enum SavedArticleState: String, Codable {
     case unread
@@ -486,6 +537,7 @@ struct CastRecord: Codable, Identifiable, Equatable, Sendable {
     let transcript: String?
     let durationMinutes: Int
     let status: String
+    let progressPercent: Int
     let audioURL: URL?
     let artworkURL: URL?
     let creditCost: Int
@@ -493,6 +545,29 @@ struct CastRecord: Codable, Identifiable, Equatable, Sendable {
     let createdAt: String
     let completedAt: String?
     let shareToken: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, summary, transcript, durationMinutes, status, progressPercent
+        case audioURL, artworkURL, creditCost, errorMessage, createdAt, completedAt, shareToken
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        transcript = try container.decodeIfPresent(String.self, forKey: .transcript)
+        durationMinutes = try container.decode(Int.self, forKey: .durationMinutes)
+        status = try container.decode(String.self, forKey: .status)
+        progressPercent = try container.decodeIfPresent(Int.self, forKey: .progressPercent) ?? 0
+        audioURL = try container.decodeIfPresent(URL.self, forKey: .audioURL)
+        artworkURL = try container.decodeIfPresent(URL.self, forKey: .artworkURL)
+        creditCost = try container.decode(Int.self, forKey: .creditCost)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        completedAt = try container.decodeIfPresent(String.self, forKey: .completedAt)
+        shareToken = try container.decodeIfPresent(String.self, forKey: .shareToken)
+    }
 }
 
 @MainActor
@@ -722,6 +797,21 @@ final class CastStore {
         isGenerating = true
         defer { isGenerating = false }
 
+        #if CAST_LIVE_ACTIVITY_APP
+        let liveActivityTitle = sources.first.map { "\($0.title) のまとめ" } ?? "StackCast"
+        CastGenerationActivityStore.shared.start(title: liveActivityTitle)
+        let monitorTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { break }
+                if let latest = try? await CastAPI.list(token: token),
+                   let pending = latest.first(where: { $0.status == "processing" }) {
+                    CastGenerationActivityStore.shared.update(for: pending)
+                }
+            }
+        }
+        #endif
+
         do {
             let cast = try await CastAPI.create(
                 token: token,
@@ -730,11 +820,16 @@ final class CastStore {
             )
             casts.insert(cast, at: 0)
 #if CAST_LIVE_ACTIVITY_APP
-            CastGenerationActivityStore.shared.start(for: cast)
+            monitorTask.cancel()
+            CastGenerationActivityStore.shared.complete(for: cast)
 #endif
             errorMessage = nil
             return cast
         } catch {
+#if CAST_LIVE_ACTIVITY_APP
+            monitorTask.cancel()
+            CastGenerationActivityStore.shared.fail()
+#endif
             errorMessage = error.localizedDescription
             errorCode = (error as NSError).userInfo["CastAPIErrorCode"] as? String
             return nil
@@ -810,16 +905,22 @@ final class CastGenerationActivityStore {
     static let previewEnabledKey = "castGenerationLiveActivityPreviewEnabled"
     private var activity: Activity<CastGenerationActivityAttributes>?
     private var isPreviewing = false
+    private var previewTask: Task<Void, Never>?
 
     func start(for cast: CastRecord) {
-        guard cast.status == "queued" || cast.status == "processing",
-              ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard cast.status == "queued" || cast.status == "processing" else { return }
+        start(title: cast.title, progressPercent: cast.progressPercent)
+    }
+
+    func start(title: String, progressPercent: Int = 0) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        requestNotificationPermission()
         if activity != nil { return }
-        let attributes = CastGenerationActivityAttributes(castTitle: cast.title, subtitle: "StackCast")
+        let attributes = CastGenerationActivityAttributes(castTitle: title, subtitle: "StackCast")
         do {
             activity = try Activity.request(
                 attributes: attributes,
-                content: ActivityContent(state: .init(status: "Cast準備中..."), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
+                content: ActivityContent(state: .init(status: "Cast作成中", progressPercent: progressPercent), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
                 pushType: nil
             )
         } catch {
@@ -835,21 +936,71 @@ final class CastGenerationActivityStore {
             castTitle: language == .english ? "Sample Cast generation" : "サンプルCastを生成中",
             subtitle: "StackCast"
         )
-        let status = language == .english ? "Cast preparing..." : "Cast準備中..."
+        let status = language == .english ? "Creating Cast" : "Cast作成中"
         do {
             activity = try Activity.request(
                 attributes: attributes,
-                content: ActivityContent(state: .init(status: status), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
+                content: ActivityContent(state: .init(status: status, progressPercent: 0), staleDate: Date(timeIntervalSinceNow: 30 * 60)),
                 pushType: nil
             )
             isPreviewing = true
+            previewTask = Task { [weak self] in
+                var progress = 0
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    guard !Task.isCancelled, let self, let activity = self.activity else { break }
+                    progress = min(progress + 1, 99)
+                    await activity.update(
+                        ActivityContent(
+                            state: .init(status: status, progressPercent: progress),
+                            staleDate: Date(timeIntervalSinceNow: 30 * 60)
+                        )
+                    )
+                }
+            }
         } catch {
             print("[cast] preview Live Activity failed: \(error)")
         }
     }
 
+    func update(for cast: CastRecord) {
+        guard let activity, !isPreviewing else { return }
+        Task {
+            await activity.update(
+                ActivityContent(
+                    state: .init(status: "Cast作成中", progressPercent: cast.progressPercent),
+                    staleDate: Date(timeIntervalSinceNow: 30 * 60)
+                )
+            )
+        }
+    }
+
+    func complete(for cast: CastRecord) {
+        guard let activity, !isPreviewing else { return }
+        Task {
+            await activity.end(
+                ActivityContent(state: .init(status: "Cast作成済み", progressPercent: 100, isCompleted: true), staleDate: nil),
+                dismissalPolicy: .after(.now + 8)
+            )
+        }
+        self.activity = nil
+    }
+
+    func fail() {
+        guard let activity, !isPreviewing else { return }
+        Task {
+            await activity.end(
+                ActivityContent(state: .init(status: "Castの作成に失敗しました", progressPercent: 0), staleDate: nil),
+                dismissalPolicy: .after(.now + 4)
+            )
+        }
+        self.activity = nil
+    }
+
     func stopPreview() {
         guard isPreviewing, let activity else { return }
+        previewTask?.cancel()
+        previewTask = nil
         Task {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
@@ -865,15 +1016,28 @@ final class CastGenerationActivityStore {
             }
             return
         }
-        let pending = casts.first(where: { $0.title == activity.attributes.castTitle && ($0.status == "queued" || $0.status == "processing") })
-        guard pending == nil else { return }
-        Task {
-            await activity.end(
-                ActivityContent(state: .init(status: "完了"), staleDate: nil),
-                dismissalPolicy: .after(.now + 2)
-            )
+        guard let matchingCast = casts.first(where: { $0.title == activity.attributes.castTitle }) else { return }
+        if matchingCast.status == "queued" || matchingCast.status == "processing" {
+            update(for: matchingCast)
+        } else if matchingCast.status == "completed" {
+            complete(for: matchingCast)
         }
-        self.activity = nil
+    }
+
+    private func requestNotificationPermission() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
     }
 }
 #endif

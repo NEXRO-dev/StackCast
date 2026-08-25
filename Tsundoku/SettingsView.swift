@@ -537,10 +537,6 @@ struct SettingsView: View {
             } label: {
                 Label("サポートに問い合わせ", systemImage: "envelope")
             }
-            Button {} label: {
-                Label("使い方", systemImage: "questionmark.circle")
-            }
-            .disabled(true)
             Button {
                 browserDestination = InAppBrowserDestination(url: URL(string: "https://stackcast.app/terms")!)
             } label: {

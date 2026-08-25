@@ -11,7 +11,7 @@ export default async function LocalizedSupport({ params }: { params: Promise<{ l
       </div>
       <h1 className="mb-4 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">{isJapanese ? "StackCast サポート" : "StackCast Support"}</h1>
       <p className="mb-8 leading-8 text-zinc-600">{isJapanese ? "StackCastに関する不具合、アカウント、Cast生成、課金、公開Castの通報についてお問い合わせいただけます。" : "Contact us about bugs, accounts, Cast generation, billing, or reports about public Casts."}</p>
-      <a className="inline-flex rounded-full bg-zinc-950 px-5 py-3 font-medium text-white hover:bg-zinc-700" href="mailto:support@stackcast.app">{isJapanese ? "support@stackcast.app に問い合わせる" : "Contact support@stackcast.app"}</a>
+      <a className="inline-flex rounded-full bg-zinc-950 px-5 py-3 font-medium text-white hover:bg-zinc-700" href="mailto:inbox@stackcast.app">{isJapanese ? "inbox@stackcast.app に問い合わせる" : "Contact inbox@stackcast.app"}</a>
       <p className="mt-8 text-sm leading-7 text-zinc-500">{isJapanese ? "問い合わせの際は、発生日時、利用端末、アプリバージョン、対象CastまたはURL、表示されたエラー内容を可能な範囲でお知らせください。" : "Please include the time of the issue, device, app version, relevant Cast or URL, and any displayed error when possible."}</p>
     </main>
   );

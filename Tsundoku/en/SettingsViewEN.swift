@@ -212,10 +212,6 @@ struct SettingsViewEN: View {
             } label: {
                 Label("Contact Support", systemImage: "envelope")
             }
-            Button {} label: {
-                Label("How to Use StackCast", systemImage: "questionmark.circle")
-            }
-            .disabled(true)
             Button {
                 browserDestination = InAppBrowserDestination(url: URL(string: "https://stackcast.app/terms")!)
             } label: {

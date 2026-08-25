@@ -1,6 +1,5 @@
 import ActivityKit
 import Foundation
-import ThinkingOrbsKit
 import SwiftUI
 import WidgetKit
 
@@ -221,7 +220,7 @@ struct CastGenerationLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CastGenerationActivityAttributes.self) { context in
             HStack(spacing: 14) {
-                ThinkingOrb(state: .working, size: .px64, displaySize: 56)
+                GenerationProgressView(progressPercent: context.state.progressPercent, isCompleted: context.state.isCompleted, diameter: 56)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(context.attributes.castTitle)
                         .font(.headline)
@@ -237,7 +236,12 @@ struct CastGenerationLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    ThinkingOrb(state: .working, size: .px20, displaySize: 28)
+                    VStack {
+                        Spacer(minLength: 0)
+                        GenerationProgressView(progressPercent: context.state.progressPercent, isCompleted: context.state.isCompleted, diameter: 38)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxHeight: .infinity)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -246,16 +250,51 @@ struct CastGenerationLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                ThinkingOrb(state: .working, size: .px20, displaySize: 20)
+                GenerationProgressView(progressPercent: context.state.progressPercent, isCompleted: context.state.isCompleted, diameter: 20)
             } compactTrailing: {
                 Text(context.state.status)
                     .font(.caption2.weight(.semibold))
                     .lineLimit(1)
             } minimal: {
-                ThinkingOrb(state: .working, size: .px20, displaySize: 18)
+                GenerationProgressView(progressPercent: context.state.progressPercent, isCompleted: context.state.isCompleted, diameter: 18)
             }
             .keylineTint(.purple)
         }
+    }
+}
+
+private struct GenerationProgressView: View {
+    let progressPercent: Int
+    let isCompleted: Bool
+    let diameter: CGFloat
+
+    var body: some View {
+        ZStack {
+            if isCompleted {
+                Circle().fill(.green)
+                Image(systemName: "checkmark")
+                    .font(.system(size: max(8, diameter * 0.42), weight: .heavy))
+                    .foregroundStyle(.white)
+            } else {
+                Circle()
+                    .stroke(.secondary.opacity(0.22), lineWidth: max(2, diameter * 0.1))
+                Circle()
+                    .trim(from: 0, to: CGFloat(min(max(progressPercent, 0), 100)) / 100)
+                    .stroke(.purple, style: StrokeStyle(lineWidth: max(2, diameter * 0.1), lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text("\(min(max(progressPercent, 0), 100))")
+                    .font(.system(size: max(7, diameter * 0.28), weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .frame(width: max(16, diameter * 0.56), height: max(12, diameter * 0.36))
+                    .minimumScaleFactor(0.6)
+                    .contentTransition(.identity)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityLabel(isCompleted ? "Cast作成済み" : "Cast生成進捗 \(progressPercent)%")
     }
 }
 

@@ -4,14 +4,6 @@
     {
       "path": "/api/internal/news/daily",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/internal/daily-casts/process",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/internal/casts/process",
-      "schedule": "*/1 * * * *"
     }
   ]
 }

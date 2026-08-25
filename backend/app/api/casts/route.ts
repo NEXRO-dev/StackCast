@@ -1,8 +1,7 @@
 import { bearerToken, hashSessionToken } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/response";
-import { enqueueCast, listCasts, processNextCastGenerationJob, type CreateCastInput } from "@/lib/cast/pipeline";
+import { createCast, listCasts, type CreateCastInput } from "@/lib/cast/pipeline";
 import { getTurso } from "@/lib/turso";
-import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -56,26 +55,12 @@ export async function POST(request: Request) {
   });
 
   try {
-    const cast = await enqueueCast(userID, { ...input, internalKind: undefined });
+    // Manual Cast generation is intentionally synchronous: a button press
+    // starts the generation pipeline immediately instead of waiting for a
+    // queue worker or a cron invocation.
+    const cast = await createCast(userID, { ...input, internalKind: undefined });
     console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
-    const kickWorker = async () => {
-      try {
-        await processNextCastGenerationJob();
-      } catch (error) {
-        console.error("[cast-worker] request follow-up failed", { requestID, error });
-      }
-    };
-
-    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-      void kickWorker();
-    } else {
-      // Vercel may terminate a detached promise as soon as the response is
-      // sent. `after` keeps the request alive for the worker while still
-      // returning the queued Cast immediately. The cron worker remains as a
-      // retry path for timeouts and deployments.
-      after(kickWorker);
-    }
-    return Response.json({ cast }, { status: 202 });
+    return Response.json({ cast }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "CAST_GENERATION_FAILED";
     console.error("[cast] request failed", {

@@ -1587,30 +1587,6 @@ struct PersonalizationSettingsView: View {
                     }
                     Toggle(isEnglish ? "Personalized recommendations" : "おすすめをパーソナライズ", isOn: $personalizationEnabled)
                 }
-                Section(isEnglish ? "Daily Cast" : "デイリーCast") {
-                    Toggle(
-                        isEnglish ? "Create automatically" : "毎日自動生成",
-                        isOn: Binding(
-                            get: { autoCastEnabled },
-                            set: { handleAutoCastToggle($0) }
-                        )
-                    )
-                    if autoCastEnabled {
-                        if subscriptionStore?.planTier == .free {
-                            HStack {
-                                Text(isEnglish ? "Length" : "長さ")
-                                Spacer()
-                                Text(isEnglish ? "10 min" : "10分")
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            Picker(isEnglish ? "Length" : "長さ", selection: $durationMinutes) {
-                                ForEach([5, 10, 15, 20], id: \.self) { Text("\($0) min").tag($0) }
-                            }
-                        }
-                        Toggle(isEnglish ? "I agree to AI data processing" : "AIデータ処理に同意する", isOn: $aiConsent)
-                    }
-                }
                 if !store.memoryItems.isEmpty {
                     Section(isEnglish ? "Recommendation memory" : "おすすめメモリ") {
                         ForEach(store.memoryItems) { item in

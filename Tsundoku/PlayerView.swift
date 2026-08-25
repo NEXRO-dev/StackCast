@@ -202,7 +202,7 @@ struct CastListView: View {
                     }
                 }
             }
-            .background(Color(.systemBackground).ignoresSafeArea())
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
         }
         .fullScreenCover(item: $selectedCast, onDismiss: {
             isDetailPresented = false
@@ -653,7 +653,7 @@ private struct CastDetailView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .top) {
-                Color(red: 0.95, green: 0.95, blue: 0.98)
+                Color(.systemGroupedBackground)
 
                 if proxy.size.width > proxy.size.height {
                     landscapeContent(proxy: proxy)
@@ -1036,7 +1036,7 @@ private struct CastDetailView: View {
         }
         .padding(.horizontal, 24)
         .frame(width: proxy.size.width, height: proxy.size.height)
-        .background(Color(red: 0.95, green: 0.95, blue: 0.98))
+        .background(Color(.systemGroupedBackground))
     }
 
     private func createShareLink() {

@@ -35,7 +35,8 @@ struct CastPlaybackActivityAttributes: ActivityAttributes {
 struct CastGenerationActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var status: String
-        var animationPhase: Int = 0
+        var progressPercent: Int = 0
+        var isCompleted: Bool = false
     }
 
     var castTitle: String

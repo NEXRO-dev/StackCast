@@ -41,7 +41,6 @@
 		AD000011302316AF001EA23E /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD000001302316AF001EA23E /* AuthService.swift */; };
 		AE000011302316AF001EA23E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000001302316AF001EA23E /* Config.swift */; };
 		AF000011302316AF001EA23E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = AF000021302316AF001EA23E /* GoogleSignIn */; };
-		D2000001302616AF001EA23E /* ThinkingOrbsKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2000002302616AF001EA23E /* ThinkingOrbsKit */; };
 		B1000001302316AF001EA23E /* SubscriptionManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000302316AF001EA23E /* SubscriptionManagementView.swift */; };
 		B2000001302316AF001EA23E /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000302316AF001EA23E /* ErrorView.swift */; };
 		B2000002302316AF001EA23E /* RequestReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004302316AF001EA23E /* RequestReview.swift */; };
@@ -202,7 +201,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D2000001302616AF001EA23E /* ThinkingOrbsKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -413,7 +411,6 @@
 			);
 			name = TsundokuLiveActivity;
 			packageProductDependencies = (
-				D2000002302616AF001EA23E /* ThinkingOrbsKit */,
 			);
 			productName = TsundokuLiveActivity;
 			productReference = B7000014302316AF001EA23E /* StackCastLiveActivity.appex */;
@@ -460,7 +457,6 @@
 			packageReferences = (
 				AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				2A0A7C023024C307001EA23E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
-				D2000003302616AF001EA23E /* XCLocalSwiftPackageReference "ThinkingOrbsKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2A0A7B73302316AF001EA23E /* Products */;
@@ -746,6 +742,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Tsundoku/Tsundoku.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				APS_ENVIRONMENT = development;
 				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				ENABLE_PREVIEWS = YES;
@@ -787,6 +784,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Tsundoku/Tsundoku.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				APS_ENVIRONMENT = production;
 				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 5TXL5P4663;
 				ENABLE_PREVIEWS = YES;
@@ -1081,13 +1079,6 @@
 		};
 /* End XCRemoteSwiftPackageReference section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		D2000003302616AF001EA23E /* XCLocalSwiftPackageReference "ThinkingOrbsKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Vendor/ThinkingOrbsKit;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		2A0A7C033024C307001EA23E /* RevenueCat */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1103,11 +1094,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AF000020302316AF001EA23E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
-		};
-		D2000002302616AF001EA23E /* ThinkingOrbsKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D2000003302616AF001EA23E /* XCLocalSwiftPackageReference "ThinkingOrbsKit" */;
-			productName = ThinkingOrbsKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
