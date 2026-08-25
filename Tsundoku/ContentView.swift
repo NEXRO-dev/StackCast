@@ -74,7 +74,10 @@ struct ContentView: View {
                 )
                 await castStore.load(token: authStore.sessionToken())
                 articleLibrary.setServerSyncToken(authStore.sessionToken())
-                await articleLibrary.syncIfNeeded(token: authStore.sessionToken())
+                await articleLibrary.syncIfNeeded(
+                    token: authStore.sessionToken(),
+                    userID: signedInUserID
+                )
             } else if case .signedOut = authStore.status {
                 await subscriptionStore.signOut()
                 castStore.clear()

@@ -75,7 +75,9 @@ function logCastEvent(event: string, details: Record<string, unknown> = {}): voi
 }
 
 const creditLimits: Record<string, number> = {
-  free: 3,
+  // Free is limited to 10-minute Casts. A 10-minute Cast costs 2 credits,
+  // so 6 credits matches the advertised monthly limit of 3 Casts.
+  free: 6,
   plus: 40,
   pro: 100,
   lifetime: 150,
@@ -259,8 +261,12 @@ async function releaseCredits(userID: string, castID: string, amount: number, no
       {
         sql: `UPDATE user_credit_periods
               SET credits_reserved = MAX(0, credits_reserved - ?), updated_at = ?
-              WHERE id = ?`,
-        args: [amount, now, ledger.creditPeriodID],
+              WHERE id = ?
+                AND NOT EXISTS (
+                  SELECT 1 FROM cast_credit_ledger
+                  WHERE cast_id = ? AND user_id = ? AND entry_type IN ('consume', 'release')
+                )`,
+        args: [amount, now, ledger.creditPeriodID, castID, userID],
       },
       {
         sql: `INSERT OR IGNORE INTO cast_credit_ledger
@@ -470,23 +476,54 @@ export async function enqueueCast(userID: string, input: CreateCastInput): Promi
 
 export async function processNextCastGenerationJob(): Promise<{ processed: boolean; castID?: string; jobID?: string; error?: string }> {
   const database = getTurso();
+  const now = new Date();
+  const nowISO = now.toISOString();
+  const staleBefore = new Date(now.getTime() - 6 * 60 * 1000).toISOString();
   const row = (await database.get(
     `SELECT j.id AS jobID, j.cast_id AS castID, c.user_id AS userID,
             c.title, c.duration_minutes AS durationMinutes, c.credit_cost AS creditCost,
-            c.language
+            c.language, j.status AS jobStatus, j.attempt_count AS attemptCount
      FROM cast_generation_jobs j JOIN casts c ON c.id = j.cast_id
      WHERE j.status = 'queued'
+        OR (j.status = 'processing' AND j.started_at IS NOT NULL AND j.started_at <= ?)
      ORDER BY j.queued_at LIMIT 1`,
-  )) as { jobID?: string; castID?: string; userID?: string; title?: string; durationMinutes?: number; creditCost?: number; language?: CastLanguage } | null;
+    staleBefore,
+  )) as {
+    jobID?: string;
+    castID?: string;
+    userID?: string;
+    title?: string;
+    durationMinutes?: number;
+    creditCost?: number;
+    language?: CastLanguage;
+    jobStatus?: string;
+    attemptCount?: number;
+  } | null;
   if (!row?.jobID || !row.castID || !row.userID || !row.title || !row.durationMinutes || !row.creditCost) return { processed: false };
-  const now = new Date().toISOString();
+
+  if (row.jobStatus === "processing" && (row.attemptCount ?? 0) >= 3) {
+    const message = "CAST_WORKER_ATTEMPTS_EXHAUSTED";
+    await database.batch([
+      { sql: "UPDATE casts SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?", args: [message, nowISO, row.castID] },
+      { sql: "UPDATE cast_generation_jobs SET status = 'failed', finished_at = ?, last_error = ? WHERE id = ?", args: [nowISO, message, row.jobID] },
+    ], "immediate");
+    await releaseCredits(row.userID, row.castID, row.creditCost, nowISO);
+    logCastEvent("stale queued cast exhausted", { userID: row.userID, castID: row.castID, jobID: row.jobID });
+    return { processed: true, castID: row.castID, jobID: row.jobID, error: message };
+  }
+
   const claimed = await database.run(
-    `UPDATE cast_generation_jobs SET status = 'processing', attempt_count = attempt_count + 1, started_at = ?
-     WHERE id = ? AND status = 'queued'`, now, row.jobID,
+    `UPDATE cast_generation_jobs
+     SET status = 'processing', attempt_count = attempt_count + 1, started_at = ?, finished_at = NULL
+     WHERE id = ?
+       AND (status = 'queued' OR (status = 'processing' AND started_at IS NOT NULL AND started_at <= ?))`,
+    nowISO,
+    row.jobID,
+    staleBefore,
   );
   if (claimed.changes !== 1) return { processed: false };
 
-  await database.run("UPDATE casts SET status = 'processing', updated_at = ? WHERE id = ?", now, row.castID);
+  await database.run("UPDATE casts SET status = 'processing', updated_at = ? WHERE id = ?", nowISO, row.castID);
   try {
     const rawSources = (await database.all(
       `SELECT source_url AS url, source_title AS title, source_text AS text

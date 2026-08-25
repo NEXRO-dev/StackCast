@@ -56,10 +56,14 @@ export async function POST(request: Request) {
   try {
     const cast = await enqueueCast(userID, { ...input, internalKind: undefined });
     console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
-    // Local development gets an immediate worker kick; production also has the cron worker.
-    void processNextCastGenerationJob().catch((error) => {
-      console.error("[cast-worker] local kick failed", error);
-    });
+    // A detached promise is not reliable after a Vercel response finishes and
+    // can leave the job permanently marked as processing. Production is handled
+    // exclusively by the authenticated cron worker.
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      void processNextCastGenerationJob().catch((error) => {
+        console.error("[cast-worker] local kick failed", error);
+      });
+    }
     return Response.json({ cast }, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "CAST_GENERATION_FAILED";

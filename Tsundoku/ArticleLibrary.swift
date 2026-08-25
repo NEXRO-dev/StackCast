@@ -91,6 +91,7 @@ enum SharedArticleSaveResult {
 enum SharedArticleRepository {
     static let appGroupIdentifier = "group.com.nexro.Tsundoku"
     private static let articlesKey = "savedArticles"
+    private static let articlesOwnerUserIDKey = "savedArticlesOwnerUserID"
     private static let subscriptionTierKey = "subscriptionTier"
 
     static func load() -> [SavedArticle] {
@@ -124,6 +125,19 @@ enum SharedArticleRepository {
 
     static func setSubscriptionTier(_ tier: SharedSubscriptionTier) {
         defaults?.set(tier.rawValue, forKey: subscriptionTierKey)
+    }
+
+    /// Activates the signed-in user's local cache. A shared app-group snapshot
+    /// without a matching owner must never be uploaded to another account.
+    @discardableResult
+    static func activateCache(for userID: String) -> Bool {
+        guard let defaults else { return false }
+        let previousOwner = defaults.string(forKey: articlesOwnerUserIDKey)
+        guard previousOwner != userID else { return false }
+
+        defaults.removeObject(forKey: articlesKey)
+        defaults.set(userID, forKey: articlesOwnerUserIDKey)
+        return true
     }
 
     static func saveWithLimit(url: URL, title: String? = nil) -> SharedArticleSaveResult {
@@ -258,6 +272,7 @@ final class ArticleLibrary {
     private var metadataTask: Task<Void, Never>?
     private var serverSyncAttempted = false
     private var serverSyncToken: String?
+    private var serverSyncUserID: String?
 
     init() {
         refresh()
@@ -271,7 +286,16 @@ final class ArticleLibrary {
 
     /// Fetches the signed-in user's stock once per app session. Local data is
     /// used as an offline fallback and is uploaded only when the server is empty.
-    func syncIfNeeded(token: String?) async {
+    func syncIfNeeded(token: String?, userID: String) async {
+        if serverSyncUserID != userID {
+            serverSyncAttempted = false
+            serverSyncToken = nil
+            serverSyncUserID = userID
+            if SharedArticleRepository.activateCache(for: userID) {
+                refresh()
+            }
+        }
+
         guard !serverSyncAttempted, let token, !token.isEmpty else { return }
         serverSyncAttempted = true
         serverSyncToken = token
@@ -293,6 +317,7 @@ final class ArticleLibrary {
     func resetServerSync() {
         serverSyncAttempted = false
         serverSyncToken = nil
+        serverSyncUserID = nil
     }
 
     /// Supplies the current app-session token for later mutation syncs.
