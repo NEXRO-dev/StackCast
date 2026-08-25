@@ -2,9 +2,11 @@ import { bearerToken, hashSessionToken } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/response";
 import { enqueueCast, listCasts, processNextCastGenerationJob, type CreateCastInput } from "@/lib/cast/pipeline";
 import { getTurso } from "@/lib/turso";
+import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   let userID: string | null;
@@ -56,13 +58,22 @@ export async function POST(request: Request) {
   try {
     const cast = await enqueueCast(userID, { ...input, internalKind: undefined });
     console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
-    // A detached promise is not reliable after a Vercel response finishes and
-    // can leave the job permanently marked as processing. Production is handled
-    // exclusively by the authenticated cron worker.
+    const kickWorker = async () => {
+      try {
+        await processNextCastGenerationJob();
+      } catch (error) {
+        console.error("[cast-worker] request follow-up failed", { requestID, error });
+      }
+    };
+
     if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-      void processNextCastGenerationJob().catch((error) => {
-        console.error("[cast-worker] local kick failed", error);
-      });
+      void kickWorker();
+    } else {
+      // Vercel may terminate a detached promise as soon as the response is
+      // sent. `after` keeps the request alive for the worker while still
+      // returning the queued Cast immediately. The cron worker remains as a
+      // retry path for timeouts and deployments.
+      after(kickWorker);
     }
     return Response.json({ cast }, { status: 202 });
   } catch (error) {

@@ -10,5 +10,7 @@
 - `05-settings.png`: Settings.
 - `06-profile-settings.png`: Profile settings.
 - `07-subscription.png`: Subscription plans.
+- `08-podcast-detail.png`: Podcast playback detail.
+- `09-personal-news.png`: Personalized news; real article titles and external domains replaced with fictional/general content.
 
 `raw/` contains the original Simulator captures for comparison and should not be submitted to App Store Connect.

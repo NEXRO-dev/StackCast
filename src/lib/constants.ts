@@ -84,6 +84,16 @@ export function ipadW(cW: number, cH: number, clamp = 0.75) {
 export const DEFAULT_THEME_ID: ThemeId = "clean-light";
 
 export const THEMES: Record<string, Theme> = {
+  "stackcast": {
+    id: "stackcast",
+    name: "StackCast",
+    bg: "#F1F0F8",
+    bgAlt: "#111B38",
+    fg: "#15151A",
+    fgAlt: "#FFF8EE",
+    accent: "#6254FF",
+    muted: "#777789",
+  },
   "clean-light": {
     id: "clean-light",
     name: "Clean Light",

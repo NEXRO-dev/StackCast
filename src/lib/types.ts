@@ -70,6 +70,7 @@ export type Slide = {
 
 export type ThemeId =
   | "clean-light"
+  | "stackcast"
   | "dark-bold"
   | "warm-editorial"
   | "ocean-fresh"

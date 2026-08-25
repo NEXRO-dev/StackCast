@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "appName": "StackCast",
-  "themeId": "clean-light",
+  "themeId": "stackcast",
   "connectedCanvas": true,
   "locales": [
     "ja",
@@ -14,278 +14,122 @@
   "slidesByDevice": {
     "iphone": [
       {
-        "id": "stackcast-news",
+        "id": "stackcast-personal-news",
         "layout": "hero",
         "label": {
-          "ja": "あなた向けのニュース",
-          "en": "YOUR DAILY BRIEF"
+          "ja": "あなた向けニュース",
+          "en": "NEWS FOR YOU"
         },
         "headline": {
-          "ja": "あなたの興味に\n合うニュースを",
-          "en": "News picked\nfor you."
+          "ja": "興味に合うニュースを\n毎日5件",
+          "en": "Five stories.\nPicked for you."
         },
-        "screenshot": "/screenshots/apple/iphone/{locale}/01.png",
-        "transforms": {
-          "caption": {
-            "x": 105.60000000000001,
-            "y": 451.26128943758533,
-            "width": 1108.8,
-            "height": 803.0400000000001,
-            "rotation": 0,
-            "zIndex": 4
-          },
-          "device": {
-            "x": 153.18224783861672,
-            "y": 1064.4986776406033,
-            "width": 1013.6355043227666,
-            "height": 2064.96,
-            "rotation": 0,
-            "zIndex": 3
-          }
-        }
+        "screenshot": "/screenshots/apple/iphone/{locale}/01.png"
       },
       {
-        "id": "stackcast-interests",
+        "id": "stackcast-news-to-cast",
         "layout": "device-bottom",
         "label": {
-          "ja": "興味に合わせて",
-          "en": "MATCHED TO YOU"
+          "ja": "ニュースからCastへ",
+          "en": "NEWS TO CAST"
         },
         "headline": {
-          "ja": "気になるニュースを\n毎日5件",
-          "en": "Five stories,\nmatched to your interests."
+          "ja": "気になるニュースを\n耳でキャッチアップ",
+          "en": "Turn the news\ninto something you can hear."
         },
-        "screenshot": "/screenshots/apple/iphone/{locale}/02.png",
-        "transforms": {
-          "device": {
-            "x": 1444.814620952462,
-            "y": 661.180685871058,
-            "width": 1013.6355043227666,
-            "height": 2064.96,
-            "rotation": 0,
-            "zIndex": 3
-          }
-        }
-      },
-      {
-        "id": "stackcast-cast",
-        "layout": "device-top",
-        "label": {
-          "ja": "Castに変換",
-          "en": "FROM NEWS TO CAST"
-        },
-        "headline": {
-          "ja": "ニュースから\nCastを作る",
-          "en": "Turn any story\ninto a Cast."
-        },
-        "screenshot": "/screenshots/apple/iphone/{locale}/05.png",
-        "inverted": true,
-        "transforms": {
-          "device": {
-            "x": -1186.7354476346354,
-            "y": 666.835116598079,
-            "width": 1013.6355043227666,
-            "height": 2064.96,
-            "rotation": 0,
-            "zIndex": 3
-          },
-          "caption": {
-            "x": 45.24334705075535,
-            "y": 306.99835390946276,
-            "width": 1108.8,
-            "height": 803.0400000000001,
-            "rotation": 0,
-            "zIndex": 4
-          }
-        }
+        "screenshot": "/screenshots/apple/iphone/{locale}/02.png"
       },
       {
         "id": "stackcast-listen",
-        "layout": "two-devices",
+        "layout": "device-top",
         "label": {
-          "ja": "耳でキャッチアップ",
-          "en": "LISTEN ON THE GO"
+          "ja": "いつでも再生",
+          "en": "LISTEN ANYWHERE"
         },
         "headline": {
           "ja": "読む時間を\n聴く時間へ",
-          "en": "Catch up\nwith your ears."
+          "en": "Make reading time\nlistening time."
         },
         "screenshot": "/screenshots/apple/iphone/{locale}/03.png",
-        "screenshotSecondary": "",
+        "inverted": true,
         "transforms": {
+          "caption": {
+            "x": 124.0186046511626,
+            "y": 2048.3860465116272,
+            "width": 1108.8,
+            "height": 803.0400000000001,
+            "rotation": 0,
+            "zIndex": 4
+          },
           "device": {
-            "x": 250.99502683318042,
-            "y": 874.4331544581624,
-            "width": 912.27195389049,
-            "height": 1858.4640000000002,
+            "x": 153.1822478386166,
+            "y": -286.8,
+            "width": 1013.64,
+            "height": 2064.96,
             "rotation": 0,
             "zIndex": 3
-          },
-          "deviceSecondary": {
-            "x": 248.64313725490592,
-            "y": 889.4148881470396,
-            "width": 871.2,
-            "height": 1774.7929549902153,
-            "rotation": 0,
-            "zIndex": 2
           }
         }
-      }
-    ],
-    "android": [
-      {
-        "id": "s_mt7m3qxq_5",
-        "layout": "hero",
-        "label": {
-          "en": "MEET YOUR APP"
-        },
-        "headline": {
-          "en": "Sell one\nidea per slide."
-        },
-        "screenshot": ""
       },
       {
-        "id": "s_mt7m3qxq_6",
-        "layout": "device-bottom",
-        "label": {
-          "en": "FEATURE 01"
-        },
-        "headline": {
-          "en": "Your headline\nlives here."
-        },
-        "screenshot": ""
-      },
-      {
-        "id": "s_mt7m3qxq_7",
+        "id": "stackcast-library",
         "layout": "two-devices",
         "label": {
-          "en": "FEATURE 02"
+          "ja": "Castライブラリ",
+          "en": "YOUR CAST LIBRARY"
         },
         "headline": {
-          "en": "Show two\nscreens at once."
+          "ja": "作ったCastを\nいつでも聴ける",
+          "en": "Every Cast.\nReady when you are."
         },
-        "screenshot": "",
-        "screenshotSecondary": ""
+        "screenshot": "/screenshots/apple/iphone/{locale}/04.png",
+        "screenshotSecondary": "/screenshots/apple/iphone/{locale}/03.png"
       },
       {
-        "id": "s_mt7m3qxq_8",
-        "layout": "device-top",
-        "label": {
-          "en": "FEATURE 03"
-        },
-        "headline": {
-          "en": "Flip the contrast\nfor visual rhythm."
-        },
-        "screenshot": "",
-        "inverted": true
-      },
-      {
-        "id": "s_mt7m3qxq_9",
-        "layout": "no-device",
-        "label": {
-          "en": "MORE"
-        },
-        "headline": {
-          "en": "And so\nmuch more."
-        },
-        "screenshot": ""
-      }
-    ],
-    "ipad": [
-      {
-        "id": "s_mt7m3qxq_a",
-        "layout": "hero",
-        "label": {
-          "en": "MEET YOUR APP"
-        },
-        "headline": {
-          "en": "Made for\nthe big screen."
-        },
-        "screenshot": ""
-      },
-      {
-        "id": "s_mt7m3qxq_b",
+        "id": "stackcast-stock",
         "layout": "device-bottom",
         "label": {
-          "en": "FEATURE 01"
+          "ja": "あとで読むを整理",
+          "en": "SAVE FOR LATER"
         },
         "headline": {
-          "en": "Built for\nfocus."
+          "ja": "読みたい記事を\nひとつの場所に",
+          "en": "Keep every story\nin one place."
         },
-        "screenshot": ""
+        "screenshot": "/screenshots/apple/iphone/{locale}/05.png"
       },
       {
-        "id": "s_mt7m3qxq_c",
+        "id": "stackcast-memory",
         "layout": "device-top",
         "label": {
-          "en": "FEATURE 02"
+          "ja": "使うほど自分好みに",
+          "en": "LEARNS WHAT YOU LIKE"
         },
         "headline": {
-          "en": "Always within reach."
+          "ja": "興味と行動から\nおすすめが育つ",
+          "en": "Recommendations\nthat grow with you."
         },
-        "screenshot": "",
-        "inverted": true
-      }
-    ],
-    "android-7": [
-      {
-        "id": "s_mt7m3qxq_d",
-        "layout": "hero",
-        "label": {
-          "en": "MEET YOUR APP"
-        },
-        "headline": {
-          "en": "Pocket-sized\npower."
-        },
-        "screenshot": ""
+        "screenshot": "/screenshots/apple/iphone/{locale}/06.png"
       },
       {
-        "id": "s_mt7m3qxq_e",
-        "layout": "split-landscape",
-        "label": {
-          "en": "FEATURE 01"
-        },
-        "headline": {
-          "en": "Wide canvas,\nbigger ideas."
-        },
-        "screenshot": ""
-      }
-    ],
-    "android-10": [
-      {
-        "id": "s_mt7m3qxq_f",
+        "id": "stackcast-personalize",
         "layout": "hero",
         "label": {
-          "en": "MEET YOUR APP"
+          "ja": "かんたん初期設定",
+          "en": "MAKE IT YOURS"
         },
         "headline": {
-          "en": "Made for\nthe big screen."
+          "ja": "好きなジャンルを\n選ぶだけ",
+          "en": "Choose what you like.\nWe do the rest."
         },
-        "screenshot": ""
-      },
-      {
-        "id": "s_mt7m3qxq_g",
-        "layout": "split-landscape",
-        "label": {
-          "en": "FEATURE 01"
-        },
-        "headline": {
-          "en": "Wide canvas,\nbigger ideas."
-        },
-        "screenshot": ""
+        "screenshot": "/screenshots/apple/iphone/{locale}/07.png"
       }
     ],
-    "feature-graphic": [
-      {
-        "id": "s_mt7m3qxq_h",
-        "layout": "feature-graphic",
-        "label": {},
-        "headline": {
-          "en": "Your tagline goes here."
-        },
-        "screenshot": ""
-      }
-    ]
+    "android": [],
+    "ipad": [],
+    "android-7": [],
+    "android-10": [],
+    "feature-graphic": []
   },
   "crossScreenMockupsByDevice": {
     "iphone": [],
