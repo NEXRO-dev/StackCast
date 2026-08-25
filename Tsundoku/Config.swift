@@ -8,7 +8,7 @@ import Foundation
 enum Config {
     // false: 開発環境 / true: 本番環境
     // 変更後にアプリを再ビルドして起動してください。
-    static let isProduction = false
+    static let isProduction = true
     // DebugビルドはRevenueCat Test Store、ReleaseビルドはApp Store用の公開キーを使います。
 #if DEBUG
     static let revenueCatAPIKey = "test_cKuqaflkDdQLjaJdJlrvbuRwpND"

@@ -11,6 +11,7 @@ struct SubscriptionManagementView: View {
     let language: AppLanguage
     private let loadsSubscriptionData: Bool
     private let showsUpgradeHeader: Bool
+    private let showsNavigationChrome: Bool
     private let termsURL = URL(string: "https://stackcast.app/terms")!
     private let privacyURL = URL(string: "https://stackcast.app/privacy")!
 
@@ -39,12 +40,14 @@ struct SubscriptionManagementView: View {
         language: AppLanguage,
         loadsSubscriptionData: Bool = true,
         initialTier: SubscriptionTier = .pro,
-        showsUpgradeHeader: Bool = true
+        showsUpgradeHeader: Bool = true,
+        showsNavigationChrome: Bool = true
     ) {
         self.subscriptionStore = subscriptionStore
         self.language = language
         self.loadsSubscriptionData = loadsSubscriptionData
         self.showsUpgradeHeader = showsUpgradeHeader
+        self.showsNavigationChrome = showsNavigationChrome
         _selectedTier = State(initialValue: initialTier)
     }
 
@@ -63,11 +66,13 @@ struct SubscriptionManagementView: View {
             .padding(.vertical, 16)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(copy.navigationTitle)
+        .navigationTitle(showsNavigationChrome ? copy.navigationTitle : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                subscriptionActionsMenu
+            if showsNavigationChrome {
+                ToolbarItem(placement: .topBarTrailing) {
+                    subscriptionActionsMenu
+                }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

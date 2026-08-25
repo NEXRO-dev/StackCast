@@ -16,6 +16,11 @@ type StockItem = {
   updatedAt?: string;
 };
 
+type SavedArticleOwnerRow = {
+  id: string;
+  userID: string;
+};
+
 async function currentItems(userID: string) {
   return getTurso().all(
     `SELECT id, canonical_url AS url, title, source, saved_at AS savedAt,
@@ -52,13 +57,35 @@ export async function PUT(request: Request) {
     seenURLs.add(url);
     return [{ ...item, url }];
   });
+
+  // Article IDs originate in the shared app-group store. When a user signs out
+  // and another user signs in, that local snapshot can contain IDs already
+  // owned by the previous account. Since `saved_articles.id` is a global
+  // primary key, preserve an incoming ID only when it is unused or belongs to
+  // the current user.
+  const requestedIDs = [...new Set(uniqueItems.flatMap((item) => (
+    typeof item.id === "string" && item.id.trim() ? [item.id.trim()] : []
+  )))];
+  const existingOwners = requestedIDs.length === 0
+    ? []
+    : await getTurso().all(
+      `SELECT id, user_id AS userID
+       FROM saved_articles
+       WHERE id IN (${requestedIDs.map(() => "?").join(", ")})`,
+      ...requestedIDs,
+    ) as SavedArticleOwnerRow[];
+  const ownerByID = new Map(existingOwners.map((row) => [row.id, row.userID]));
   const usedIDs = new Set<string>();
   const statements = uniqueItems.map((item) => {
     const state = item.state === "completed" || item.state === "inProgress" ? item.state : "unread";
     const savedAt = typeof item.savedAt === "string" ? item.savedAt : now;
     const updatedAt = typeof item.updatedAt === "string" ? item.updatedAt : now;
-    const requestedID = typeof item.id === "string" && item.id ? item.id : null;
-    const id = requestedID && !usedIDs.has(requestedID) ? requestedID : randomUUID();
+    const requestedID = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
+    const requestedIDOwner = requestedID ? ownerByID.get(requestedID) : undefined;
+    const canPreserveRequestedID = requestedID
+      && !usedIDs.has(requestedID)
+      && (!requestedIDOwner || requestedIDOwner === userID);
+    const id = canPreserveRequestedID ? requestedID : randomUUID();
     usedIDs.add(id);
     return {
       sql: `INSERT INTO saved_articles

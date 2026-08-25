@@ -1477,6 +1477,7 @@ struct PersonalizationSettingsView: View {
     @State private var durationMinutes = 5
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var isShowingSubscription = false
 
     private var isEnglish: Bool { language == .english }
     private let ageBands = ["unspecified", "under_18", "18_24", "25_34", "35_44", "45_54", "55_plus"]
@@ -1587,8 +1588,13 @@ struct PersonalizationSettingsView: View {
                     Toggle(isEnglish ? "Personalized recommendations" : "おすすめをパーソナライズ", isOn: $personalizationEnabled)
                 }
                 Section(isEnglish ? "Daily Cast" : "デイリーCast") {
-                    Toggle(isEnglish ? "Create automatically" : "毎日自動生成", isOn: $autoCastEnabled)
-                        .disabled(subscriptionStore?.isPro == false)
+                    Toggle(
+                        isEnglish ? "Create automatically" : "毎日自動生成",
+                        isOn: Binding(
+                            get: { autoCastEnabled },
+                            set: { handleAutoCastToggle($0) }
+                        )
+                    )
                     if autoCastEnabled {
                         if subscriptionStore?.planTier == .free {
                             HStack {
@@ -1664,6 +1670,19 @@ struct PersonalizationSettingsView: View {
                 )
                 .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $isShowingSubscription, onDismiss: {
+                // Free users must not retain the ON state after leaving the paywall.
+                autoCastEnabled = false
+            }) {
+                NavigationStack {
+                    SubscriptionManagementView(
+                        subscriptionStore: subscriptionStore ?? SubscriptionStore(),
+                        language: language,
+                        initialTier: .plus,
+                        showsNavigationChrome: false
+                    )
+                }
+            }
             .alert(
                 isEnglish ? "Could Not Save" : "保存できませんでした",
                 isPresented: Binding(
@@ -1694,6 +1713,21 @@ struct PersonalizationSettingsView: View {
                 ? "Your settings could not be saved. \(error.localizedDescription)"
                 : "設定を保存できませんでした。\(error.localizedDescription)"
         }
+    }
+
+    private func handleAutoCastToggle(_ enabled: Bool) {
+        guard enabled else {
+            autoCastEnabled = false
+            return
+        }
+
+        guard subscriptionStore?.isPro == true else {
+            autoCastEnabled = false
+            isShowingSubscription = true
+            return
+        }
+
+        autoCastEnabled = true
     }
 
     private func ageLabel(_ value: String) -> String {
