@@ -363,7 +363,7 @@ struct ContentView: View {
         }
 
         guard url.scheme == "https",
-              url.host == "stash-cast.vercel.app",
+              ["stackcast.app", "stash-cast.vercel.app"].contains(url.host?.lowercased()),
               url.pathComponents.count >= 3,
               url.pathComponents[1] == "c" else { return }
         openSharedCast(token: url.pathComponents[2])

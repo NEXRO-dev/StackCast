@@ -66,7 +66,7 @@ struct AIDataUseView: View {
 
         Castを作成する前に、外部サービスへ送信してよい記事だけを選択してください。第三者の著作物や機密情報を含む記事を送信する場合は、必要な権利や許可を自分で確認してください。本アプリは、あなたが選択した記事を送信することについて、記事の権利者や第三者から許可を取得するものではありません。
 
-        生成された要約、音声、Castの処理状態などは、Castを表示・再生・共有するためにアプリのバックエンドへ保存される場合があります。外部サービスにおけるデータの取り扱い、保存期間、学習への利用、削除手続きは、各サービスのポリシーおよび本アプリのプライバシーポリシーに従います。保存期間、アカウント削除時の取り扱い、データ削除の申請方法については、プライバシーポリシーをご確認ください。
+        生成された要約、音声、Castの処理状態などは、Castを表示・再生・共有するためにアプリのバックエンドへ保存される場合があります。OpenAIのAPI入力・出力は、明示的にオプトインしない限りモデル学習には利用されませんが、不正利用監視のため最長30日程度保持される場合があります。Fish Audioでは、利用規約により送信した台本や利用データがサービス改善・AIモデルの学習に利用される可能性があり、削除後も一部の記録が残る場合があります。外部サービスの保存期間、学習利用、削除手続きは各サービスのポリシーおよび本アプリのプライバシーポリシーに従います。
 
         Castを作成しない場合でも、記事の保存、閲覧、削除など本アプリの基本機能は利用できます。同意はCast作成のために必要なものであり、同意しないことによってアカウントを作成できなくなったり、保存済みの記事が削除されたりすることはありません。将来、同意を撤回したい場合は、設定画面またはプライバシーポリシーに記載された方法で手続きを行ってください。
 
@@ -82,7 +82,7 @@ struct AIDataUseView: View {
 
         If you are on Plus or Pro and enable automatic Daily News Casts, the backend selects five articles each day using your chosen interests and recommendation memory. Those articles are summarized and converted to audio automatically without a separate creation action. You can disable automatic creation at any time in Personalization settings.
 
-        OpenAI is used to generate the article summary, and Fish Audio is used to convert the summary into speech. OpenAI receives the selected article content for summarization, and Fish Audio receives the generated summary for text-to-speech processing. These services process the submitted data to provide the Cast feature.
+        OpenAI is used to generate the article summary, and Fish Audio is used to convert the summary into speech. OpenAI receives the selected article content for summarization, and Fish Audio receives the generated summary for text-to-speech processing. OpenAI API inputs and outputs are not used to train models unless the API customer explicitly opts in, but OpenAI may retain data for abuse monitoring for up to approximately 30 days. Under Fish Audio’s terms, submitted scripts and usage data may be used to develop, train, or improve AI models, and some records may remain after deletion. These services process the submitted data to provide the Cast feature.
 
         The submitted data may include the selected article title, URL, article content, and processing information needed to generate the Cast. Your password, payment information, and authentication tokens are not sent to these AI services. However, if an article contains names, email addresses, employer information, health information, location information, confidential information, or information about another person, that information may be included in the article content sent for processing.
 

@@ -10,8 +10,9 @@ import { buildCastGenerationPrompt, buildFishAudioInput, castSafetyPolicy, type 
 
 const openAIModel = "gpt-5.6-luna";
 const fishAudioEndpoint = "https://api.fish.audio/v1/tts";
-const fishAudioModel = "s2.1-pro-free";
-const fishAudioFreeModelEnd = Date.parse("2026-09-01T00:00:00Z");
+// Use the paid-plan model for production/commercial use. The free promotional
+// model has an explicit end date and no production SLA.
+const fishAudioModel = "s2-pro";
 const maxSourceCharacters = 30_000;
 const signedURLLifetimeSeconds = 60 * 60;
 
@@ -964,11 +965,6 @@ async function readOpenAIErrorCode(response: Response): Promise<string | null> {
 }
 
 async function createAudio(script: string): Promise<Uint8Array> {
-  if (Date.now() >= fishAudioFreeModelEnd) {
-    console.error("[cast] fish audio free model expired", { model: fishAudioModel, freeModelEnd: fishAudioFreeModelEnd });
-    throw new Error("FISH_AUDIO_FREE_MODEL_EXPIRED");
-  }
-
   const apiKey = requiredEnvironmentVariable("FISH_AUDIO_API_KEY");
   const referenceID = process.env.FISH_AUDIO_REFERENCE_ID?.trim();
   const requestStartedAt = Date.now();

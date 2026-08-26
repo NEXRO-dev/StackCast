@@ -735,6 +735,7 @@ private struct CastAPIErrorResponse: Decodable {
 @Observable
 final class CastStore {
     private(set) var casts: [CastRecord] = []
+    private(set) var sharedCastIDs: Set<String> = []
     private(set) var isLoading = false
     private(set) var isGenerating = false
     private(set) var errorMessage: String?
@@ -743,6 +744,7 @@ final class CastStore {
 
     func clear() {
         casts = []
+        sharedCastIDs = []
         errorMessage = nil
         errorCode = nil
         isLoading = false
@@ -882,6 +884,7 @@ final class CastStore {
             let cast = try await CastAPI.publicCast(shareToken: shareToken)
             casts.removeAll { $0.id == cast.id }
             casts.insert(cast, at: 0)
+            sharedCastIDs.insert(cast.id)
             pendingOpenCastID = cast.id
             errorMessage = nil
             errorCode = nil

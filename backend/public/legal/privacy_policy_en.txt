@@ -28,7 +28,7 @@ OpenAI is used for moderation, summarization, and script generation. OpenAI API 
 
 6. Fish Audio
 
-Fish Audio is used to convert generated scripts into audio. Fish Audio’s Terms, Privacy Policy, Acceptable Use Policy, account configuration, and plan determine its handling of submitted scripts, logs, retention, deletion, and any training or improvement use. StackCast does not send article text directly to Fish Audio as part of the intended design.
+Fish Audio is used to convert generated scripts into audio. Under Fish Audio’s Terms, submitted scripts and usage data may be used to develop, train, or improve AI models, and some records may not be completely deleted after account deletion. The Plus plan and the current Fish Audio Terms, Privacy Policy, and Acceptable Use Policy govern retention, deletion, and commercial-use conditions. StackCast does not send article text directly to Fish Audio as part of the intended design, but the generated script may contain article content.
 
 7. Other Providers
 

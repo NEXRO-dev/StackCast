@@ -455,10 +455,21 @@ struct CastListView: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
                             .lineLimit(2)
+
                         HStack(spacing: 5) {
                             Text(language == .english
                                  ? "\(cast.durationMinutes) min Cast"
                                  : "\(cast.durationMinutes)分Cast")
+
+                            if castStore.sharedCastIDs.contains(cast.id) {
+                                Text(language == .english ? "Shared" : "共有")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.indigo)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Color.indigo.opacity(0.12), in: Capsule())
+                                    .accessibilityLabel(language == .english ? "Shared Cast" : "共有されたCast")
+                            }
 
                             if downloadStore.isDownloaded(cast) {
                                 Image(systemName: "arrow.down.circle.fill")

@@ -124,6 +124,62 @@ export async function DELETE(request: Request) {
         args: [account.id],
       },
       {
+        sql: "DELETE FROM push_device_tokens WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM saved_articles WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM user_custom_interests WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM user_topic_preferences WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM user_recommendation_profiles WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM recommendation_events WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM user_memory_items WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM daily_cast_jobs WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM daily_news_editions WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM cast_credit_ledger WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM user_credit_periods WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM casts WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM admin_plan_overrides WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
+        sql: "DELETE FROM admin_user_metadata WHERE user_id = ?",
+        args: [account.id],
+      },
+      {
         sql: "DELETE FROM users WHERE id = ?",
         args: [account.id],
       },
