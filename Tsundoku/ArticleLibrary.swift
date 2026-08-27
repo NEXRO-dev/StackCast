@@ -745,8 +745,14 @@ final class CastStore {
     private(set) var errorMessage: String?
     private(set) var errorCode: String?
     private(set) var pendingOpenCastID: String?
+    private(set) var lastCompletedCastID: String?
+    private(set) var lastFailedCastID: String?
+    private var generationTask: Task<Void, Never>?
+    private var generatingCastID: String?
 
     func clear() {
+        generationTask?.cancel()
+        generationTask = nil
         casts = []
         sharedCastIDs = []
         errorMessage = nil
@@ -754,6 +760,7 @@ final class CastStore {
         isLoading = false
         isGenerating = false
         pendingOpenCastID = nil
+        generatingCastID = nil
     }
 
     func load(token: String?) async {
@@ -778,6 +785,10 @@ final class CastStore {
             // used as an audio source for a Cast that already exists in this
             // account's server response.
             casts = loadedCasts
+            if let pending = loadedCasts.first(where: { $0.status == "queued" || $0.status == "processing" }) {
+                isGenerating = true
+                startGenerationMonitor(castID: pending.id, token: token)
+            }
 #if CAST_LIVE_ACTIVITY_APP
             CastGenerationActivityStore.shared.sync(with: loadedCasts)
 #endif
@@ -801,22 +812,6 @@ final class CastStore {
         }
 
         isGenerating = true
-        defer { isGenerating = false }
-
-        #if CAST_LIVE_ACTIVITY_APP
-        let liveActivityTitle = sources.first.map { "\($0.title) のまとめ" } ?? "StackCast"
-        CastGenerationActivityStore.shared.start(title: liveActivityTitle)
-        let monitorTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !Task.isCancelled else { break }
-                if let latest = try? await CastAPI.list(token: token),
-                   let pending = latest.first(where: { $0.status == "processing" }) {
-                    CastGenerationActivityStore.shared.update(for: pending)
-                }
-            }
-        }
-        #endif
 
         do {
             let cast = try await CastAPI.create(
@@ -825,21 +820,90 @@ final class CastStore {
                 sources: sources
             )
             casts.insert(cast, at: 0)
-#if CAST_LIVE_ACTIVITY_APP
-            monitorTask.cancel()
-            CastGenerationActivityStore.shared.complete(for: cast)
-#endif
             errorMessage = nil
+            errorCode = nil
+
+            if cast.status == "queued" || cast.status == "processing" {
+                generatingCastID = cast.id
+#if CAST_LIVE_ACTIVITY_APP
+                CastGenerationActivityStore.shared.start(for: cast)
+#endif
+                startGenerationMonitor(castID: cast.id, token: token)
+            } else if cast.status == "completed" {
+                finishGeneration(with: cast)
+            } else {
+                failGeneration(with: cast)
+            }
             return cast
         } catch {
-#if CAST_LIVE_ACTIVITY_APP
-            monitorTask.cancel()
-            CastGenerationActivityStore.shared.fail()
-#endif
+            isGenerating = false
             errorMessage = error.localizedDescription
             errorCode = (error as NSError).userInfo["CastAPIErrorCode"] as? String
             return nil
         }
+    }
+
+    private func startGenerationMonitor(castID: String, token: String) {
+        generationTask?.cancel()
+        generatingCastID = castID
+        generationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled,
+                      let latest = try? await CastAPI.list(token: token),
+                      let updated = latest.first(where: { $0.id == castID })
+                else { continue }
+
+                self?.updateGeneration(with: updated)
+                if updated.status == "completed" || updated.status == "failed" {
+                    break
+                }
+            }
+        }
+    }
+
+    private func updateGeneration(with cast: CastRecord) {
+        if let index = casts.firstIndex(where: { $0.id == cast.id }) {
+            casts[index] = cast
+        } else {
+            casts.insert(cast, at: 0)
+        }
+
+        switch cast.status {
+        case "queued", "processing":
+#if CAST_LIVE_ACTIVITY_APP
+            CastGenerationActivityStore.shared.update(for: cast)
+#endif
+        case "completed":
+            finishGeneration(with: cast)
+        case "failed":
+            failGeneration(with: cast)
+        default:
+            break
+        }
+    }
+
+    private func finishGeneration(with cast: CastRecord) {
+        generationTask?.cancel()
+        generationTask = nil
+        generatingCastID = nil
+        isGenerating = false
+        lastCompletedCastID = cast.id
+#if CAST_LIVE_ACTIVITY_APP
+        CastGenerationActivityStore.shared.complete(for: cast)
+#endif
+    }
+
+    private func failGeneration(with cast: CastRecord) {
+        generationTask?.cancel()
+        generationTask = nil
+        generatingCastID = nil
+        isGenerating = false
+        errorMessage = cast.errorMessage ?? "Castの作成に失敗しました。"
+        lastFailedCastID = cast.id
+#if CAST_LIVE_ACTIVITY_APP
+        CastGenerationActivityStore.shared.fail()
+#endif
     }
 
     func createShareURL(token: String?, castID: String) async -> URL? {

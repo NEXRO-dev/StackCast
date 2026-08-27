@@ -12,7 +12,7 @@ const openAIModel = "gpt-5.6-luna";
 const fishAudioEndpoint = "https://api.fish.audio/v1/tts";
 // Use the paid-plan model for production/commercial use. The free promotional
 // model has an explicit end date and no production SLA.
-const fishAudioModel = "s2-pro";
+const fishAudioModel = "s1";
 const maxSourceCharacters = 30_000;
 const signedURLLifetimeSeconds = 60 * 60;
 
@@ -556,10 +556,26 @@ export async function processNextCastGenerationJob(): Promise<{ processed: boole
       `SELECT source_url AS url, source_title AS title, source_text AS text
        FROM cast_sources WHERE cast_id = ? ORDER BY source_order`, row.castID,
     )) as CastSourceInput[];
-    const sources = await Promise.all(rawSources.map(async source => ({
+    const resolvedSources = await Promise.allSettled(rawSources.map(async source => ({
       ...source,
       text: source.text ?? await resolveSourceText(source),
     })));
+    const sources = resolvedSources.flatMap((result, index) => {
+      if (result.status === "fulfilled") return [result.value];
+      const source = rawSources[index];
+      logCastEvent("source skipped after fetch failure", {
+        userID: row.userID,
+        castID: row.castID,
+        url: source.url,
+        title: source.title ?? null,
+        reason: safeErrorMessage(result.reason),
+      });
+      return [];
+    });
+    const minimumUsableSources = 2;
+    if (sources.length < minimumUsableSources) {
+      throw new Error(`SOURCE_FETCH_INSUFFICIENT_SOURCES_${sources.length}`);
+    }
     await moderateSourceContents(sources, row.language ?? "japanese");
     await processCastGeneration(row.userID, row.castID, row.jobID, row.language ?? "japanese", row.title, row.durationMinutes, row.creditCost, sources);
     return { processed: true, castID: row.castID, jobID: row.jobID };
@@ -588,24 +604,26 @@ async function processCastGeneration(
 ): Promise<CastRecord> {
   const database = getTurso();
   try {
-    await updateCastProgress(castID, 20);
+    // Start with a small, visible step after the worker claims the job so the
+    // client does not jump directly from queued 0% to the middle of the flow.
+    await updateCastProgress(castID, 5);
     const generated = await withProgressTicker(
       castID,
-      20,
-      50,
+      5,
+      55,
       () => createCastContent(userID, language, title, durationMinutes, sourceContents),
     );
     const script = generated.script;
-    await updateCastProgress(castID, 50);
-    const audio = await withProgressTicker(castID, 50, 75, () => createAudio(script));
-    await updateCastProgress(castID, 75);
+    await updateCastProgress(castID, 55);
+    const audio = await withProgressTicker(castID, 55, 85, () => createAudio(script));
+    await updateCastProgress(castID, 85);
     const objectKey = `casts/${userID}/${castID}/audio.mp3`;
     await getR2Client().send(new PutObjectCommand({
       Bucket: requiredEnvironmentVariable("R2_BUCKET_NAME"), Key: objectKey, Body: audio,
       ContentType: "audio/mpeg", CacheControl: "private, max-age=3600",
     }));
     const artworkObjectKey = await storeCastArtwork(userID, castID);
-    await updateCastProgress(castID, 90);
+    await updateCastProgress(castID, 95);
     const completedAt = new Date().toISOString();
     await database.batch([
       { sql: `UPDATE casts SET title = ?, summary = ?, transcript = ?, status = 'completed', progress_percent = 100, audio_object_key = ?, artwork_object_key = ?, updated_at = ?, completed_at = ?, error_message = NULL WHERE id = ? AND user_id = ?`, args: [generated.title, buildSummary(script), script, objectKey, artworkObjectKey, completedAt, completedAt, castID, userID] },

@@ -37,6 +37,9 @@ struct StockViewEN: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if castStore.isGenerating {
+                    generationBanner
+                }
                 header
                 statusPicker
 
@@ -128,6 +131,16 @@ struct StockViewEN: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(AppErrorMessage.cast(language: .english, code: castStore.errorCode))
+            }
+            .onChange(of: castStore.lastCompletedCastID) { _, completedID in
+                guard completedID != nil else { return }
+                selectedArticleIDs.forEach { articleLibrary.mark($0, as: .completed) }
+                selectedArticleIDs.removeAll()
+                isShowingCastCreated = true
+            }
+            .onChange(of: castStore.lastFailedCastID) { _, failedID in
+                guard failedID != nil else { return }
+                isShowingCastError = true
             }
             .sheet(isPresented: $isAddingURL) {
                 AddArticleSheetEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
@@ -276,13 +289,28 @@ struct StockViewEN: View {
                 sources: sources
             )
             if cast != nil {
-                sources.forEach { articleLibrary.mark($0.id, as: .completed) }
-                selectedArticleIDs.removeAll()
-                isShowingCastCreated = true
+                if cast?.status == "completed" {
+                    sources.forEach { articleLibrary.mark($0.id, as: .completed) }
+                    selectedArticleIDs.removeAll()
+                    isShowingCastCreated = true
+                }
             } else {
                 isShowingCastError = true
             }
         }
+    }
+
+    private var generationBanner: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+            Text("Creating Cast…")
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+        }
+        .padding(.horizontal, AppDesign.pagePadding)
+        .padding(.vertical, 10)
+        .foregroundStyle(.secondary)
+        .background(.thinMaterial)
     }
 
     private var canRetryCast: Bool {
@@ -305,6 +333,9 @@ struct StockViewEN: View {
     }
 
     private var selectionStatusText: String {
+        if castStore.isGenerating {
+            return "Creating Cast…"
+        }
         if selectedArticleIDs.count < minimumCastArticleCount {
             return "Select \(minimumCastArticleCount - selectedArticleIDs.count) more"
         }

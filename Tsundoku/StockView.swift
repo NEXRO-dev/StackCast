@@ -37,6 +37,9 @@ struct StockView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if castStore.isGenerating {
+                    generationBanner
+                }
                 header
                 statusPicker
 
@@ -128,6 +131,16 @@ struct StockView: View {
                 Button("キャンセル", role: .cancel) {}
             } message: {
                 Text(AppErrorMessage.cast(language: .japanese, code: castStore.errorCode))
+            }
+            .onChange(of: castStore.lastCompletedCastID) { _, completedID in
+                guard completedID != nil else { return }
+                selectedArticleIDs.forEach { articleLibrary.mark($0, as: .completed) }
+                selectedArticleIDs.removeAll()
+                isShowingCastCreated = true
+            }
+            .onChange(of: castStore.lastFailedCastID) { _, failedID in
+                guard failedID != nil else { return }
+                isShowingCastError = true
             }
             .sheet(isPresented: $isAddingURL) {
                 AddArticleSheet(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
@@ -276,13 +289,30 @@ struct StockView: View {
                 sources: sources
             )
             if cast != nil {
-                sources.forEach { articleLibrary.mark($0.id, as: .completed) }
-                selectedArticleIDs.removeAll()
-                isShowingCastCreated = true
+                // queued / processing is not completion. The CastStore will
+                // show completion only after the backend reports completed.
+                if cast?.status == "completed" {
+                    sources.forEach { articleLibrary.mark($0.id, as: .completed) }
+                    selectedArticleIDs.removeAll()
+                    isShowingCastCreated = true
+                }
             } else {
                 isShowingCastError = true
             }
         }
+    }
+
+    private var generationBanner: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+            Text("Cast作成中…")
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+        }
+        .padding(.horizontal, AppDesign.pagePadding)
+        .padding(.vertical, 10)
+        .foregroundStyle(.secondary)
+        .background(.thinMaterial)
     }
 
     private var canRetryCast: Bool {
@@ -305,6 +335,9 @@ struct StockView: View {
     }
 
     private var selectionStatusText: String {
+        if castStore.isGenerating {
+            return "Castを作成中…"
+        }
         if selectedArticleIDs.count < minimumCastArticleCount {
             return "あと\(minimumCastArticleCount - selectedArticleIDs.count)件選択してください"
         }
