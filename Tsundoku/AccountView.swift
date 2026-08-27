@@ -74,12 +74,11 @@ struct AccountView: View {
             .alert(item: $destructiveAction) { action in
                 destructiveAlert(for: action)
             }
-            .confirmationDialog(
-                isEnglish ? "Reset recommendation memory?" : "おすすめメモリをリセットしますか？",
-                isPresented: $isResetMemoryConfirmationPresented,
-                titleVisibility: .visible
+            .alert(
+                isEnglish ? "Clear all recommendation memory?" : "おすすめメモリを全て削除してもよろしいですか？",
+                isPresented: $isResetMemoryConfirmationPresented
             ) {
-                Button(isEnglish ? "Reset Memory" : "メモリをリセット", role: .destructive) {
+                Button(isEnglish ? "Confirm" : "確認", role: .destructive) {
                     Task { await recommendationStore.resetMemory(token: authStore.sessionToken()) }
                 }
                 Button(isEnglish ? "Cancel" : "キャンセル", role: .cancel) {}
@@ -537,7 +536,8 @@ struct AccountView: View {
                 positiveMemoryItems,
                 emptyText: isEnglish ? "Learning from your activity" : "利用状況から学習中です",
                 color: .blue,
-                showsReason: false
+                showsReason: false,
+                isLoading: recommendationStore.isLoading
             )
 
             Divider()
@@ -550,6 +550,7 @@ struct AccountView: View {
                 } label: {
                     Label(isEnglish ? "Clear recommendation memory" : "おすすめメモリをすべて削除", systemImage: "trash")
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
@@ -616,9 +617,14 @@ struct AccountView: View {
         _ items: [RecommendationMemoryItem],
         emptyText: String,
         color: Color,
-        showsReason: Bool = true
+        showsReason: Bool = true,
+        isLoading: Bool = false
     ) -> some View {
-        if items.isEmpty {
+        if isLoading {
+            ProgressView()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        } else if items.isEmpty {
             emptyMemoryText(emptyText)
         } else {
             VStack(spacing: 10) {

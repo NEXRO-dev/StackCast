@@ -117,7 +117,11 @@ enum SharedSubscriptionTier: String, Equatable {
     case lifetime
 
     var activeArticleLimit: Int? {
-        self == .free ? 10 : nil
+        switch self {
+        case .free: 10
+        case .plus: 100
+        case .pro, .lifetime: nil
+        }
     }
 
     var retentionInterval: TimeInterval? {

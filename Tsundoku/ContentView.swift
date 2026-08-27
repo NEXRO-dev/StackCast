@@ -104,10 +104,29 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             playbackStore.handleScenePhase(phase, subscriptionTier: subscriptionStore.planTier)
             guard phase == .active, signedInUserID != nil else { return }
+            UnplayedCastReminderScheduler.shared.reschedule(
+                casts: castStore.casts,
+                playbackStore: playbackStore,
+                language: currentLanguage
+            )
             Task {
                 await subscriptionStore.refresh()
                 await castStore.load(token: authStore.sessionToken())
             }
+        }
+        .onChange(of: castStore.casts) { _, casts in
+            UnplayedCastReminderScheduler.shared.reschedule(
+                casts: casts,
+                playbackStore: playbackStore,
+                language: currentLanguage
+            )
+        }
+        .onChange(of: playbackStore.progressRevision) { _, _ in
+            UnplayedCastReminderScheduler.shared.reschedule(
+                casts: castStore.casts,
+                playbackStore: playbackStore,
+                language: currentLanguage
+            )
         }
     }
 
@@ -138,7 +157,16 @@ struct ContentView: View {
 
         await authStore.restoreSession()
 
-        let minimumDuration = Duration.milliseconds(1_500)
+        // Load the account avatar before leaving the launch screen so the tab
+        // bar does not first render with the placeholder icon for signed-in
+        // users. The image cache makes subsequent launches immediate.
+        tabAccountAvatar = await loadCircularTabAvatar(from: signedInProfileImageURL)
+
+        // The OS launch screen now displays the logo immediately. Keep only a
+        // short handoff delay so the in-app splash does not flash away before
+        // the first frame is ready; session restoration continues to determine
+        // the destination screen as before.
+        let minimumDuration = Duration.milliseconds(500)
         let elapsed = startedAt.duration(to: clock.now)
         if elapsed < minimumDuration {
             try? await Task.sleep(for: minimumDuration - elapsed)
@@ -353,6 +381,9 @@ struct ContentView: View {
                 articleLibrary.refresh()
             case "player":
                 selectedTab = .player
+            case "cast-detail":
+                guard let castID = url.pathComponents.dropFirst().first else { return }
+                openCastDetails(castID: castID)
             case "cast":
                 guard let token = url.pathComponents.dropFirst().first else { return }
                 openSharedCast(token: token)
@@ -400,14 +431,36 @@ struct ContentView: View {
         selectedCast = cast
     }
 
+    private func openCastDetails(castID: String) {
+        selectedTab = .player
+        if let cast = castStore.casts.first(where: { $0.id == castID }) {
+            openCastDetails(cast)
+            return
+        }
+
+        Task {
+            await castStore.load(token: authStore.sessionToken())
+            guard let cast = castStore.casts.first(where: { $0.id == castID }) else {
+                isDeepLinkErrorPresented = true
+                return
+            }
+            openCastDetails(cast)
+        }
+    }
+
     private func loadCircularTabAvatar(from url: URL?) async -> UIImage? {
         guard let url else { return nil }
+
+        if let cachedImage = ProfileImageCache.shared.image(for: url) {
+            return circularTabAvatar(from: cachedImage)
+        }
 
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let response = response as? HTTPURLResponse,
                   (200..<300).contains(response.statusCode),
                   let image = UIImage(data: data) else { return nil }
+            ProfileImageCache.shared.insert(image, for: url)
             return circularTabAvatar(from: image)
         } catch {
             return nil

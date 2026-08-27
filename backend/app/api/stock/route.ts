@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { authenticatedUserID } from "@/lib/auth/authenticated-user";
 import { errorResponse } from "@/lib/auth/response";
+import { effectiveSubscriptionForUser } from "@/lib/billing/effective-plan";
 import { getTurso } from "@/lib/turso";
 
 export const runtime = "nodejs";
@@ -48,7 +49,9 @@ export async function PUT(request: Request) {
   }
 
   const now = new Date().toISOString();
-  const items = Array.isArray(body.items) ? body.items.slice(0, 200) : [];
+  const subscription = await effectiveSubscriptionForUser(getTurso(), userID);
+  const maxSavedURLs = subscription.effectivePlanTier === "plus" ? 100 : 200;
+  const items = Array.isArray(body.items) ? body.items.slice(0, maxSavedURLs) : [];
   const seenURLs = new Set<string>();
   const uniqueItems = items.flatMap((item) => {
     if (typeof item.url !== "string" || item.url.trim().length === 0) return [];

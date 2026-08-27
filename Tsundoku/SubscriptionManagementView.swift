@@ -386,12 +386,26 @@ struct SubscriptionManagementView: View {
                 Label(copy.restorePurchases, systemImage: "arrow.clockwise")
             }
             .disabled(subscriptionStore.isLoading)
+
+            Divider()
+
+            Button {
+                browserDestination = InAppBrowserDestination(url: termsURL)
+            } label: {
+                Label(copy.termsOfUse, systemImage: "doc.text")
+            }
+
+            Button {
+                browserDestination = InAppBrowserDestination(url: privacyURL)
+            } label: {
+                Label(copy.privacyPolicy, systemImage: "hand.raised")
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 36, height: 36)
                 .contentShape(Circle())
-                .modifier(SubscriptionMenuGlassModifier())
+                .background(Color.clear, in: Circle())
         }
         .accessibilityLabel(copy.moreActions)
     }
@@ -608,8 +622,8 @@ private struct SubscriptionCopy {
     var freeSubtitle: String { isEnglish ? "A simple way to get started" : "まずは基本機能から" }
     var freeFeatures: [String] {
         isEnglish
-            ? ["URL stock: up to 10 (5 days)", "Cast: 10 minutes only", "Cast creation: 3 per month"]
-            : ["URLストック：10件まで（保存期間5日）", "Cast：10分のみ", "Cast作成：月3本まで"]
+            ? ["URL stock: up to 10 (5 days)", "Cast: 10 minutes only", "6 Cast credits per month (up to 3 ten-minute Casts)"]
+            : ["URLストック：10件まで（保存期間5日）", "Cast：10分のみ", "Castクレジット：月6クレジット（10分Castなら月3本まで）"]
     }
     var freeUnavailable: String { isEnglish ? "Free plan is already active." : "Freeプランは現在のプランです。" }
     var plusPlan: String { "Plus" }
@@ -619,29 +633,29 @@ private struct SubscriptionCopy {
     var proSubtitle: String { isEnglish ? "For unlimited listening and saving" : "保存も再生も、もっと自由に" }
     func plusFeatures(period: SubscriptionBillingPeriod) -> [String] {
         if isEnglish {
-            let castLimit = period == .monthly ? "Cast creation: up to 200/month" : "Cast creation: up to 2,400/year"
-            let stockLimit = period == .monthly ? "URL stock: up to 70/month" : "URL stock: up to 700/year"
             return [
                 "Cast duration: 5 to 20 minutes",
-                castLimit,
-                stockLimit,
+                "40 Cast credits per month",
+                "Up to 100 saved URLs per sync",
                 "Offline playback",
+                "Background playback",
                 "URL retention: 15 days"
             ]
         }
 
-        let castLimit = period == .monthly ? "Cast作成：月200本まで" : "Cast作成：年2,400本まで"
-        let stockLimit = period == .monthly ? "URLストック：月70件まで" : "URLストック：年700件まで"
         return [
             "Cast時間：5〜20分から設定",
-            castLimit,
-            stockLimit,
+            "Castクレジット：月40クレジット",
+            "保存URL：同期1回につき最大100件",
             "オフライン再生",
+            "バックグラウンド再生",
             "URL保存期間：15日"
         ]
     }
     var proFeatures: [String] {
-        isEnglish ? ["Save even more articles", "All Cast durations", "Background playback"] : ["保存できる記事数がさらに増える", "すべてのCast時間", "バックグラウンド再生"]
+        isEnglish
+            ? ["100 Cast credits per month", "Priority Cast generation", "Cast duration: 5 to 20 minutes", "Up to 200 saved URLs per sync", "Offline playback", "Background playback", "No URL retention limit"]
+            : ["Castクレジット：月100クレジット", "Cast優先生成", "Cast時間：5〜20分から設定", "保存URL：同期1回につき最大200件", "オフライン再生", "バックグラウンド再生", "URL保存期間：無期限"]
     }
     var lifetimeFeatures: [String] {
         isEnglish ? ["All Pro features included", "No recurring charges"] : ["Proのすべての機能を利用", "追加の継続課金なし"]
@@ -688,18 +702,6 @@ private struct SubscriptionCopy {
             return isEnglish ? "Start \(tierName) · \(price)/year" : "\(tierName)をはじめる · \(price)/年"
         case .lifetime:
             return isEnglish ? "Buy \(tierName) · \(price)" : "\(tierName)を買い切りで購入 · \(price)"
-        }
-    }
-}
-
-private struct SubscriptionMenuGlassModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect(.regular.tint(.white).interactive(), in: .circle)
-        } else {
-            content
-                .background(.white.opacity(0.9), in: Circle())
-                .overlay(Circle().strokeBorder(.quaternary, lineWidth: 0.5))
         }
     }
 }

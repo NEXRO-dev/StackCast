@@ -4,6 +4,10 @@
     {
       "path": "/api/internal/news/daily",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/casts/process",
+      "schedule": "* * * * *"
     }
   ]
 }

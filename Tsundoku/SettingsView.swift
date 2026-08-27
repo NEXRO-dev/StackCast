@@ -668,6 +668,10 @@ struct ProfileSettingsView: View {
     @State private var errorMessage: String?
 
     private var isEnglish: Bool { language == .english }
+    private var hasProfileChanges: Bool {
+        guard case .signedIn(let user) = authStore.status else { return false }
+        return displayName.trimmingCharacters(in: .whitespacesAndNewlines) != user.name
+    }
 
     var body: some View {
         ScrollView {
@@ -771,7 +775,8 @@ struct ProfileSettingsView: View {
                 Button(isEnglish ? "Save" : "保存") {
                     Task { await save() }
                 }
-                .disabled(displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
+                .opacity(hasProfileChanges ? 1 : 0.45)
+                .disabled(!hasProfileChanges || displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
             }
         }
         .onAppear {

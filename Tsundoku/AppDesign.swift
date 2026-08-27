@@ -126,7 +126,7 @@ struct AccountAvatarView: View {
     }
 }
 
-private final class ProfileImageCache: NSCache<NSString, UIImage> {
+final class ProfileImageCache: NSCache<NSString, UIImage> {
     static let shared = ProfileImageCache()
 
     func image(for url: URL) -> UIImage? {

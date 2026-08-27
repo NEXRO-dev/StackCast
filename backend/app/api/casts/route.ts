@@ -1,6 +1,6 @@
 import { bearerToken, hashSessionToken } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/response";
-import { createCast, listCasts, type CreateCastInput } from "@/lib/cast/pipeline";
+import { enqueueCast, listCasts, type CreateCastInput } from "@/lib/cast/pipeline";
 import { getTurso } from "@/lib/turso";
 import { randomUUID } from "node:crypto";
 
@@ -55,10 +55,9 @@ export async function POST(request: Request) {
   });
 
   try {
-    // Manual Cast generation is intentionally synchronous: a button press
-    // starts the generation pipeline immediately instead of waiting for a
-    // queue worker or a cron invocation.
-    const cast = await createCast(userID, { ...input, internalKind: undefined });
+    // Manual Cast generation is queued so Pro users can receive priority
+    // processing while keeping the same backend worker for every plan.
+    const cast = await enqueueCast(userID, { ...input, internalKind: undefined });
     console.info("[cast] request completed", { requestID, userID, castID: cast.id, status: cast.status });
     return Response.json({ cast }, { status: 200 });
   } catch (error) {

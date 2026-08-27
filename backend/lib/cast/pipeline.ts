@@ -456,6 +456,8 @@ export async function enqueueCast(userID: string, input: CreateCastInput): Promi
   const durationMinutes = input.durationMinutes ?? 10;
   const creditCost = Math.max(1, Math.ceil(durationMinutes / 5));
   const title = normalizeTitle(input.title, input.sources);
+  const planTier = await currentPlanTier(userID);
+  const priority = planTier === "pro" ? 10 : 0;
   const languageRow = (await database.get(
     "SELECT preferred_language AS preferredLanguage FROM users WHERE id = ? LIMIT 1",
     userID,
@@ -477,9 +479,9 @@ export async function enqueueCast(userID: string, input: CreateCastInput): Promi
     })),
     {
       sql: `INSERT INTO cast_generation_jobs
-        (id, cast_id, idempotency_key, status, attempt_count, queued_at)
-        VALUES (?, ?, ?, 'queued', 0, ?)`,
-      args: [jobID, castID, `cast:${userID}:${castID}`, now],
+        (id, cast_id, idempotency_key, status, priority, attempt_count, queued_at)
+        VALUES (?, ?, ?, 'queued', ?, 0, ?)`,
+      args: [jobID, castID, `cast:${userID}:${castID}`, priority, now],
     },
   ], "immediate");
 
@@ -494,7 +496,7 @@ export async function enqueueCast(userID: string, input: CreateCastInput): Promi
     throw error;
   }
 
-  logCastEvent("cast queued", { userID, castID, jobID, durationMinutes, creditCost });
+  logCastEvent("cast queued", { userID, castID, jobID, durationMinutes, creditCost, planTier, priority });
   return getCast(userID, castID);
 }
 
@@ -506,11 +508,11 @@ export async function processNextCastGenerationJob(): Promise<{ processed: boole
   const row = (await database.get(
     `SELECT j.id AS jobID, j.cast_id AS castID, c.user_id AS userID,
             c.title, c.duration_minutes AS durationMinutes, c.credit_cost AS creditCost,
-            c.language, j.status AS jobStatus, j.attempt_count AS attemptCount
+            c.language, j.status AS jobStatus, j.priority, j.attempt_count AS attemptCount
      FROM cast_generation_jobs j JOIN casts c ON c.id = j.cast_id
      WHERE j.status = 'queued'
         OR (j.status = 'processing' AND j.started_at IS NOT NULL AND j.started_at <= ?)
-     ORDER BY j.queued_at LIMIT 1`,
+     ORDER BY j.priority DESC, j.queued_at LIMIT 1`,
     staleBefore,
   )) as {
     jobID?: string;
@@ -521,6 +523,7 @@ export async function processNextCastGenerationJob(): Promise<{ processed: boole
     creditCost?: number;
     language?: CastLanguage;
     jobStatus?: string;
+    priority?: number;
     attemptCount?: number;
   } | null;
   if (!row?.jobID || !row.castID || !row.userID || !row.title || !row.durationMinutes || !row.creditCost) return { processed: false };

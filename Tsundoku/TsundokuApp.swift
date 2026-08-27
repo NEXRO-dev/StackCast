@@ -34,6 +34,20 @@ final class StackCastNotificationDelegate: NSObject, UNUserNotificationCenterDel
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if let deepLink = response.notification.request.content.userInfo["deepLink"] as? String,
+           let url = URL(string: deepLink) {
+            DispatchQueue.main.async {
+                UIApplication.shared.open(url)
+            }
+        }
+        completionHandler()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {

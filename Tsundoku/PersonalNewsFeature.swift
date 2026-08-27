@@ -1478,6 +1478,7 @@ struct PersonalizationSettingsView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var isShowingSubscription = false
+    @State private var isProfileLoaded = false
 
     private var isEnglish: Bool { language == .english }
     private let ageBands = ["unspecified", "under_18", "18_24", "25_34", "35_44", "45_54", "55_plus"]
@@ -1486,6 +1487,29 @@ struct PersonalizationSettingsView: View {
         GridItem(.flexible(), spacing: 10),
     ]
     private var selectedInterestCount: Int { selectedTopics.count + customInterests.count }
+    private var hasUnsavedChanges: Bool {
+        guard isProfileLoaded, let profile = store.profile else { return false }
+
+        let savedTopics = Set(profile.topics.map(\.id))
+        let savedCustomInterests = profile.customInterests ?? []
+        let savedAgeBand = profile.ageBand ?? "unspecified"
+        let savedGender = profile.gender ?? "unspecified"
+        let savedPersonalizationEnabled = profile.personalizationEnabled != 0
+        let savedAutoCastEnabled = profile.dailyAutoCastEnabled == 1
+        let savedDuration = subscriptionStore?.planTier == .free
+            ? 10
+            : (profile.dailyCastDurationMinutes ?? 5)
+        let savedAIConsent = profile.aiProcessingConsentAt != nil
+
+        return selectedTopics != savedTopics ||
+            customInterests != savedCustomInterests ||
+            ageBand != savedAgeBand ||
+            gender != savedGender ||
+            personalizationEnabled != savedPersonalizationEnabled ||
+            autoCastEnabled != savedAutoCastEnabled ||
+            durationMinutes != savedDuration ||
+            aiConsent != savedAIConsent
+    }
 
     var body: some View {
         Form {
@@ -1622,7 +1646,8 @@ struct PersonalizationSettingsView: View {
                                 .fontWeight(.semibold)
                         }
                     }
-                        .disabled(selectedInterestCount < 3 || isSaving || (autoCastEnabled && !aiConsent))
+                        .opacity(hasUnsavedChanges ? 1 : 0.45)
+                        .disabled(!hasUnsavedChanges || selectedInterestCount < 3 || isSaving || (autoCastEnabled && !aiConsent))
                 }
             }
             .task {
@@ -1637,6 +1662,7 @@ struct PersonalizationSettingsView: View {
                     ? 10
                     : (store.profile?.dailyCastDurationMinutes ?? 5)
                 aiConsent = aiConsent || store.profile?.aiProcessingConsentAt != nil
+                isProfileLoaded = true
             }
             .sheet(item: $presentedSheet) { _ in
                 AddCustomInterestSheet(
