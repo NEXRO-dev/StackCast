@@ -30,6 +30,66 @@ struct ContentView: View {
     @State private var tabAccountAvatar: UIImage?
 
     var body: some View {
+        rootContent
+            .environment(\.locale, Locale(identifier: currentLanguage == .english ? "en" : "ja"))
+            .preferredColorScheme(AppAppearance(rawValue: appAppearance)?.colorScheme)
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
+            .appErrorAlert(isPresented: $isDeepLinkErrorPresented, language: currentLanguage)
+            .fullScreenCover(isPresented: $isShowingSocialProfileSetup) {
+                SocialProfileSetupView(authStore: authStore, language: currentLanguage)
+            }
+            .sheet(isPresented: $isShowingSubscription) {
+                NavigationStack {
+                    SubscriptionManagementView(
+                        subscriptionStore: subscriptionStore,
+                        language: currentLanguage,
+                        initialTier: .plus
+                    )
+                }
+            }
+            .task {
+                await prepareForLaunch()
+            }
+            .task(id: signedInUserID) {
+                await loadSignedInData()
+            }
+            .task(id: signedInProfileImageURL) {
+                tabAccountAvatar = await loadCircularTabAvatar(from: signedInProfileImageURL)
+            }
+            .onChange(of: authStore.status) { _, status in
+                guard case .signedIn(let user) = status,
+                      user.preferredLanguage == AppLanguage.japanese.rawValue ||
+                        user.preferredLanguage == AppLanguage.english.rawValue else { return }
+                appLanguage = user.preferredLanguage
+            }
+            .onChange(of: appLanguage) { _, language in
+                guard case .signedIn(let user) = authStore.status,
+                      user.preferredLanguage != language else { return }
+                Task {
+                    try? await authStore.updatePreferredLanguage(language)
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                playbackStore.handleScenePhase(phase, subscriptionTier: subscriptionStore.planTier)
+                guard phase == .active, signedInUserID != nil else { return }
+                rescheduleUnplayedCastReminders()
+                Task {
+                    await subscriptionStore.refresh()
+                    await castStore.load(token: authStore.sessionToken())
+                }
+            }
+            .onChange(of: castStore.casts) { _, _ in
+                rescheduleUnplayedCastReminders()
+            }
+            .onChange(of: playbackStore.progressRevision) { _, _ in
+                rescheduleUnplayedCastReminders()
+            }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
         Group {
             if isShowingLaunchSplash {
                 LaunchSplashView()
@@ -42,92 +102,29 @@ struct ContentView: View {
                 registrationFlow
             }
         }
-        .environment(\.locale, Locale(identifier: currentLanguage == .english ? "en" : "ja"))
-        .preferredColorScheme(AppAppearance(rawValue: appAppearance)?.colorScheme)
-        .onOpenURL { url in
-            handleIncomingURL(url)
+    }
+
+    private func loadSignedInData() async {
+        if let signedInUserID {
+            castStore.clear()
+            await subscriptionStore.identify(userID: signedInUserID, sessionToken: authStore.sessionToken())
+            await castStore.load(token: authStore.sessionToken())
+            PushDeviceTokenRegistration.shared.registerIfPossible(sessionToken: authStore.sessionToken())
+            articleLibrary.setServerSyncToken(authStore.sessionToken())
+            await articleLibrary.syncIfNeeded(token: authStore.sessionToken(), userID: signedInUserID)
+        } else if case .signedOut = authStore.status {
+            await subscriptionStore.signOut()
+            castStore.clear()
+            articleLibrary.resetServerSync()
         }
-        .appErrorAlert(isPresented: $isDeepLinkErrorPresented, language: currentLanguage)
-        .fullScreenCover(isPresented: $isShowingSocialProfileSetup) {
-            SocialProfileSetupView(authStore: authStore, language: currentLanguage)
-        }
-        .sheet(isPresented: $isShowingSubscription) {
-            NavigationStack {
-                SubscriptionManagementView(
-                    subscriptionStore: subscriptionStore,
-                    language: currentLanguage,
-                    initialTier: .plus
-                )
-            }
-        }
-        .task {
-            await prepareForLaunch()
-        }
-        .task(id: signedInUserID) {
-            if let signedInUserID {
-                // Prevent the previous account's Cast list from being visible
-                // while the new account's server-backed list is loading.
-                castStore.clear()
-                await subscriptionStore.identify(
-                    userID: signedInUserID,
-                    sessionToken: authStore.sessionToken()
-                )
-                await castStore.load(token: authStore.sessionToken())
-                PushDeviceTokenRegistration.shared.registerIfPossible(sessionToken: authStore.sessionToken())
-                articleLibrary.setServerSyncToken(authStore.sessionToken())
-                await articleLibrary.syncIfNeeded(
-                    token: authStore.sessionToken(),
-                    userID: signedInUserID
-                )
-            } else if case .signedOut = authStore.status {
-                await subscriptionStore.signOut()
-                castStore.clear()
-                articleLibrary.resetServerSync()
-            }
-        }
-        .task(id: signedInProfileImageURL) {
-            tabAccountAvatar = await loadCircularTabAvatar(from: signedInProfileImageURL)
-        }
-        .onChange(of: authStore.status) { _, status in
-            guard case .signedIn(let user) = status,
-                  user.preferredLanguage == AppLanguage.japanese.rawValue ||
-                    user.preferredLanguage == AppLanguage.english.rawValue else { return }
-            appLanguage = user.preferredLanguage
-        }
-        .onChange(of: appLanguage) { _, language in
-            guard case .signedIn(let user) = authStore.status,
-                  user.preferredLanguage != language else { return }
-            Task {
-                try? await authStore.updatePreferredLanguage(language)
-            }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            playbackStore.handleScenePhase(phase, subscriptionTier: subscriptionStore.planTier)
-            guard phase == .active, signedInUserID != nil else { return }
-            UnplayedCastReminderScheduler.shared.reschedule(
-                casts: castStore.casts,
-                playbackStore: playbackStore,
-                language: currentLanguage
-            )
-            Task {
-                await subscriptionStore.refresh()
-                await castStore.load(token: authStore.sessionToken())
-            }
-        }
-        .onChange(of: castStore.casts) { _, casts in
-            UnplayedCastReminderScheduler.shared.reschedule(
-                casts: casts,
-                playbackStore: playbackStore,
-                language: currentLanguage
-            )
-        }
-        .onChange(of: playbackStore.progressRevision) { _, _ in
-            UnplayedCastReminderScheduler.shared.reschedule(
-                casts: castStore.casts,
-                playbackStore: playbackStore,
-                language: currentLanguage
-            )
-        }
+    }
+
+    private func rescheduleUnplayedCastReminders() {
+        UnplayedCastReminderScheduler.shared.reschedule(
+            casts: castStore.casts,
+            playbackStore: playbackStore,
+            language: currentLanguage
+        )
     }
 
     private var currentLanguage: AppLanguage {

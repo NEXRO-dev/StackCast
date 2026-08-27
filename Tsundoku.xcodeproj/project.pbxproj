@@ -48,6 +48,7 @@
 		B4000001302316AF001EA23E /* CastPlaybackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000004302316AF001EA23E /* CastPlaybackStore.swift */; };
 		B5000001302316AF001EA23E /* AIDataUseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5000004302316AF001EA23E /* AIDataUseView.swift */; };
 		B5000002302316AF001EA23E /* NetworkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5000005302316AF001EA23E /* NetworkStatus.swift */; };
+		E1000001302716AF001EA23E /* UnplayedCastReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000302716AF001EA23E /* UnplayedCastReminderScheduler.swift */; };
 		B6000001302316AF001EA23E /* SupportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6000000302316AF001EA23E /* SupportView.swift */; };
 		C1000001302316AF001EA23E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000302316AF001EA23E /* LoginView.swift */; };
 		D1000001302616AF001EA23E /* OfflineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000302616AF001EA23E /* OfflineView.swift */; };
@@ -146,6 +147,7 @@
 		B4000004302316AF001EA23E /* CastPlaybackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastPlaybackStore.swift; sourceTree = "<group>"; };
 		B5000004302316AF001EA23E /* AIDataUseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDataUseView.swift; sourceTree = "<group>"; };
 		B5000005302316AF001EA23E /* NetworkStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatus.swift; sourceTree = "<group>"; };
+		E1000000302716AF001EA23E /* UnplayedCastReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnplayedCastReminderScheduler.swift; sourceTree = "<group>"; };
 		B6000000302316AF001EA23E /* SupportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportView.swift; sourceTree = "<group>"; };
 		C1000000302316AF001EA23E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		D1000000302616AF001EA23E /* OfflineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineView.swift; sourceTree = "<group>"; };
@@ -257,6 +259,7 @@
 				B4000004302316AF001EA23E /* CastPlaybackStore.swift */,
 				B5000004302316AF001EA23E /* AIDataUseView.swift */,
 				B5000005302316AF001EA23E /* NetworkStatus.swift */,
+				E1000000302716AF001EA23E /* UnplayedCastReminderScheduler.swift */,
 				B6000000302316AF001EA23E /* SupportView.swift */,
 				AA00000A302316AF001EA23E /* SignupView.swift */,
 				C1000000302316AF001EA23E /* LoginView.swift */,
@@ -538,6 +541,7 @@
 				B4000001302316AF001EA23E /* CastPlaybackStore.swift in Sources */,
 				B5000001302316AF001EA23E /* AIDataUseView.swift in Sources */,
 				B5000002302316AF001EA23E /* NetworkStatus.swift in Sources */,
+				E1000001302716AF001EA23E /* UnplayedCastReminderScheduler.swift in Sources */,
 				B6000001302316AF001EA23E /* SupportView.swift in Sources */,
 				AA000019302316AF001EA23E /* OnboardingView.swift in Sources */,
 				AA00001A302316AF001EA23E /* SignupView.swift in Sources */,
