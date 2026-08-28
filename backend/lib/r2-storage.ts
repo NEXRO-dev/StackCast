@@ -61,6 +61,42 @@ export async function deleteUserAudioObjects(userID: string): Promise<number> {
   return objects.length;
 }
 
+/** Delete a bounded set of objects. DeleteObject/DeleteObjects are free in R2. */
+export async function deleteR2Objects(keys: string[]): Promise<number> {
+  const objects = keys.filter(Boolean).map((Key) => ({ Key }));
+  const bucket = requiredEnvironmentVariable("R2_BUCKET_NAME");
+
+  for (let index = 0; index < objects.length; index += 1_000) {
+    await getClient().send(new DeleteObjectsCommand({
+      Bucket: bucket,
+      Delete: { Objects: objects.slice(index, index + 1_000), Quiet: true },
+    }));
+  }
+
+  return objects.length;
+}
+
+/** Return object keys below a prefix for reconciliation jobs. */
+export async function listR2ObjectKeys(prefix: string): Promise<string[]> {
+  const bucket = requiredEnvironmentVariable("R2_BUCKET_NAME");
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const result = await getClient().send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+    for (const object of result.Contents ?? []) {
+      if (object.Key) keys.push(object.Key);
+    }
+    continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return keys;
+}
+
 export async function storeUserProfileImage(
   userID: string,
   body: Uint8Array,

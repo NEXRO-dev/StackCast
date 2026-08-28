@@ -28,6 +28,7 @@ let castPlaybackRateKey = "castPlaybackRate"
 
 private enum CastPlaybackProgressStorage {
     private static let key = "castPlaybackProgress"
+    private static let activityDatesKey = "castPlaybackActivityDates"
 
     static func load() -> [String: Double] {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -40,6 +41,14 @@ private enum CastPlaybackProgressStorage {
     static func save(_ progress: [String: Double]) {
         guard let data = try? JSONEncoder().encode(progress) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func loadActivityDates() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: activityDatesKey) ?? [])
+    }
+
+    static func saveActivityDates(_ dates: Set<String>) {
+        UserDefaults.standard.set(Array(dates).sorted(), forKey: activityDatesKey)
     }
 }
 
@@ -57,6 +66,7 @@ final class CastPlaybackStore {
     private(set) var durationTime = "0:00"
     private(set) var playbackRate: Double
     private(set) var progressRevision = 0
+    private(set) var playbackActivityDates: Set<String>
 
     private var player: AVPlayer?
     private var timeObserver: Any?
@@ -71,6 +81,7 @@ final class CastPlaybackStore {
     init() {
         playbackRate = UserDefaults.standard.object(forKey: castPlaybackRateKey) as? Double ?? 1.0
         savedProgress = CastPlaybackProgressStorage.load()
+        playbackActivityDates = CastPlaybackProgressStorage.loadActivityDates()
         lastCommandID = UserDefaults(suiteName: PlaybackCommandBridge.suiteName)?
             .string(forKey: PlaybackCommandBridge.commandIDKey)
         commandPollTask = Task { @MainActor [weak self] in
@@ -304,6 +315,7 @@ final class CastPlaybackStore {
 
     private func persistProgressIfNeeded(currentSeconds: Double, force: Bool) {
         guard let castID = currentCast?.id else { return }
+        recordPlaybackActivityIfNeeded(currentSeconds: currentSeconds)
         guard force
             || (currentSeconds >= 1
                 && (lastPersistedPlaybackSecond < 0 || currentSeconds - lastPersistedPlaybackSecond >= 5))
@@ -315,6 +327,19 @@ final class CastPlaybackStore {
         lastPersistedPlaybackSecond = currentSeconds
         progressRevision += 1
         CastPlaybackProgressStorage.save(savedProgress)
+    }
+
+    private func recordPlaybackActivityIfNeeded(currentSeconds: Double) {
+        guard currentSeconds >= 1 else { return }
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = Calendar.current.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        let date = formatter.string(from: .now)
+        guard playbackActivityDates.insert(date).inserted else { return }
+        CastPlaybackProgressStorage.saveActivityDates(playbackActivityDates)
+        progressRevision += 1
     }
 
     private func persistCurrentProgress(force: Bool) {

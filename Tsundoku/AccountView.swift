@@ -111,6 +111,14 @@ struct AccountView: View {
                 await recommendationStore.load(token: authStore.sessionToken())
                 await recommendationStore.loadContributionActivity(token: authStore.sessionToken())
             }
+            .onChange(of: castStore.casts.map(\.id)) { _, _ in
+                // A Cast can be created from the Stock or Podcast tab while
+                // this tab remains mounted, so the initial task is not enough
+                // to keep the contribution graph current.
+                Task {
+                    await recommendationStore.loadContributionActivity(token: authStore.sessionToken())
+                }
+            }
             .refreshable {
                 await recommendationStore.reload(token: authStore.sessionToken())
                 await recommendationStore.loadContributionActivity(token: authStore.sessionToken())
@@ -424,6 +432,7 @@ struct AccountView: View {
         let startDay = calendar.startOfDay(for: start)
         let today = calendar.startOfDay(for: .now)
         let counts = Dictionary(uniqueKeysWithValues: (recommendationStore.contributionActivity?.days ?? []).map { ($0.date, $0.count) })
+        let playbackDates = playbackStore.playbackActivityDates
         var weeks: [[ContributionCell]] = []
         var monthLabels: [ContributionMonthLabel] = []
 
@@ -453,6 +462,8 @@ struct AccountView: View {
                         ? .orange
                         : isBeforeRegistration || isFuture
                         ? Color.secondary.opacity(0.10)
+                        : count == 0 && playbackDates.contains(dateKey)
+                        ? .indigo.opacity(0.18)
                         : contributionColor(count)
                     column.append(ContributionCell(color: color))
                 }

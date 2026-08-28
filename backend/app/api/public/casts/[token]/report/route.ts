@@ -14,7 +14,7 @@ export async function POST(
     `SELECT casts.id AS castID
      FROM cast_shares
      INNER JOIN casts ON casts.id = cast_shares.cast_id
-     WHERE cast_shares.token = ? AND casts.status = 'completed'
+     WHERE cast_shares.token = ? AND casts.status = 'completed' AND casts.deleted_at IS NULL
      LIMIT 1`,
     token,
   )) as { castID?: string } | null;
@@ -64,4 +64,3 @@ export async function POST(
 
   return Response.json({ reported: true });
 }
-

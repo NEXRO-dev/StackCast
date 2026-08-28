@@ -24,7 +24,7 @@ export async function createOrGetCastShare(
   const cast = (await database.get(
     `SELECT id
      FROM casts
-     WHERE id = ? AND user_id = ? AND status = 'completed'
+     WHERE id = ? AND user_id = ? AND status = 'completed' AND deleted_at IS NULL
        AND audio_object_key IS NOT NULL
      LIMIT 1`,
     castID,
@@ -62,7 +62,7 @@ export async function revokeCastShare(userID: string, castID: string): Promise<v
   const result = await getTurso().run(
     `DELETE FROM cast_shares
      WHERE cast_id = ?
-       AND EXISTS (SELECT 1 FROM casts WHERE id = ? AND user_id = ?)`,
+       AND EXISTS (SELECT 1 FROM casts WHERE id = ? AND user_id = ? AND deleted_at IS NULL)`,
     castID,
     castID,
     userID,
@@ -108,6 +108,7 @@ export async function getPublicCastByToken(token: string): Promise<PublicCast | 
      INNER JOIN casts ON casts.id = cast_shares.cast_id
      WHERE cast_shares.token = ?
        AND casts.status = 'completed'
+       AND casts.deleted_at IS NULL
        AND casts.audio_object_key IS NOT NULL
      LIMIT 1`,
     token,

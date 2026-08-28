@@ -757,7 +757,7 @@ export async function listCasts(userID: string): Promise<CastRecord[]> {
             cast_shares.token AS shareToken
      FROM casts
      LEFT JOIN cast_shares ON cast_shares.cast_id = casts.id
-     WHERE casts.user_id = ?
+     WHERE casts.user_id = ? AND casts.deleted_at IS NULL
      ORDER BY casts.created_at DESC
      LIMIT 100`,
     userID,
@@ -777,7 +777,7 @@ export async function getCast(userID: string, castID: string): Promise<CastRecor
             cast_shares.token AS shareToken
      FROM casts
      LEFT JOIN cast_shares ON cast_shares.cast_id = casts.id
-     WHERE casts.id = ? AND casts.user_id = ?
+     WHERE casts.id = ? AND casts.user_id = ? AND casts.deleted_at IS NULL
      LIMIT 1`,
     castID,
     userID,
