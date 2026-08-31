@@ -23,7 +23,7 @@ enum AppErrorMessage {
         case "moderation_unavailable":
             return language == .english ? "Content safety screening is temporarily unavailable. Please try again later." : "コンテンツの安全確認が一時的に利用できません。時間をおいて再試行してください。"
         case "insufficient_credits":
-            return language == .english ? "You do not have enough Cast credits for this request." : "このCastを作成するためのクレジットが不足しています。"
+            return language == .english ? "You do not have enough Cast credits for this request. Please review the subscription plans." : "このCastを作成するためのクレジットが足りません。サブスクリプションをご確認ください。"
         case "invalid_sources":
             return language == .english ? "Select the required number of articles before creating a Cast." : "必要な件数の記事を選択してからCastを作成してください。"
         case "ai_generation_failed":

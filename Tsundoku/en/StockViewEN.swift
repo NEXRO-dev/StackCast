@@ -15,6 +15,7 @@ struct StockViewEN: View {
     @State private var selectedArticleIDs: Set<UUID> = []
     @State private var isShowingCastCreated = false
     @State private var isShowingCastError = false
+    @State private var isShowingSubscription = false
     @State private var browserDestination: InAppBrowserDestination?
     @State private var isAddingURL = false
     @State private var isShowingAIConsent = false
@@ -117,6 +118,11 @@ struct StockViewEN: View {
                 isPresented: $isShowingCastError,
                 titleVisibility: .visible
             ) {
+                if castStore.errorCode == "insufficient_credits" {
+                    Button("View subscription plans") {
+                        isShowingSubscription = true
+                    }
+                }
                 if canRetryCast {
                     Button("Retry") {
                         createCast()
@@ -144,6 +150,13 @@ struct StockViewEN: View {
             }
             .sheet(isPresented: $isAddingURL) {
                 AddArticleSheetEN(articleLibrary: articleLibrary, subscriptionStore: subscriptionStore)
+            }
+            .sheet(isPresented: $isShowingSubscription) {
+                SubscriptionManagementView(
+                    subscriptionStore: subscriptionStore,
+                    language: .english,
+                    initialTier: .plus
+                )
             }
             .sheet(isPresented: $isShowingAIConsent) {
                 AIDataConsentSheet(language: .english)
