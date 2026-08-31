@@ -15,11 +15,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "StackCast — 読みたいニュースを、耳で聴ける時間に。",
   description: "あなた向けのニュースを見つけ、気になる記事を保存。AIが要約した音声Castで、移動中も家事の途中もニュースを耳で楽しめます。",
-  icons: {
-    icon: "/marketing/app-icon.png",
-    shortcut: "/marketing/app-icon.png",
-    apple: "/marketing/app-icon.png",
-  },
   openGraph: {
     title: "StackCast — 読みたいニュースを、耳で聴ける時間に。",
     description: "ニュースを見つけ、保存し、AI音声Castで聴けるアプリ。",

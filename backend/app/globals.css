@@ -1065,8 +1065,8 @@ a:focus-visible {
   .feature-card:not(.feature-card-large) .feature-copy { width: 100%; padding: 34px 28px; }
   .feature-copy h3 { font-size: 2.2rem; }
   .feature-media-news { min-height: 430px; }
-  .feature-phone-news { right: 4%; bottom: -265px; width: 61%; }
-  .feature-illustration { left: 4%; bottom: 4%; width: 28%; opacity: 0.78; }
+  .feature-phone-news { right: 2%; bottom: -265px; width: 52%; }
+  .feature-illustration { left: 3%; bottom: 4%; width: 40%; opacity: 0.82; }
   .feature-phone-stock { right: -8%; bottom: -260px; width: 76%; }
   .cast-illustration { right: -18%; bottom: -2%; width: 390px; }
   .flow-section { padding: 96px 0; }
